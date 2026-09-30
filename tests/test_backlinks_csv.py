@@ -88,3 +88,104 @@ def test_read_xlsx(tmp_path):
     pd.DataFrame({"Referring page URL": ["https://a.de"], "Target URL": ["https://b.de/x"]}).to_excel(p, index=False)
     df = read_table(p)
     assert list(df.columns) == ["Referring page URL", "Target URL"]
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [("1,200", 1200.0), ("1.200,5", 1200.5), ("1,200.5", 1200.5), ("72.5", 72.5),
+     ("1,5", 1.5), ("1 200", 1200.0), ("72", 72.0), ("abc", None), ("", None)],
+)
+def test_number_parsing_is_locale_aware(value, expected):
+    from blm.ingest.backlinks_csv import _to_float
+
+    assert _to_float(value) == expected
+
+
+def test_thousands_separator_in_int_column():
+    from blm.ingest.backlinks_csv import _to_int
+
+    assert _to_int("1,200") == 1200
+    assert _to_int("1.200,5") == 1200
+
+
+@pytest.mark.parametrize("value", ["nan", "NaN", "inf", "-inf", "Infinity"])
+def test_non_finite_numbers_become_none(value):
+    from blm.ingest.backlinks_csv import _to_float, _to_int
+
+    assert _to_float(value) is None
+    assert _to_int(value) is None
+
+
+def test_row_with_non_finite_cell_still_imports(tmp_path):
+    p = tmp_path / "x.csv"
+    p.write_text("url_from,url_to,traffic,domain_rating_source\nhttps://a.de,https://b.de,nan,inf\n", encoding="utf-8")
+    df = read_table(p)
+    rows = parse_backlinks(df, detect_columns(df).mapping)
+    assert len(rows) == 1
+    assert rows[0].page_traffic is None
+    assert rows[0].domain_rating is None
+
+
+@pytest.mark.parametrize("value,expected", [(1.0, True), (0.0, False), (1, True), (0, False), (2.0, None), (0.5, None),
+                                            (float("inf"), None), ("1.0", True), ("0.0", False)])
+def test_parse_bool_numeric_values(value, expected):
+    assert parse_bool(value) is expected
+
+
+def test_xlsx_numeric_nofollow_flags(tmp_path):
+    import pandas as pd
+
+    p = tmp_path / "flags.xlsx"
+    pd.DataFrame(
+        {
+            "Referring page URL": ["https://a.de", "https://c.de"],
+            "Target URL": ["https://b.de/x", "https://b.de/y"],
+            "Nofollow": [1.0, None],
+        }
+    ).to_excel(p, index=False)
+    df = read_table(p)
+    rows = parse_backlinks(df, detect_columns(df).mapping)
+    assert rows[0].is_dofollow is False
+    assert rows[1].is_dofollow is None
+
+
+def test_read_utf16_tab_separated_ahrefs_export(tmp_path):
+    content = (FIX / "ahrefs_ui_export.csv").read_text(encoding="utf-8").replace(",", "\t")
+    p = tmp_path / "ahrefs.csv"
+    p.write_bytes(content.encode("utf-16"))
+    df = read_table(p)
+    cm = detect_columns(df)
+    assert cm.missing == []
+    rows = parse_backlinks(df, cm.mapping)
+    assert len(rows) == 2
+    assert rows[0].anchor == "Ratgeber zu Stahlküchen"
+
+
+def test_read_cp1252_file(tmp_path):
+    p = tmp_path / "latin.csv"
+    p.write_bytes("url_from;url_to;anchor\nhttps://a.de;https://b.de;Küche\n".encode("cp1252"))
+    df = read_table(p)
+    assert df["anchor"][0] == "Küche"
+
+
+def test_single_column_file_is_not_split_on_underscore(tmp_path):
+    p = tmp_path / "single.csv"
+    p.write_text("url_from\nhttps://a.de\nhttps://b.de\n", encoding="utf-8")
+    df = read_table(p)
+    assert list(df.columns) == ["url_from"]
+    assert len(df) == 2
+
+
+def test_empty_file_raises_german_value_error(tmp_path):
+    p = tmp_path / "empty.csv"
+    p.write_bytes(b"")
+    with pytest.raises(ValueError, match="Datei konnte nicht gelesen werden"):
+        read_table(p)
+
+
+def test_read_table_accepts_binary_stream():
+    import io
+
+    stream = io.BytesIO("url_from,url_to\nhttps://a.de,https://b.de\n".encode("utf-8"))
+    df = read_table(stream, filename="upload.csv")
+    assert list(df.columns) == ["url_from", "url_to"]

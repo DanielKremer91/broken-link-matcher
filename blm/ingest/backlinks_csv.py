@@ -6,9 +6,12 @@ Column detection is alias based. Extend FIELD_ALIASES to support more tools.
 
 from __future__ import annotations
 
+import csv
+import io
 import math
+import numbers
+import re
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 
 import pandas as pd
@@ -47,8 +50,8 @@ FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "http_code_target": ("http_code_target", "target url http code", "target http code", "http code target", "target status"),
 }
 
-_TRUE = {"true", "1", "yes", "ja", "y", "dofollow", "follow", "x", "wahr"}
-_FALSE = {"false", "0", "no", "nein", "n", "nofollow", "falsch"}
+_TRUE = {"true", "1", "1.0", "yes", "ja", "y", "dofollow", "follow", "x", "wahr"}
+_FALSE = {"false", "0", "0.0", "no", "nein", "n", "nofollow", "falsch"}
 
 
 @dataclass
@@ -58,12 +61,58 @@ class ColumnMapping:
     columns: list[str]
 
 
+_ENCODINGS = ("utf-8-sig", "utf-16", "cp1252")
+_SNIFF_BYTES = 64 * 1024
+
+
+def _decode(data: bytes) -> str:
+    for encoding in _ENCODINGS:
+        # Without a BOM the utf-16 codec "succeeds" on almost any even-length input, so
+        # only try it when a BOM is present.
+        if encoding == "utf-16" and not data.startswith((b"\xff\xfe", b"\xfe\xff")):
+            continue
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise ValueError("Datei konnte nicht gelesen werden: Zeichenkodierung nicht erkannt")
+
+
+def _sniff_delimiter(text: str) -> str:
+    try:
+        return csv.Sniffer().sniff(text[:_SNIFF_BYTES], delimiters=",;\t|").delimiter
+    except csv.Error:
+        return ","
+
+
 def read_table(source, filename: Optional[str] = None) -> pd.DataFrame:
-    """Read CSV or XLSX. `filename` is used for type detection when `source` is a stream."""
+    """Read CSV or XLSX. `filename` is used for type detection when `source` is a stream.
+
+    Raises ValueError with a German message if the file cannot be read.
+    """
     name = (filename or getattr(source, "name", None) or str(source)).lower()
-    if name.endswith((".xlsx", ".xlsm", ".xls")):
-        return pd.read_excel(source)
-    return pd.read_csv(source, sep=None, engine="python", encoding="utf-8-sig", dtype=str, keep_default_na=False)
+    try:
+        if name.endswith((".xlsx", ".xlsm", ".xls")):
+            return pd.read_excel(source)
+        if hasattr(source, "read"):
+            data = source.read()
+        else:
+            with open(source, "rb") as fh:
+                data = fh.read()
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        if not data.strip():
+            raise ValueError("Datei ist leer")
+        text = _decode(data)
+        return pd.read_csv(
+            io.StringIO(text), sep=_sniff_delimiter(text), dtype=str, keep_default_na=False
+        )
+    except ValueError as exc:
+        if str(exc).startswith("Datei konnte nicht gelesen werden"):
+            raise
+        raise ValueError(f"Datei konnte nicht gelesen werden: {exc}") from exc
+    except (OSError, csv.Error, pd.errors.ParserError) as exc:
+        raise ValueError(f"Datei konnte nicht gelesen werden: {exc}") from exc
 
 
 def detect_columns(df: pd.DataFrame) -> ColumnMapping:
@@ -91,6 +140,11 @@ def parse_bool(value) -> Optional[bool]:
         return None
     if isinstance(value, bool):
         return value
+    if isinstance(value, numbers.Real):
+        # XLSX numeric flags arrive as 1.0 / 0.0
+        if math.isfinite(value) and value == int(value) and int(value) in (0, 1):
+            return bool(int(value))
+        return None
     text = str(value).strip().lower()
     if text in _TRUE:
         return True
@@ -99,13 +153,29 @@ def parse_bool(value) -> Optional[bool]:
     return None
 
 
+_THOUSANDS_COMMA = re.compile(r"^[+-]?\d{1,3}(,\d{3})+$")
+
+
+def _normalise_number(text: str) -> str:
+    """Locale-aware number normalisation: '1.200,5' / '1,200.5' / '1,200' / '1,5' / '72.5'."""
+    text = re.sub(r"\s+", "", text)
+    if "." in text and "," in text:
+        decimal = "." if text.rfind(".") > text.rfind(",") else ","
+        thousands = "," if decimal == "." else "."
+        return text.replace(thousands, "").replace(decimal, ".")
+    if "," in text:
+        return text.replace(",", "") if _THOUSANDS_COMMA.match(text) else text.replace(",", ".")
+    return text
+
+
 def _to_float(value) -> Optional[float]:
     if _is_blank(value):
         return None
     try:
-        return float(str(value).replace(",", "."))
-    except ValueError:
+        result = float(_normalise_number(str(value)))
+    except (ValueError, OverflowError):
         return None
+    return result if math.isfinite(result) else None
 
 
 def _to_int(value) -> Optional[int]:
