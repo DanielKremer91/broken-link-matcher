@@ -35,13 +35,15 @@ def test_openai_embeds_in_order_and_sends_auth():
 
 
 @respx.mock
-def test_gemini_embeds_and_uses_key_param():
+def test_gemini_embeds_and_sends_key_as_header():
     route = respx.post(GEMINI_URL).mock(return_value=httpx.Response(200, json={
         "embeddings": [{"values": [0.1, 0.2, 0.3]}]}))
     p = make_provider("gemini", "gemini-embedding-001", api_key="g-test")
     vecs = p.embed(["hallo"])
     assert vecs[0].shape == (3,)
-    assert route.calls.last.request.url.params["key"] == "g-test"
+    req = route.calls.last.request
+    assert req.headers["x-goog-api-key"] == "g-test"
+    assert "key" not in req.url.params
 
 
 @respx.mock

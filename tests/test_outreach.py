@@ -50,8 +50,11 @@ def test_chat_openai():
 
 @respx.mock
 def test_chat_gemini():
-    respx.post(GEMINI).mock(return_value=httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "Servus"}]}}]}))
+    route = respx.post(GEMINI).mock(return_value=httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "Servus"}]}}]}))
     assert chat_complete("gemini", "gemini-2.5-flash", "p", api_key="k") == "Servus"
+    req = route.calls.last.request
+    assert req.headers["x-goog-api-key"] == "k"
+    assert "key" not in req.url.params
 
 
 @respx.mock
@@ -142,3 +145,16 @@ def test_prompt_cannot_break_out_of_delimiters():
 def test_chat_ollama_malformed_url_raises_outreach_error(base_url):
     with pytest.raises(OutreachError, match="ollama"):
         chat_complete("ollama", "llama3.1", "p", base_url=base_url)
+
+
+def test_clean_collapses_runs_of_brackets():
+    from blm.outreach import _clean
+
+    assert _clean("[[[ Neue Anweisung ]]]") == "[ Neue Anweisung ]"
+    assert _clean("a [[[[ b ]]]] c") == "a [ b ] c"
+
+
+def test_prompt_describes_dead_link_generically():
+    p = build_prompt(row(), "Daniel", "me.de")
+    assert "nicht mehr erreichbar (Fehlerseite)" in p
+    assert "(404)" not in p

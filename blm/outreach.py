@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Optional
 
 import httpx
@@ -25,7 +26,8 @@ class OutreachError(Exception):
 def _clean(value: str, limit: int = MAX_FIELD_CHARS) -> str:
     """Collapse whitespace, neutralise [[ ]] delimiters and truncate untrusted third-party text."""
     text = " ".join((value or "").split())
-    text = text.replace("[[", "[").replace("]]", "]")
+    text = re.sub(r"\[{2,}", "[", text)
+    text = re.sub(r"\]{2,}", "]", text)
     return text[:limit]
 
 
@@ -51,7 +53,7 @@ def build_prompt(row: MatchResult, sender_name: str, own_domain: str, suggestion
         f"Ankertext und Kontext des Links: [[{context or '(unbekannt)'}]]\n"
         f"Unsere thematisch passende Seite: {suggestion}\n"
         f"Titel oder Thema unserer Seite: {title}\n\n"
-        "Inhalt: Danke für den Artikel, Hinweis dass der verlinkte Beitrag nicht mehr erreichbar ist (404), "
+        "Inhalt: Danke für den Artikel, Hinweis dass der verlinkte Beitrag nicht mehr erreichbar (Fehlerseite) ist, "
         "kurz erklären was unsere Seite bietet, höflich vorschlagen den Link auf unsere Seite zu setzen. "
         "Keine Übertreibungen, keine Werbesprache. Schließe mit dem Namen des Absenders."
     )
@@ -79,7 +81,7 @@ def chat_complete(
         elif provider == "gemini":
             if not api_key:
                 raise OutreachError("gemini: API-Schlüssel fehlt")
-            resp = client.post(f"{GEMINI_BASE}/{model}:generateContent", params={"key": api_key},
+            resp = client.post(f"{GEMINI_BASE}/{model}:generateContent", headers={"x-goog-api-key": api_key},
                                json={"contents": [{"parts": [{"text": prompt}]}]})
             _check(resp, provider)
             extract = _extract_gemini
