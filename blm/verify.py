@@ -34,14 +34,14 @@ def canonical(url: str) -> str:
     return f"{host}{path}{query}"
 
 
-def _request_kwargs(timeout: float) -> dict:
-    return {"timeout": timeout, "follow_redirects": True, "headers": {"User-Agent": USER_AGENT}}
+def _request_kwargs(timeout: float, agent: str = USER_AGENT) -> dict:
+    return {"timeout": timeout, "follow_redirects": True, "headers": {"User-Agent": agent}}
 
 
-def target_status(url: str, client: httpx.Client, timeout: float = 10.0) -> Optional[int]:
+def target_status(url: str, client: httpx.Client, timeout: float = 10.0, agent: str = USER_AGENT) -> Optional[int]:
     """Final HTTP status of the target (headers only, body is never read); None on network error."""
     try:
-        with client.stream("GET", url, **_request_kwargs(timeout)) as response:
+        with client.stream("GET", url, **_request_kwargs(timeout, agent)) as response:
             return response.status_code
     except REQUEST_ERRORS:
         return None
@@ -61,9 +61,9 @@ def _page_links_to(html: bytes | str, page_url: str, target: str) -> bool:
     return False
 
 
-def _fetch_html(url: str, client: httpx.Client, timeout: float) -> Optional[tuple[bytes, str]]:
+def _fetch_html(url: str, client: httpx.Client, timeout: float, agent: str = USER_AGENT) -> Optional[tuple[bytes, str]]:
     """Return (first MAX_HTML_BYTES of the body, final URL) or None if not a usable HTML page."""
-    with client.stream("GET", url, **_request_kwargs(timeout)) as response:
+    with client.stream("GET", url, **_request_kwargs(timeout, agent)) as response:
         if response.status_code >= 400:
             return None
         if "html" not in response.headers.get("content-type", "").lower():
@@ -81,11 +81,13 @@ def verify_backlink(
     client: httpx.Client,
     timeout: float = 10.0,
     status_cache: Optional[dict] = None,
+    user_agent: Optional[str] = None,
 ) -> str:
+    agent = user_agent or USER_AGENT
     if status_cache is not None and bl.url_to in status_cache:
         status = status_cache[bl.url_to]
     else:
-        status = target_status(bl.url_to, client, timeout)
+        status = target_status(bl.url_to, client, timeout, agent)
         if status_cache is not None:
             status_cache[bl.url_to] = status
     if status is None:
@@ -93,7 +95,7 @@ def verify_backlink(
     if status not in DEAD_CODES:
         return "fixed" if status < 400 else "unknown"
     try:
-        page = _fetch_html(bl.url_from, client, timeout)
+        page = _fetch_html(bl.url_from, client, timeout, agent)
         if page is None:
             return "unknown"
         body, final_url = page
@@ -109,6 +111,7 @@ def verify_results(
     sleeper: Callable[[float], None] = time.sleep,
     pause: float = 0.5,
     progress: Optional[Callable[[int, int], None]] = None,
+    user_agent: Optional[str] = None,
 ) -> None:
     last_host = None
     status_cache: dict = {}
@@ -120,7 +123,7 @@ def verify_results(
         if last_host is not None and host != last_host:
             sleeper(pause)
         try:
-            row.verification = verify_backlink(row.backlink, client, status_cache=status_cache)
+            row.verification = verify_backlink(row.backlink, client, status_cache=status_cache, user_agent=user_agent)
         except Exception:  # last resort: one odd row must not abort the whole run
             row.verification = "unknown"
         last_host = host

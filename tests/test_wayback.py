@@ -8,7 +8,9 @@ import respx
 from blm.cache import JsonCache
 from blm.models import BrokenBacklink
 from blm.wayback import (
+    CACHE_MAX_CHARS,
     CDX_URL,
+    USER_AGENT,
     WaybackError,
     extract_text,
     fallback_text,
@@ -16,6 +18,7 @@ from blm.wayback import (
     recover_content,
     slug_words,
     snapshot_url,
+    user_agent,
 )
 
 FIX = Path(__file__).parent / "fixtures"
@@ -176,3 +179,101 @@ def test_recover_content_falls_back_on_non_transport_request_error():
         rc = recover_content(bl(anchor="x"), client, None, sleeper=no_sleep)
     assert rc.source == "fallback"
     assert "Wayback" in rc.error
+
+
+def cached_entry(text):
+    return {"url_to": DEAD, "text": text, "source": "wayback", "snapshot_timestamp": "20240315120000", "error": None}
+
+
+@respx.mock
+def test_cache_hit_is_cut_to_max_chars(tmp_path):
+    cache = JsonCache(tmp_path)
+    cache.set("wayback", DEAD, cached_entry("x" * 1000))
+    with httpx.Client() as client:
+        rc = recover_content(bl(), client, cache, max_chars=100, sleeper=no_sleep)
+    assert rc.source == "wayback" and rc.text == "x" * 100
+
+
+@respx.mock
+def test_fetch_caches_up_to_cache_max_chars_not_max_chars(tmp_path):
+    respx.get(CDX_URL).mock(return_value=httpx.Response(200, json=CDX_HIT))
+    respx.get(snapshot_url("20240315120000", DEAD)).mock(return_value=httpx.Response(200, text=HTML))
+    cache = JsonCache(tmp_path)
+    with httpx.Client() as client:
+        short = recover_content(bl(), client, cache, max_chars=40, sleeper=no_sleep)
+        longer = recover_content(bl(), client, cache, max_chars=CACHE_MAX_CHARS, sleeper=no_sleep)
+    assert len(short.text) == 40
+    assert len(longer.text) > 40 and longer.text.startswith(short.text)
+    assert len(cache.get("wayback", DEAD)["text"]) <= CACHE_MAX_CHARS
+
+
+@pytest.mark.parametrize("entry", [{"foo": 1}, {"url_to": DEAD}, {**cached_entry("t"), "extra": 1}, cached_entry(5)])
+@respx.mock
+def test_malformed_cache_entry_is_refetched(tmp_path, entry):
+    cdx = respx.get(CDX_URL).mock(return_value=httpx.Response(200, json=CDX_HIT))
+    respx.get(snapshot_url("20240315120000", DEAD)).mock(return_value=httpx.Response(200, text=HTML))
+    cache = JsonCache(tmp_path)
+    cache.set("wayback", DEAD, entry)
+    with httpx.Client() as client:
+        rc = recover_content(bl(), client, cache, sleeper=no_sleep)
+    assert cdx.call_count == 1
+    assert rc.source == "wayback" and "Edelstahl" in rc.text
+
+
+def test_user_agent_default_unchanged_and_contact_appended():
+    assert user_agent() == USER_AGENT == user_agent(None) == user_agent("  ")
+    ua = user_agent("seo@me.de")
+    assert ua.startswith("broken-link-matcher/0.1 (") and "seo@me.de" in ua
+
+
+def test_user_agent_strips_control_and_non_ascii_characters():
+    ua = user_agent("a@b.de\r\nX-Evil: 1 müller")
+    assert "\r" not in ua and "\n" not in ua
+    ua.encode("ascii")
+
+
+@respx.mock
+def test_recover_content_sends_contact_user_agent():
+    cdx = respx.get(CDX_URL).mock(return_value=httpx.Response(200, json=CDX_HIT))
+    page = respx.get(snapshot_url("20240315120000", DEAD)).mock(return_value=httpx.Response(200, text=HTML))
+    with httpx.Client() as client:
+        recover_content(bl(), client, None, sleeper=no_sleep, user_agent=user_agent("seo@me.de"))
+    assert "seo@me.de" in cdx.calls.last.request.headers["User-Agent"]
+    assert "seo@me.de" in page.calls.last.request.headers["User-Agent"]
+
+
+@respx.mock
+def test_recover_content_pauses_one_second_between_cdx_and_snapshot():
+    events = []
+
+    def cdx(request):
+        events.append("cdx")
+        return httpx.Response(200, json=CDX_HIT)
+
+    def snap(request):
+        events.append("snapshot")
+        return httpx.Response(200, text=HTML)
+
+    respx.get(CDX_URL).mock(side_effect=cdx)
+    respx.get(snapshot_url("20240315120000", DEAD)).mock(side_effect=snap)
+    with httpx.Client() as client:
+        recover_content(bl(), client, None, sleeper=lambda s: events.append(s))
+    assert events == ["cdx", 1.0, "snapshot"]
+
+
+@respx.mock
+def test_recover_content_does_not_pause_without_snapshot_request():
+    slept = []
+    respx.get(CDX_URL).mock(return_value=httpx.Response(200, json=[["timestamp", "original"]]))
+    with httpx.Client() as client:
+        recover_content(bl(anchor="x"), client, None, sleeper=slept.append)
+    assert slept == []
+
+
+def test_fallback_content_builds_per_backlink_result():
+    from blm.wayback import fallback_content
+
+    rc = fallback_content(bl(anchor="Stahlküchen Guide"), "Kein Snapshot mit Status 200", max_chars=10)
+    assert (rc.source, rc.text, rc.error) == ("fallback", "Stahlküche", "Kein Snapshot mit Status 200")
+    none = fallback_content(BrokenBacklink(url_from="https://a.de", url_to="https://b.de/"), "x")
+    assert (none.source, none.text) == ("none", None)

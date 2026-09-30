@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 import time
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from typing import Callable, Optional
 from urllib.parse import unquote, urlparse
 
@@ -22,20 +22,39 @@ from blm.cache import JsonCache
 from blm.models import BrokenBacklink, RecoveredContent
 
 CDX_URL = "https://web.archive.org/cdx/search/cdx"
-USER_AGENT = "broken-link-matcher/0.1 (SEO research tool; polite crawler, 1 req/s)"
 RETRY_PAUSES = (2, 4, 8)
+REQUEST_PAUSE = 1.0  # between the CDX query and the snapshot fetch of one URL
+CACHE_MAX_CHARS = 50000  # texts are cached at the UI maximum and cut per request
 _EXT_RE = re.compile(r"\.(html?|php|aspx?|jsp)$", re.IGNORECASE)
+
+
+def user_agent(contact: Optional[str] = None) -> str:
+    """User-Agent for Wayback and live checks; a contact (e-mail or URL) lets site owners reach the operator."""
+    # printable ASCII only: header values must not carry line breaks or non-ASCII characters
+    clean = "".join(ch for ch in (contact or "") if " " <= ch <= "~")
+    clean = " ".join(clean.replace("(", " ").replace(")", " ").split())[:200]
+    suffix = f"; contact: {clean}" if clean else ""
+    return f"broken-link-matcher/0.1 (SEO research tool; polite crawler, 1 req/s{suffix})"
+
+
+USER_AGENT = user_agent()
 
 
 class WaybackError(Exception):
     pass
 
 
-def _get_with_retry(client: httpx.Client, url: str, params: Optional[dict], sleeper: Callable[[float], None]) -> httpx.Response:
+def _get_with_retry(
+    client: httpx.Client,
+    url: str,
+    params: Optional[dict],
+    sleeper: Callable[[float], None],
+    agent: str = USER_AGENT,
+) -> httpx.Response:
     last_error = "unknown"
     for attempt in range(len(RETRY_PAUSES) + 1):
         try:
-            resp = client.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=30.0, follow_redirects=True)
+            resp = client.get(url, params=params, headers={"User-Agent": agent}, timeout=30.0, follow_redirects=True)
         except httpx.RequestError as exc:
             last_error = str(exc)
         else:
@@ -48,10 +67,15 @@ def _get_with_retry(client: httpx.Client, url: str, params: Optional[dict], slee
     raise WaybackError(f"Wayback request failed after retries: {last_error}")
 
 
-def latest_snapshot(url: str, client: httpx.Client, sleeper: Callable[[float], None] = time.sleep) -> Optional[tuple[str, str]]:
+def latest_snapshot(
+    url: str,
+    client: httpx.Client,
+    sleeper: Callable[[float], None] = time.sleep,
+    agent: str = USER_AGENT,
+) -> Optional[tuple[str, str]]:
     """Return (timestamp, original_url) of the newest 200 snapshot, or None."""
     params = {"url": url, "output": "json", "filter": "statuscode:200", "fl": "timestamp,original", "limit": "-1"}
-    resp = _get_with_retry(client, CDX_URL, params, sleeper)
+    resp = _get_with_retry(client, CDX_URL, params, sleeper, agent)
     if resp.status_code != 200 or not resp.content.strip():
         return None
     try:
@@ -98,6 +122,28 @@ def fallback_text(backlink: BrokenBacklink) -> Optional[str]:
     return ". ".join(p.rstrip(".") for p in parts)
 
 
+def fallback_content(backlink: BrokenBacklink, error: Optional[str], max_chars: int = 12000) -> RecoveredContent:
+    """Result for a URL without usable snapshot, built from this backlink's own Ahrefs fields."""
+    fallback = fallback_text(backlink)
+    if fallback is None:
+        return RecoveredContent(url_to=backlink.url_to, text=None, source="none", error=error)
+    return RecoveredContent(url_to=backlink.url_to, text=fallback[:max_chars], source="fallback", error=error)
+
+
+def _cached(cache: JsonCache, url: str, max_chars: int) -> Optional[RecoveredContent]:
+    """Cached snapshot text cut to max_chars; malformed entries count as a miss."""
+    hit = cache.get("wayback", url)
+    if hit is None:
+        return None
+    try:
+        rc = RecoveredContent(**hit)
+    except (TypeError, KeyError):
+        return None
+    if not isinstance(rc.text, str) or not rc.text:
+        return None
+    return replace(rc, text=rc.text[:max_chars])
+
+
 def recover_content(
     backlink: BrokenBacklink,
     client: httpx.Client,
@@ -105,32 +151,33 @@ def recover_content(
     *,
     max_chars: int = 12000,
     sleeper: Callable[[float], None] = time.sleep,
+    user_agent: Optional[str] = None,
 ) -> RecoveredContent:
+    """Newest 200 snapshot text (cut to max_chars) or the fallback. ``user_agent`` is the full header value."""
     url = backlink.url_to
+    agent = user_agent or USER_AGENT
     if cache is not None:
-        hit = cache.get("wayback", url)
+        hit = _cached(cache, url, max_chars)
         if hit is not None:
-            return RecoveredContent(**hit)
+            return hit
 
     error: Optional[str] = None
     try:
-        snap = latest_snapshot(url, client, sleeper)
+        snap = latest_snapshot(url, client, sleeper, agent)
         if snap is not None:
             timestamp, original = snap
-            resp = _get_with_retry(client, snapshot_url(timestamp, original), None, sleeper)
-            text = extract_text(resp.content)[:max_chars] if resp.status_code == 200 else ""
+            sleeper(REQUEST_PAUSE)
+            resp = _get_with_retry(client, snapshot_url(timestamp, original), None, sleeper, agent)
+            text = extract_text(resp.content)[:CACHE_MAX_CHARS] if resp.status_code == 200 else ""
             if text:
                 result = RecoveredContent(url_to=url, text=text, source="wayback", snapshot_timestamp=timestamp)
                 if cache is not None:
                     cache.set("wayback", url, asdict(result))
-                return result
+                return replace(result, text=text[:max_chars])
             error = "Snapshot ohne extrahierbaren Text"
         else:
             error = "Kein Snapshot mit Status 200"
     except WaybackError as exc:
         error = f"Wayback-Fehler: {exc}"
 
-    fallback = fallback_text(backlink)
-    if fallback is None:
-        return RecoveredContent(url_to=url, text=None, source="none", error=error)
-    return RecoveredContent(url_to=url, text=fallback[:max_chars], source="fallback", error=error)
+    return fallback_content(backlink, error, max_chars)

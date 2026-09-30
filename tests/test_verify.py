@@ -207,3 +207,27 @@ def test_verify_results_last_resort_catches_unexpected_errors(monkeypatch):
     with httpx.Client() as c:
         verify_results(rows, c, sleeper=lambda s: None)
     assert rows[0].verification == "unknown"
+
+
+@respx.mock
+def test_verify_sends_default_user_agent():
+    from blm.wayback import USER_AGENT
+
+    target = respx.get(DEAD).mock(return_value=httpx.Response(200, text="ok"))
+    with httpx.Client() as c:
+        verify_backlink(bl(), c)
+    assert target.calls.last.request.headers["User-Agent"] == USER_AGENT
+
+
+@respx.mock
+def test_verify_results_sends_contact_user_agent():
+    from blm.wayback import user_agent
+
+    target = respx.get(DEAD).mock(return_value=httpx.Response(404))
+    page = respx.get(FROM).mock(return_value=httpx.Response(200, html=WITH))
+    rows = [MatchResult(bl(), RecoveredContent(DEAD, "t", "wayback"))]
+    with httpx.Client() as c:
+        verify_results(rows, c, sleeper=lambda s: None, user_agent=user_agent("seo@me.de"))
+    assert rows[0].verification == "confirmed"
+    assert "seo@me.de" in target.calls.last.request.headers["User-Agent"]
+    assert "seo@me.de" in page.calls.last.request.headers["User-Agent"]
