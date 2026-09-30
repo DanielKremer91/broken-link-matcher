@@ -4,7 +4,13 @@ from typing import Optional
 
 import httpx
 
-from blm.embeddings.base import EmbeddingError, EmbeddingProvider, raise_for_status
+from blm.embeddings.base import (
+    EmbeddingError,
+    EmbeddingProvider,
+    check_vector_count,
+    malformed_response,
+    raise_for_status,
+)
 
 GEMINI_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
 
@@ -27,4 +33,8 @@ class GeminiEmbeddings(EmbeddingProvider):
         except httpx.HTTPError as exc:
             raise EmbeddingError(f"gemini: {exc}") from exc
         raise_for_status(resp, "gemini")
-        return [e["values"] for e in resp.json()["embeddings"]]
+        try:
+            vectors = [e["values"] for e in resp.json()["embeddings"]]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise malformed_response("gemini") from exc
+        return check_vector_count(vectors, texts, "gemini")

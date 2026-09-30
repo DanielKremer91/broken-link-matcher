@@ -4,7 +4,13 @@ from typing import Optional
 
 import httpx
 
-from blm.embeddings.base import EmbeddingError, EmbeddingProvider, raise_for_status
+from blm.embeddings.base import (
+    EmbeddingError,
+    EmbeddingProvider,
+    check_vector_count,
+    malformed_response,
+    raise_for_status,
+)
 
 DEFAULT_OLLAMA_URL = "http://localhost:11434"
 
@@ -23,4 +29,8 @@ class OllamaEmbeddings(EmbeddingProvider):
         except httpx.HTTPError as exc:
             raise EmbeddingError(f"ollama: {exc}") from exc
         raise_for_status(resp, "ollama")
-        return resp.json()["embeddings"]
+        try:
+            vectors = resp.json()["embeddings"]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise malformed_response("ollama") from exc
+        return check_vector_count(vectors, texts, "ollama")

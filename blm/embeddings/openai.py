@@ -4,7 +4,13 @@ from typing import Optional
 
 import httpx
 
-from blm.embeddings.base import EmbeddingError, EmbeddingProvider, raise_for_status
+from blm.embeddings.base import (
+    EmbeddingError,
+    EmbeddingProvider,
+    check_vector_count,
+    malformed_response,
+    raise_for_status,
+)
 
 OPENAI_EMBED_URL = "https://api.openai.com/v1/embeddings"
 
@@ -29,5 +35,9 @@ class OpenAIEmbeddings(EmbeddingProvider):
         except httpx.HTTPError as exc:
             raise EmbeddingError(f"openai: {exc}") from exc
         raise_for_status(resp, "openai")
-        data = sorted(resp.json()["data"], key=lambda d: d["index"])
-        return [d["embedding"] for d in data]
+        try:
+            data = sorted(resp.json()["data"], key=lambda d: d["index"])
+            vectors = [d["embedding"] for d in data]
+        except (ValueError, KeyError, TypeError) as exc:
+            raise malformed_response("openai") from exc
+        return check_vector_count(vectors, texts, "openai")
