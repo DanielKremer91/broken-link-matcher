@@ -1,0 +1,6 @@
+[server]
+headless = true
+maxUploadSize = 500
+
+[theme]
+base = "light"
