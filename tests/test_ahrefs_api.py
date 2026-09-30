@@ -53,3 +53,35 @@ def test_api_error_is_readable():
 def test_missing_token():
     with pytest.raises(AhrefsError):
         fetch_broken_backlinks("", "konkurrent.de")
+
+
+@respx.mock
+def test_non_json_body_is_readable_error():
+    respx.get(AHREFS_URL).mock(return_value=httpx.Response(200, text="<html>maintenance</html>"))
+    with pytest.raises(AhrefsError, match="JSON"):
+        fetch_broken_backlinks("tok", "konkurrent.de")
+
+
+@respx.mock
+def test_rows_without_url_to_are_skipped():
+    bad = {k: v for k, v in RESPONSE["backlinks"][1].items() if k != "url_to"}
+    resp = {"backlinks": [RESPONSE["backlinks"][0], bad]}
+    respx.get(AHREFS_URL).mock(return_value=httpx.Response(200, json=resp))
+    rows = fetch_broken_backlinks("tok", "konkurrent.de")
+    assert len(rows) == 1
+    assert rows[0].url_to == "https://konkurrent.de/ratgeber/stahl"
+
+
+@respx.mock
+def test_missing_backlinks_key_is_error():
+    respx.get(AHREFS_URL).mock(return_value=httpx.Response(200, json={"error": "Insufficient units"}))
+    with pytest.raises(AhrefsError, match="backlinks"):
+        fetch_broken_backlinks("tok", "konkurrent.de")
+
+
+@respx.mock
+def test_blank_target_makes_no_request():
+    route = respx.get(AHREFS_URL).mock(return_value=httpx.Response(200, json=RESPONSE))
+    with pytest.raises(AhrefsError):
+        fetch_broken_backlinks("tok", "  ")
+    assert not route.called

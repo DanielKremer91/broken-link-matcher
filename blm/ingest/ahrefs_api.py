@@ -34,6 +34,9 @@ def fetch_broken_backlinks(
 ) -> list[BrokenBacklink]:
     if not token:
         raise AhrefsError("Ahrefs-API-Schlüssel fehlt.")
+    if not target or not target.strip():
+        raise AhrefsError("Wettbewerber-Domain fehlt.")
+    target = target.strip()
     select = BASE_SELECT + (["traffic"] if include_traffic else [])
     params = {
         "target": target,
@@ -51,7 +54,11 @@ def fetch_broken_backlinks(
     own_client = client is None
     client = client or httpx.Client(timeout=60.0)
     try:
-        resp = client.get(AHREFS_URL, params=params, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+        headers = {
+            "Authorization": f"Bearer {token}",
+            "Accept": "application/json",
+        }
+        resp = client.get(AHREFS_URL, params=params, headers=headers)
     except httpx.HTTPError as exc:
         raise AhrefsError(f"Ahrefs-Anfrage fehlgeschlagen: {exc}") from exc
     finally:
@@ -60,11 +67,26 @@ def fetch_broken_backlinks(
     if resp.status_code >= 400:
         raise AhrefsError(f"Ahrefs API HTTP {resp.status_code}: {resp.text[:300]}")
 
+    try:
+        data = resp.json()
+    except ValueError as exc:
+        raise AhrefsError(
+            f"Ahrefs API: Antwort ist kein JSON: {resp.text[:300]}"
+        ) from exc
+    if not isinstance(data, dict) or "backlinks" not in data:
+        raise AhrefsError(
+            f"Ahrefs API: unerwartete Antwort ohne 'backlinks': {resp.text[:300]}"
+        )
+
     rows = []
-    for item in resp.json().get("backlinks", []):
+    for item in data["backlinks"] or []:
+        url_from = item.get("url_from")
+        url_to = item.get("url_to")
+        if not url_from or not url_to:
+            continue  # incomplete row, cannot be matched
         rows.append(BrokenBacklink(
-            url_from=item["url_from"],
-            url_to=item["url_to"],
+            url_from=url_from,
+            url_to=url_to,
             anchor=item.get("anchor") or "",
             snippet_left=item.get("snippet_left") or "",
             snippet_right=item.get("snippet_right") or "",
