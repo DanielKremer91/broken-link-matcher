@@ -74,10 +74,17 @@ def test_matching_blocked_without_recorded_check_settings():
     assert button(at, "Matching starten").disabled is True
 
 
+def fill_sender(at: AppTest, name: str = "Daniel", domain: str = "me.de") -> AppTest:
+    at.text_input(key="sender_name").input(name)
+    at.text_input(key="own_domain").input(domain)
+    return at.run()
+
+
 def test_mail_draft_uses_stable_key_and_refreshes_on_regenerate(monkeypatch):
     drafts = iter(["Erster Entwurf", "Zweiter Entwurf"])
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setattr("blm.outreach.draft_mail", lambda *a, **k: next(drafts))
-    at = seeded_app().run()
+    at = fill_sender(seeded_app().run())
     key = hashlib.sha1(b"https://a.de/p|https://c.de/x").hexdigest()[:12]
 
     at.button(key=f"mail_{key}").click().run()
@@ -209,3 +216,188 @@ def test_no_key_caption_without_environment_key(monkeypatch):
     at = AppTest.from_file(APP, default_timeout=30).run()
     assert not at.exception
     assert "Schlüssel aus Secrets/Umgebung aktiv" not in [c.value for c in at.sidebar.caption]
+
+
+GAP_KEYS = ("recovered", "recovered_for", "recovered_partial", "vectors", "results", "results_params")
+
+
+def test_new_backlink_upload_drops_old_wayback_and_matching_state():
+    at = seeded_app()
+    at.session_state["recovered_partial"] = {"https://c.de/x": RecoveredContent("https://c.de/x", "t", "wayback")}
+    at.run()
+    assert "results" in at.session_state
+
+    csv = b"Referring page URL,Target URL,Anchor\nhttps://neu.de/p,https://c.de/neu,neu\n"
+    at.file_uploader(key="bl_upload").set_value(("neu.csv", csv, "text/csv")).run()
+    button(at, "Backlinks übernehmen").click().run()
+
+    assert not at.exception
+    assert [b.url_to for b in at.session_state["raw_backlinks"]] == ["https://c.de/neu"]
+    for key in GAP_KEYS:
+        assert key not in at.session_state, key
+
+
+def test_ahrefs_fetch_drops_old_wayback_and_matching_state(monkeypatch):
+    monkeypatch.setenv("AHREFS_API_KEY", "ah-test")
+    monkeypatch.setattr("blm.ingest.ahrefs_api.fetch_broken_backlinks",
+                        lambda *a, **k: [BrokenBacklink(url_from="https://neu.de/p", url_to="https://c.de/neu")])
+    at = seeded_app()
+    at.session_state["recovered_partial"] = {"https://c.de/x": RecoveredContent("https://c.de/x", "t", "wayback")}
+    at.run()
+    next(t for t in at.text_input if t.label == "Wettbewerber-Domain").input("konkurrent.de").run()
+    button(at, "Von Ahrefs abrufen").click().run()
+
+    assert not at.exception
+    for key in GAP_KEYS:
+        assert key not in at.session_state, key
+
+
+def test_warning_when_recovered_texts_belong_to_another_selection():
+    at = seeded_app()
+    at.session_state["recovered_for"] = [BrokenBacklink(url_from="https://alt.de/p", url_to="https://c.de/alt", value_rank=1)]
+    at.run()
+    assert not at.exception
+    assert any("Filter oder Backlinks geändert" in w.value for w in at.warning)
+
+
+def test_no_selection_warning_when_recovered_texts_match_ranking():
+    at = seeded_app().run()
+    assert not any("Filter oder Backlinks geändert" in w.value for w in at.warning)
+
+
+def test_contact_is_sent_in_user_agent_for_wayback_and_live_check(monkeypatch):
+    seen = {}
+
+    def fake_recover(bl, client, cache, **kwargs):
+        seen["wayback"] = kwargs.get("user_agent")
+        return RecoveredContent(bl.url_to, "text", "wayback", "20240101000000")
+
+    def fake_verify(results, client, **kwargs):
+        seen["verify"] = kwargs.get("user_agent")
+
+    monkeypatch.setattr("blm.wayback.recover_content", fake_recover)
+    monkeypatch.setattr("blm.verify.verify_results", fake_verify)
+    monkeypatch.setattr("blm.cache.JsonCache.get", lambda self, ns, key: None)
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    at = seeded_app().run()
+    at.text_input(key="ua_contact").input("seo@me.de").run()
+    button(at, "Live prüfen: Ziel noch 404 und Link noch vorhanden?").click().run()
+    button(at, "Inhalte aus der Wayback Machine holen").click().run()
+
+    assert not at.exception
+    assert "seo@me.de" in seen["wayback"] and "seo@me.de" in seen["verify"]
+
+
+def test_frog_model_hint_expander_is_shown():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert "Welches Modell habe ich im Frog?" in [e.label for e in at.expander]
+    text = " ".join(m.value for m in at.markdown)
+    for needle in ("text-embedding-3-small", "gemini-embedding-001", "nomic-embed-text", "exakt"):
+        assert needle in text
+
+
+def test_wayback_summary_counts_errors():
+    at = seeded_app()
+    at.session_state["recovered"] = [RecoveredContent("https://c.de/x", "fallback text", "fallback", error="Wayback-Fehler: HTTP 503")]
+    at.run()
+    assert not at.exception
+    assert any("Fehler: 1" in m.value for m in at.markdown)
+
+
+def test_buttons_need_api_key_for_openai(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    at = fill_sender(seeded_app().run())
+    assert not at.exception
+    assert button(at, "Dimensionscheck gegen gewähltes Modell").disabled is True
+    assert all(b.disabled for b in at.button if b.key and b.key.startswith("mail_"))
+    captions = [c.value for c in at.caption]
+    assert any("API-Schlüssel" in c for c in captions)
+
+
+def test_buttons_enabled_with_api_key_and_sender(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = fill_sender(seeded_app().run())
+    assert button(at, "Dimensionscheck gegen gewähltes Modell").disabled is False
+    mail = [b for b in at.button if b.key and b.key.startswith("mail_")]
+    assert mail and not any(b.disabled for b in mail)
+
+
+def test_ollama_never_blocked_by_missing_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    at = seeded_app().run()
+    at.sidebar.selectbox[0].select("ollama").run()
+    at = fill_sender(at)
+    assert button(at, "Dimensionscheck gegen gewähltes Modell").disabled is False
+    assert not any(b.disabled for b in at.button if b.key and b.key.startswith("mail_"))
+
+
+def test_draft_needs_sender_name_and_domain(monkeypatch):
+    seen = []
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr("blm.outreach.draft_mail", lambda row, name, domain, **k: seen.append((name, domain)) or "Entwurf")
+    at = seeded_app().run()
+    assert all(b.disabled for b in at.button if b.key and b.key.startswith("mail_"))
+    assert "Name und Domain in der Seitenleiste eintragen" in [c.value for c in at.caption]
+
+    at = fill_sender(at, name="Daniel", domain="")
+    assert all(b.disabled for b in at.button if b.key and b.key.startswith("mail_"))
+
+    at = fill_sender(at, name="Daniel", domain="me.de")
+    key = hashlib.sha1(b"https://a.de/p|https://c.de/x").hexdigest()[:12]
+    at.button(key=f"mail_{key}").click().run()
+    assert not at.exception
+    assert seen == [("Daniel", "me.de")]
+
+
+def test_live_check_shows_verification_and_survives_rebuild(monkeypatch):
+    def fake_verify(results, client, **kwargs):
+        for r in results:
+            r.verification = "confirmed"
+
+    monkeypatch.setattr("blm.verify.verify_results", fake_verify)
+    at = seeded_app().run()
+    button(at, "Live prüfen: Ziel noch 404 und Link noch vorhanden?").click().run()
+
+    assert not at.exception
+    assert any("Verifikation abgeschlossen" in s.value for s in at.success)
+    assert any("Verifikation: confirmed" in m.value for m in at.markdown)
+
+    threshold = next(sl for sl in at.slider if sl.label.startswith("Schwellwert"))
+    threshold.set_value(0.3).run()  # threshold change rebuilds the results
+    assert not at.exception
+    assert at.session_state["results_params"] == (0.3, True)
+    assert at.session_state["results"][0].verification == "confirmed"
+
+
+def test_fallback_is_built_per_backlink_and_not_kept_in_partial(monkeypatch):
+    fetched = []
+
+    def fake_recover(bl, client, cache, **kwargs):
+        fetched.append(bl.url_to)
+        return RecoveredContent(bl.url_to, f"Anker {bl.anchor}", "fallback", error="Kein Snapshot mit Status 200")
+
+    monkeypatch.setattr("blm.wayback.recover_content", fake_recover)
+    monkeypatch.setattr("blm.cache.JsonCache.get", lambda self, ns, key: None)
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    backlinks = [BrokenBacklink(url_from=f"https://a.de/{i}", url_to="https://c.de/tot", anchor=anchor, domain_rating=90.0 - i)
+                 for i, anchor in enumerate(["eins", "zwei"])]
+    at = seeded_app(backlinks).run()
+    button(at, "Inhalte aus der Wayback Machine holen").click().run()
+
+    assert not at.exception
+    assert fetched == ["https://c.de/tot"]  # the dead URL is queried once per run
+    texts = [r.text for r in at.session_state["recovered"]]
+    assert "eins" in texts[0] and "zwei" in texts[1] and "eins" not in texts[1]
+    assert [r.error for r in at.session_state["recovered"]] == ["Kein Snapshot mit Status 200"] * 2
+    assert at.session_state["recovered_partial"] == {}
+
+
+def test_content_gap_rows_get_no_draft_button(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = seeded_app()
+    at.session_state["vectors"] = [np.array([-1.0, 0.0], dtype=np.float32)]  # best score 0.0 < 0.5
+    at = fill_sender(at.run())
+    assert not at.exception
+    assert at.session_state["results"][0].is_content_gap
+    assert not any(b.key and b.key.startswith("mail_") for b in at.button)
+    assert any("Content-Gap" in c.value for c in at.caption)

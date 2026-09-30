@@ -21,12 +21,24 @@ from blm.matcher import build_results
 from blm.outreach import DEFAULT_CHAT_MODELS, OutreachError, draft_mail
 from blm.ranking import SORT_FIELDS, rank_backlinks
 from blm.verify import verify_results
-from blm.wayback import recover_content
+from blm.wayback import fallback_content, recover_content, user_agent
 
 st.set_page_config(page_title="Broken Link Matcher", page_icon="🔗", layout="wide")
 S = st.session_state
 CACHE = JsonCache(Path(__file__).parent / ".cache")
 KEY_FROM_SECRETS = "Schlüssel aus Secrets/Umgebung aktiv"
+KEY_MISSING_HINT = "API-Schlüssel in der Seitenleiste eintragen (oder über Secrets/Umgebung setzen)."
+SENDER_MISSING_HINT = "Name und Domain in der Seitenleiste eintragen"
+FROG_MODEL_HINT = """
+| Anbieter im Frog | Anbieter hier | Typische Modellnamen |
+|---|---|---|
+| OpenAI | openai | text-embedding-3-small, text-embedding-3-large |
+| Gemini | gemini | gemini-embedding-001, text-embedding-004 |
+| Ollama | ollama | nomic-embed-text, mxbai-embed-large |
+
+Den Modellnamen findest du in der Frog-Konfiguration beim Embeddings-Anbieter. Er muss hier exakt gleich
+eingetragen sein, sonst liegen die Vektoren in unterschiedlichen Räumen.
+"""
 SORT_LABELS = {"domain_rating": "Domain Rating", "url_rating": "URL Rating", "page_traffic": "Seitentraffic"}
 
 
@@ -63,8 +75,11 @@ with st.sidebar:
     if ahrefs_key and not typed_ahrefs:
         st.caption(KEY_FROM_SECRETS)
     st.divider()
-    sender_name = st.text_input("Dein Name (für Mail-Entwürfe)")
-    own_domain = st.text_input("Deine Domain (für Mail-Entwürfe)")
+    sender_name = st.text_input("Dein Name (für Mail-Entwürfe)", key="sender_name").strip()
+    own_domain = st.text_input("Deine Domain (für Mail-Entwürfe)", key="own_domain").strip()
+    contact = st.text_input("Kontakt für User-Agent (E-Mail oder URL)", key="ua_contact",
+                            help="Wird bei Wayback-Abruf und Live-Check im User-Agent mitgeschickt, damit Betreiber dich erreichen können.")
+    agent = user_agent(contact)
     st.divider()
     if st.button("Cache leeren"):
         st.success(f"{CACHE.clear()} Einträge gelöscht")
@@ -85,6 +100,13 @@ def invalidate_matching() -> None:
     clear_drafts()
 
 
+def reset_backlink_state() -> None:
+    """A new backlink set makes recovered texts and everything after them stale."""
+    for key in ("recovered_partial", "recovered", "recovered_for"):
+        S.pop(key, None)
+    invalidate_matching()
+
+
 def upload_id(f) -> str:
     """Identify an uploaded file; file_id changes on every new upload, name is the fallback."""
     return getattr(f, "file_id", None) or f.name
@@ -98,12 +120,16 @@ def provider_or_error():
         return None
 
 
+key_missing = provider != "ollama" and not api_key  # Ollama needs no key
+
 st.title("Broken Link Matcher")
 st.caption("Broken Link Building mit semantischem Matching: tote Wettbewerber-URLs, Wayback-Inhalt, Embeddings, deine passendste Seite.")
 
 # ----------------------------------------------------------------- 1. own domain
 st.header("1. Eigene Domain (Screaming-Frog-Embeddings)")
 frog_file = st.file_uploader("Embeddings-Export aus dem Screaming Frog (CSV)", type=["csv"], key="frog_upload")
+with st.expander("Welches Modell habe ich im Frog?"):
+    st.markdown(FROG_MODEL_HINT)
 if frog_file is not None and S.get("frog_upload_id") != upload_id(frog_file):
     try:
         S["frog"] = load_frog_embeddings(frog_file)
@@ -120,7 +146,9 @@ dim_valid = S.get("dim_ok") is True and S.get("dim_checked_for") == dim_settings
 if "frog" in S:
     imp = S["frog"]
     st.write(f"{len(imp.pages)} URLs, Vektordimension {imp.dimension}, {imp.skipped} Zeilen übersprungen.")
-    if st.button("Dimensionscheck gegen gewähltes Modell"):
+    if key_missing:
+        st.caption(KEY_MISSING_HINT)
+    if st.button("Dimensionscheck gegen gewähltes Modell", disabled=key_missing):
         prov = provider_or_error()
         if prov is not None:
             try:
@@ -170,7 +198,7 @@ with tab_csv:
         if st.button("Backlinks übernehmen"):
             try:
                 S["raw_backlinks"] = parse_backlinks(S["bl_df"], mapping)
-                S.pop("recovered_partial", None)
+                reset_backlink_state()
                 st.success(f"{len(S['raw_backlinks'])} Backlinks übernommen.")
             except ValueError as exc:
                 st.error(str(exc))
@@ -183,7 +211,7 @@ with tab_api:
     if st.button("Von Ahrefs abrufen", disabled=not (ahrefs_key and target)):
         try:
             S["raw_backlinks"] = fetch_broken_backlinks(ahrefs_key, target, limit=int(api_limit), include_traffic=include_traffic)
-            S.pop("recovered_partial", None)
+            reset_backlink_state()
             st.success(f"{len(S['raw_backlinks'])} Backlinks geladen.")
         except AhrefsError as exc:
             st.error(f"{exc} Alternative: CSV-Export aus Ahrefs hochladen.")
@@ -205,31 +233,48 @@ if "ranked" in S:
     st.header("3. Wayback-Abruf")
     max_chars = st.number_input("Maximale Zeichen pro Text", min_value=1000, max_value=50000, value=12000, step=1000)
     st.caption("Immer der jüngste Snapshot mit Status 200. Ohne Snapshot: Fallback aus Anker, Kontext, Titel und URL-Pfad, kein generierter Text.")
+    if "recovered_for" in S and S["recovered_for"] != S["ranked"]:
+        st.warning("Filter oder Backlinks geändert. Wayback-Abruf erneut starten, damit Ergebnisse zur aktuellen Auswahl passen.")
     if st.button("Inhalte aus der Wayback Machine holen"):
         ranked = S["ranked"]
         if S.get("recovered_partial_chars") != int(max_chars):
             S["recovered_partial"] = {}  # texts cut at a different length are not reusable
             S["recovered_partial_chars"] = int(max_chars)
+        # only snapshot texts are kept across runs: they belong to the dead URL, while a
+        # fallback is built from one backlink's own anchor and context
         partial = S.setdefault("recovered_partial", {})
+        failed: dict[str, str | None] = {}  # dead URL -> error of this run, fallback per backlink
+        recovered = []
         bar = st.progress(0.0, text="Starte …")
         with httpx.Client() as client:
             for i, bl in enumerate(ranked, start=1):
-                if bl.url_to not in partial:
+                if bl.url_to in partial:
+                    rc = partial[bl.url_to]
+                elif bl.url_to in failed:
+                    rc = fallback_content(bl, failed[bl.url_to], int(max_chars))
+                else:
                     cached = CACHE.get("wayback", bl.url_to) is not None
-                    partial[bl.url_to] = recover_content(bl, client, CACHE, max_chars=int(max_chars))
+                    rc = recover_content(bl, client, CACHE, max_chars=int(max_chars), user_agent=agent)
+                    if rc.source == "wayback":
+                        partial[bl.url_to] = rc
+                    else:
+                        failed[bl.url_to] = rc.error
                     if not cached and i < len(ranked):
                         time.sleep(1.0)
+                recovered.append(rc)
                 bar.progress(i / len(ranked), text=f"{i}/{len(ranked)}: {bl.url_to}")
         S["recovered_for"] = ranked
-        S["recovered"] = [partial[bl.url_to] for bl in ranked]
+        S["recovered"] = recovered
         invalidate_matching()
     if "recovered" in S:
         rec = S["recovered"]
         counts = {src: sum(r.source == src for r in rec) for src in ("wayback", "fallback", "none")}
-        st.write(f"Snapshots: {counts['wayback']} · Fallback aus Ahrefs-Feldern: {counts['fallback']} · Kein Text: {counts['none']}")
+        errors = sum(bool(r.error) for r in rec)
+        st.write(f"Snapshots: {counts['wayback']} · Fallback aus Ahrefs-Feldern: {counts['fallback']} · Kein Text: {counts['none']} · Fehler: {errors}")
         with st.expander("Rekonstruierte Texte ansehen"):
             for r in rec:
                 label = f"**{r.url_to}** · {r.source}" + (f" · Snapshot {r.snapshot_timestamp[:8]}" if r.snapshot_timestamp else "")
+                label += f" · {r.error}" if r.error else ""
                 st.markdown(label)
                 st.text((r.text or "(kein Text)")[:600])
 
@@ -261,8 +306,13 @@ if "recovered" in S:
     if "vectors" in S:
         params = (threshold, match_fallback)
         if S.get("results_params") != params:
-            S["results"] = build_results(S["recovered_for"], S["recovered"], S["vectors"], S["frog"].pages,
-                                         threshold=threshold, match_fallback=match_fallback)
+            # a live check result is a fact about the backlink, not about the threshold
+            checked = {(r.backlink.url_from, r.backlink.url_to): r.verification for r in S.get("results", [])}
+            results = build_results(S["recovered_for"], S["recovered"], S["vectors"], S["frog"].pages,
+                                    threshold=threshold, match_fallback=match_fallback)
+            for r in results:
+                r.verification = checked.get((r.backlink.url_from, r.backlink.url_to), r.verification)
+            S["results"] = results
             S["results_params"] = params
             clear_drafts()  # a draft must not describe an outdated top suggestion
         df = results_to_dataframe(S["results"])
@@ -277,7 +327,10 @@ if "results" in S:
     if st.button("Live prüfen: Ziel noch 404 und Link noch vorhanden?"):
         bar = st.progress(0.0)
         with httpx.Client() as client:
-            verify_results(S["results"], client, progress=lambda i, n: bar.progress(i / n, text=f"{i}/{n}"))
+            verify_results(S["results"], client, progress=lambda i, n: bar.progress(i / n, text=f"{i}/{n}"), user_agent=agent)
+        S["verify_done"] = True
+        st.rerun()  # section 4 above already rendered: show the new verification everywhere
+    if S.pop("verify_done", False):
         st.success("Verifikation abgeschlossen.")
     df = results_to_dataframe(S["results"])
     c1, c2 = st.columns(2)
@@ -285,6 +338,11 @@ if "results" in S:
     c2.download_button("Excel herunterladen", to_xlsx_bytes(df), "broken-link-matches.xlsx",
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     st.subheader("Mail-Entwürfe")
+    sender_missing = not (sender_name and own_domain)
+    if key_missing:
+        st.caption(KEY_MISSING_HINT)
+    elif sender_missing:
+        st.caption(SENDER_MISSING_HINT)
     titles = {p.url: p.title for p in S["frog"].pages}
     seen: dict[str, int] = {}
     for r in S["results"]:
@@ -298,10 +356,12 @@ if "results" in S:
         with st.expander(f"#{r.priority} · {dr} · {r.backlink.url_from}"):
             st.write(f"Tote URL: {r.backlink.url_to}")
             st.write(f"Vorschlag: {r.top[0].url} (Score {r.top[0].score:.2f}) · Verifikation: {r.verification}")
-            if st.button("Mail-Entwurf erzeugen", key=f"mail_{row_key}"):
+            if r.is_content_gap:
+                st.caption("Content-Gap: keine ausreichend passende eigene Seite, daher kein Mail-Entwurf.")
+            elif st.button("Mail-Entwurf erzeugen", key=f"mail_{row_key}", disabled=key_missing or sender_missing):
                 try:
                     S[f"ta_{row_key}"] = draft_mail(
-                        r, sender_name or "Ich", own_domain or "unserer Seite",
+                        r, sender_name, own_domain,
                         provider=provider, model=chat_model, api_key=api_key, base_url=base_url,
                         suggestion_title=titles.get(r.top[0].url, ""),
                     )
