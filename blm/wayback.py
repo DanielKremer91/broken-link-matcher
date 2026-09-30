@@ -36,7 +36,7 @@ def _get_with_retry(client: httpx.Client, url: str, params: Optional[dict], slee
     for attempt in range(len(RETRY_PAUSES) + 1):
         try:
             resp = client.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=30.0, follow_redirects=True)
-        except httpx.TransportError as exc:
+        except httpx.RequestError as exc:
             last_error = str(exc)
         else:
             if resp.status_code == 429 or resp.status_code >= 500:
@@ -54,10 +54,13 @@ def latest_snapshot(url: str, client: httpx.Client, sleeper: Callable[[float], N
     resp = _get_with_retry(client, CDX_URL, params, sleeper)
     if resp.status_code != 200 or not resp.content.strip():
         return None
-    rows = resp.json()
-    if len(rows) < 2:
-        return None
-    timestamp, original = rows[-1][0], rows[-1][1]
+    try:
+        rows = resp.json()
+        if len(rows) < 2:
+            return None
+        timestamp, original = rows[-1][0], rows[-1][1]
+    except (ValueError, IndexError, TypeError, KeyError) as exc:
+        raise WaybackError(f"CDX response not parseable: {exc}") from exc
     return str(timestamp), str(original)
 
 
@@ -65,7 +68,8 @@ def snapshot_url(timestamp: str, original: str) -> str:
     return f"https://web.archive.org/web/{timestamp}id_/{original}"
 
 
-def extract_text(html: str) -> str:
+def extract_text(html: str | bytes) -> str:
+    """Extract the main text. Bytes are preferred: the parsers detect the charset themselves."""
     text = trafilatura.extract(html, include_comments=False, include_tables=True, favor_recall=True)
     if text and text.strip():
         return text.strip()
@@ -114,7 +118,7 @@ def recover_content(
         if snap is not None:
             timestamp, original = snap
             resp = _get_with_retry(client, snapshot_url(timestamp, original), None, sleeper)
-            text = extract_text(resp.text)[:max_chars] if resp.status_code == 200 else ""
+            text = extract_text(resp.content)[:max_chars] if resp.status_code == 200 else ""
             if text:
                 result = RecoveredContent(url_to=url, text=text, source="wayback", snapshot_timestamp=timestamp)
                 if cache is not None:

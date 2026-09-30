@@ -141,3 +141,38 @@ def test_text_is_capped():
     with httpx.Client() as client:
         rc = recover_content(bl(), client, None, max_chars=40, sleeper=no_sleep)
     assert len(rc.text) == 40
+
+
+@respx.mock
+def test_recover_content_falls_back_on_unparseable_cdx_payload():
+    respx.get(CDX_URL).mock(return_value=httpx.Response(200, text="<html>busy</html>"))
+    with httpx.Client() as client:
+        rc = recover_content(bl(anchor="x"), client, None, sleeper=no_sleep)
+    assert rc.source == "fallback"
+    assert "Wayback" in rc.error
+
+
+@respx.mock
+def test_recover_content_decodes_latin1_snapshot_via_meta_charset():
+    html = (
+        '<html><head><meta charset="iso-8859-1"></head><body><main><h1>Küchen aus Edelstahl</h1>'
+        "<p>Edelstahl ist hygienisch und langlebig. Fingerabdrücke lassen sich mit einem Tuch entfernen.</p>"
+        "</main></body></html>"
+    )
+    respx.get(CDX_URL).mock(return_value=httpx.Response(200, json=CDX_HIT))
+    respx.get(snapshot_url("20240315120000", DEAD)).mock(return_value=httpx.Response(200, content=html.encode("latin-1")))
+    with httpx.Client() as client:
+        rc = recover_content(bl(), client, None, sleeper=no_sleep)
+    assert rc.source == "wayback"
+    assert "Küchen" in rc.text
+    assert "Fingerabdrücke" in rc.text
+    assert "�" not in rc.text
+
+
+@respx.mock
+def test_recover_content_falls_back_on_non_transport_request_error():
+    respx.get(CDX_URL).mock(side_effect=httpx.TooManyRedirects("loop"))
+    with httpx.Client() as client:
+        rc = recover_content(bl(anchor="x"), client, None, sleeper=no_sleep)
+    assert rc.source == "fallback"
+    assert "Wayback" in rc.error
