@@ -1,0 +1,2 @@
+url_from,url_to,anchor,snippet_left,snippet_right,title,domain_rating_source,url_rating_source,http_code_target,is_dofollow,is_content,traffic
+https://blog.example/kueche,https://konkurrent.de/ratgeber/stahl,Ratgeber zu Stahlküchen,Wir empfehlen den,von Konkurrent.,Beste Küchentipps,72.0,35.0,404,true,true,1200

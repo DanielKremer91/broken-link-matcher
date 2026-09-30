@@ -1,0 +1,155 @@
+"""Read a broken-backlinks table (Ahrefs UI export, Ahrefs API/MCP output, or any
+other tool) and normalise it into BrokenBacklink objects.
+
+Column detection is alias based. Extend FIELD_ALIASES to support more tools.
+"""
+
+from __future__ import annotations
+
+import math
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Optional
+
+import pandas as pd
+
+from blm.models import BrokenBacklink
+
+REQUIRED_FIELDS = ("url_from", "url_to")
+OPTIONAL_FIELDS = (
+    "anchor",
+    "snippet_left",
+    "snippet_right",
+    "title_from",
+    "domain_rating",
+    "url_rating",
+    "page_traffic",
+    "is_dofollow",
+    "is_nofollow",
+    "is_content",
+    "http_code_target",
+)
+
+# internal field -> lower-cased source column names (Ahrefs UI export, Ahrefs API, misc.)
+FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    "url_from": ("url_from", "referring page url", "referring page", "source url", "source page url", "source"),
+    "url_to": ("url_to", "target url", "target page url", "broken url", "destination url", "target"),
+    "anchor": ("anchor", "anchor text", "ankertext", "link anchor"),
+    "snippet_left": ("snippet_left", "left context", "text before", "context left"),
+    "snippet_right": ("snippet_right", "right context", "text after", "context right"),
+    "title_from": ("title", "referring page title", "source title", "page title", "referring title"),
+    "domain_rating": ("domain_rating_source", "domain rating", "dr", "source dr", "referring domain rating"),
+    "url_rating": ("url_rating_source", "url rating", "ur", "source ur"),
+    "page_traffic": ("traffic", "page traffic", "referring page traffic", "organic traffic"),
+    "is_dofollow": ("is_dofollow", "dofollow", "follow"),
+    "is_nofollow": ("is_nofollow", "nofollow"),
+    "is_content": ("is_content", "content", "in content"),
+    "http_code_target": ("http_code_target", "target url http code", "target http code", "http code target", "target status"),
+}
+
+_TRUE = {"true", "1", "yes", "ja", "y", "dofollow", "follow", "x", "wahr"}
+_FALSE = {"false", "0", "no", "nein", "n", "nofollow", "falsch"}
+
+
+@dataclass
+class ColumnMapping:
+    mapping: dict[str, str]
+    missing: list[str]
+    columns: list[str]
+
+
+def read_table(source, filename: Optional[str] = None) -> pd.DataFrame:
+    """Read CSV or XLSX. `filename` is used for type detection when `source` is a stream."""
+    name = (filename or getattr(source, "name", None) or str(source)).lower()
+    if name.endswith((".xlsx", ".xlsm", ".xls")):
+        return pd.read_excel(source)
+    return pd.read_csv(source, sep=None, engine="python", encoding="utf-8-sig", dtype=str, keep_default_na=False)
+
+
+def detect_columns(df: pd.DataFrame) -> ColumnMapping:
+    lowered = {str(c).strip().lower(): str(c) for c in df.columns}
+    mapping: dict[str, str] = {}
+    for field, aliases in FIELD_ALIASES.items():
+        for alias in aliases:
+            if alias in lowered:
+                mapping[field] = lowered[alias]
+                break
+    missing = [f for f in REQUIRED_FIELDS if f not in mapping]
+    return ColumnMapping(mapping=mapping, missing=missing, columns=[str(c) for c in df.columns])
+
+
+def _is_blank(value) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, float) and math.isnan(value):
+        return True
+    return str(value).strip() == ""
+
+
+def parse_bool(value) -> Optional[bool]:
+    if _is_blank(value):
+        return None
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in _TRUE:
+        return True
+    if text in _FALSE:
+        return False
+    return None
+
+
+def _to_float(value) -> Optional[float]:
+    if _is_blank(value):
+        return None
+    try:
+        return float(str(value).replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _to_int(value) -> Optional[int]:
+    f = _to_float(value)
+    return None if f is None else int(f)
+
+
+def _text(value) -> str:
+    return "" if _is_blank(value) else str(value).strip()
+
+
+def parse_backlinks(df: pd.DataFrame, mapping: dict[str, str]) -> list[BrokenBacklink]:
+    """Build BrokenBacklink rows. Rows missing url_from or url_to are dropped."""
+    for field in REQUIRED_FIELDS:
+        if field not in mapping:
+            raise ValueError(f"Pflichtfeld nicht zugeordnet: {field}")
+
+    def col(row, field):
+        name = mapping.get(field)
+        return row[name] if name is not None and name in row.index else None
+
+    rows: list[BrokenBacklink] = []
+    for _, row in df.iterrows():
+        url_from, url_to = _text(col(row, "url_from")), _text(col(row, "url_to"))
+        if not url_from or not url_to:
+            continue
+        dofollow = parse_bool(col(row, "is_dofollow"))
+        if dofollow is None:
+            nofollow = parse_bool(col(row, "is_nofollow"))
+            dofollow = None if nofollow is None else not nofollow
+        rows.append(
+            BrokenBacklink(
+                url_from=url_from,
+                url_to=url_to,
+                anchor=_text(col(row, "anchor")),
+                snippet_left=_text(col(row, "snippet_left")),
+                snippet_right=_text(col(row, "snippet_right")),
+                title_from=_text(col(row, "title_from")),
+                domain_rating=_to_float(col(row, "domain_rating")),
+                url_rating=_to_float(col(row, "url_rating")),
+                page_traffic=_to_int(col(row, "page_traffic")),
+                is_dofollow=dofollow,
+                is_content=parse_bool(col(row, "is_content")),
+                http_code_target=_to_int(col(row, "http_code_target")),
+            )
+        )
+    return rows
