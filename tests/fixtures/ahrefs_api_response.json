@@ -1,0 +1,8 @@
+{"backlinks": [
+  {"url_from": "https://blog.example/kueche", "url_to": "https://konkurrent.de/ratgeber/stahl",
+   "anchor": "Ratgeber zu Stahlküchen", "snippet_left": "Wir empfehlen den", "snippet_right": "von Konkurrent.",
+   "title": "Beste Küchentipps", "domain_rating_source": 72.0, "url_rating_source": 35.0, "http_code_target": 404},
+  {"url_from": "https://forum.example/t/1", "url_to": "https://konkurrent.de/alt",
+   "anchor": "hier", "snippet_left": "", "snippet_right": "", "title": "Forum Thread",
+   "domain_rating_source": 40.0, "url_rating_source": 10.0, "http_code_target": 404}
+]}
