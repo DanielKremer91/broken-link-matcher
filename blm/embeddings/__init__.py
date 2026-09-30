@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 import httpx
 import numpy as np
@@ -39,24 +39,42 @@ def make_provider(
 
 
 def embed_cached(
-    provider: EmbeddingProvider, texts: list[str], cache: Optional[JsonCache]
+    provider: EmbeddingProvider,
+    texts: list[str],
+    cache: Optional[JsonCache],
+    *,
+    progress: Optional[Callable[[int, int], None]] = None,
 ) -> list[Optional[np.ndarray]]:
-    """Embed texts, reusing cached vectors keyed by provider, model and text."""
-    vectors: list[Optional[np.ndarray]] = [None] * len(texts)
-    todo: list[int] = []
-    for i, text in enumerate(texts):
-        hit = cache.get("embeddings", f"{provider.name}|{provider.model}|{text}") if cache else None
+    """Embed texts, reusing cached vectors keyed by provider, model and text.
+
+    Each distinct text is embedded once and its vector is fanned out to every
+    position. Misses are embedded batch by batch and written to the cache after
+    each batch, so a fatal error late in the run keeps the earlier batches.
+    ``progress(done, total)`` is called after each batch with counts of distinct
+    texts that had to be embedded.
+    """
+
+    def key(text: str) -> str:
+        return f"{provider.name}|{provider.model}|{text}"
+
+    found: dict[str, Optional[np.ndarray]] = {}
+    todo: list[str] = []
+    for text in dict.fromkeys(texts):  # distinct, first-seen order
+        hit = cache.get("embeddings", key(text)) if cache else None
         if hit is not None:
-            vectors[i] = np.asarray(hit["v"], dtype=np.float32)
+            found[text] = np.asarray(hit["v"], dtype=np.float32)
         else:
-            todo.append(i)
-    if todo:
-        fresh = provider.embed([texts[i] for i in todo])
-        for i, vec in zip(todo, fresh):
-            vectors[i] = vec
+            todo.append(text)
+    step = max(1, provider.batch_size)
+    for start in range(0, len(todo), step):
+        batch = todo[start : start + step]
+        for text, vec in zip(batch, provider.embed(batch)):
+            found[text] = vec
             if vec is not None and cache is not None:
-                cache.set("embeddings", f"{provider.name}|{provider.model}|{texts[i]}", {"v": vec.tolist()})
-    return vectors
+                cache.set("embeddings", key(text), {"v": vec.tolist()})
+        if progress:
+            progress(min(start + step, len(todo)), len(todo))
+    return [found[text] for text in texts]
 
 
 __all__ = ["PROVIDERS", "DEFAULT_EMBED_MODELS", "EmbeddingError", "EmbeddingProvider", "embed_cached", "make_provider"]

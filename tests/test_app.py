@@ -162,3 +162,25 @@ def test_drafts_cleared_when_results_are_rebuilt_for_new_parameters():
     assert not at.exception
     assert at.session_state["results_params"] == (0.5, True)
     assert "ta_someold" not in at.session_state
+
+
+def test_matching_shows_progress_and_stores_vectors(monkeypatch):
+    calls = []
+
+    def fake_embed_cached(provider, texts, cache, *, progress=None):
+        calls.append(list(texts))
+        if progress:
+            progress(len(texts), len(texts))
+        return [np.array([1.0, 0.0], dtype=np.float32) for _ in texts]
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr("blm.embeddings.embed_cached", fake_embed_cached)
+    at = seeded_app()
+    del at.session_state["vectors"]
+    at.run()
+    button(at, "Matching starten").click().run()
+
+    assert not at.exception
+    assert calls == [["text"]]
+    assert len(at.session_state["vectors"]) == 1
+    assert len(at.session_state["results"]) == 1

@@ -239,8 +239,10 @@ if "recovered" in S:
             texts = [r.text for r in S["recovered"]]
             idx = [i for i, t in enumerate(texts) if t]
             try:
-                with st.spinner("Embeddings werden berechnet …"):
-                    fresh = embed_cached(prov, [texts[i] for i in idx], CACHE)
+                bar = st.progress(0.0, text="Embeddings werden berechnet …")
+                fresh = embed_cached(prov, [texts[i] for i in idx], CACHE,
+                                     progress=lambda done, total: bar.progress(done / total, text=f"Embeddings: {done}/{total} Texte"))
+                bar.progress(1.0, text="Embeddings fertig.")
                 vectors = [None] * len(texts)
                 for j, i in enumerate(idx):
                     vectors[i] = fresh[j]

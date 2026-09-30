@@ -100,15 +100,83 @@ def test_single_text_auth_error_raises_not_none():
         p.embed(["x"])
 
 
-@pytest.mark.parametrize("status", [404, 429, 500, 503])
 @respx.mock
-def test_429_and_500_are_fatal(status):
+def test_404_is_fatal_without_retry():
+    route = respx.post(OPENAI_URL).mock(return_value=httpx.Response(404, json={"error": "nope"}))
+    p = make_provider("openai", "m", api_key="k")
+    slept = []
+    p.sleeper = slept.append
+    with pytest.raises(EmbeddingError) as info:
+        p.embed(["a", "b"])
+    assert info.value.fatal and info.value.status == 404
+    assert route.call_count == 1
+    assert slept == []
+
+
+@pytest.mark.parametrize("status", [429, 500, 503])
+@respx.mock
+def test_429_and_5xx_are_fatal_after_three_retries(status):
     route = respx.post(OPENAI_URL).mock(return_value=httpx.Response(status, json={"error": "nope"}))
     p = make_provider("openai", "m", api_key="k")
+    slept = []
+    p.sleeper = slept.append
     with pytest.raises(EmbeddingError) as info:
         p.embed(["a", "b"])
     assert info.value.fatal and info.value.status == status
-    assert route.call_count == 1
+    assert route.call_count == 4
+    assert slept == [2, 4, 8]
+
+
+@respx.mock
+def test_429_then_200_succeeds_after_one_pause():
+    route = respx.post(OPENAI_URL).mock(side_effect=[
+        httpx.Response(429, json={"error": "slow down"}),
+        httpx.Response(200, json={"data": [{"index": 0, "embedding": [1.0]}]}),
+    ])
+    p = make_provider("openai", "m", api_key="k")
+    slept = []
+    p.sleeper = slept.append
+    assert p.embed(["a"])[0].tolist() == [1.0]
+    assert route.call_count == 2
+    assert slept == [2]
+
+
+@pytest.mark.parametrize("header, expected", [("5", 5.0), ("120", 30.0), ("Wed, 21 Oct 2026 07:28:00 GMT", 2)])
+@respx.mock
+def test_retry_after_header_is_honoured_and_capped(header, expected):
+    respx.post(OPENAI_URL).mock(side_effect=[
+        httpx.Response(429, headers={"Retry-After": header}, json={"error": "slow down"}),
+        httpx.Response(200, json={"data": [{"index": 0, "embedding": [1.0]}]}),
+    ])
+    p = make_provider("openai", "m", api_key="k")
+    slept = []
+    p.sleeper = slept.append
+    p.embed(["a"])
+    assert slept == [expected]
+
+
+@respx.mock
+def test_timeout_is_retried_then_succeeds():
+    route = respx.post(OPENAI_URL).mock(side_effect=[
+        httpx.ReadTimeout("slow"),
+        httpx.Response(200, json={"data": [{"index": 0, "embedding": [1.0]}]}),
+    ])
+    p = make_provider("openai", "m", api_key="k")
+    slept = []
+    p.sleeper = slept.append
+    assert p.embed(["a"])[0].tolist() == [1.0]
+    assert route.call_count == 2 and slept == [2]
+
+
+@respx.mock
+def test_probe_dimension_retries_on_503():
+    respx.post(OPENAI_URL).mock(side_effect=[
+        httpx.Response(503),
+        httpx.Response(200, json={"data": [{"index": 0, "embedding": [0.0] * 8}]}),
+    ])
+    p = make_provider("openai", "m", api_key="k")
+    p.sleeper = lambda s: None
+    assert p.probe_dimension() == 8
 
 
 @respx.mock
@@ -139,12 +207,16 @@ def test_length_mismatch_is_fatal():
 
 
 @respx.mock
-def test_transport_error_is_fatal():
+def test_transport_error_is_fatal_after_retries():
     route = respx.post(OPENAI_URL).mock(side_effect=httpx.ConnectError("refused"))
     p = make_provider("openai", "m", api_key="k")
-    with pytest.raises(EmbeddingError):
+    slept = []
+    p.sleeper = slept.append
+    with pytest.raises(EmbeddingError) as info:
         p.embed(["a", "b"])
-    assert route.call_count == 1
+    assert info.value.fatal
+    assert route.call_count == 4
+    assert slept == [2, 4, 8]
 
 
 @respx.mock
@@ -214,3 +286,49 @@ def test_ollama_malformed_url_raises_fatal_embedding_error(base_url):
     assert info.value.fatal
     with pytest.raises(EmbeddingError):
         p.probe_dimension()
+
+
+class RecordingProvider(EmbeddingProvider):
+    """Fake provider: records every batch, optionally fails fatally on a given call."""
+
+    name = "fake"
+    batch_size = 2
+
+    def __init__(self, fail_on_call=None):
+        super().__init__("m")
+        self.batches = []
+        self.fail_on_call = fail_on_call
+
+    def _embed_batch(self, texts):
+        self.batches.append(list(texts))
+        if self.fail_on_call == len(self.batches):
+            raise EmbeddingError("fake: HTTP 401", status=401, fatal=True)
+        return [[float(len(t))] for t in texts]
+
+
+def test_embed_cached_embeds_each_distinct_text_once():
+    p = RecordingProvider()
+    out = embed_cached(p, ["a", "bb", "a", "bb", "ccc"], None)
+    assert p.batches == [["a", "bb"], ["ccc"]]
+    assert [v.tolist() for v in out] == [[1.0], [2.0], [1.0], [2.0], [3.0]]
+
+
+def test_embed_cached_fatal_error_keeps_earlier_batches_cached(tmp_path):
+    cache = JsonCache(tmp_path)
+    p = RecordingProvider(fail_on_call=2)
+    with pytest.raises(EmbeddingError):
+        embed_cached(p, ["a", "bb", "ccc", "dddd"], cache)
+    assert cache.get("embeddings", "fake|m|a") == {"v": [1.0]}
+    assert cache.get("embeddings", "fake|m|bb") is not None
+    assert cache.get("embeddings", "fake|m|ccc") is None
+
+    retry = RecordingProvider()
+    out = embed_cached(retry, ["a", "bb", "ccc", "dddd"], cache)
+    assert retry.batches == [["ccc", "dddd"]]
+    assert [v.tolist() for v in out] == [[1.0], [2.0], [3.0], [4.0]]
+
+
+def test_embed_cached_reports_progress_per_batch():
+    seen = []
+    embed_cached(RecordingProvider(), ["a", "bb", "ccc", "a"], None, progress=lambda done, total: seen.append((done, total)))
+    assert seen == [(2, 3), (3, 3)]
