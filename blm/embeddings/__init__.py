@@ -5,7 +5,9 @@ from __future__ import annotations
 from typing import Optional
 
 import httpx
+import numpy as np
 
+from blm.cache import JsonCache
 from blm.embeddings.base import EmbeddingError, EmbeddingProvider
 from blm.embeddings.gemini import GeminiEmbeddings
 from blm.embeddings.ollama import OllamaEmbeddings
@@ -36,4 +38,25 @@ def make_provider(
     raise ValueError(f"Unbekannter Embedding-Anbieter: {name}")
 
 
-__all__ = ["PROVIDERS", "DEFAULT_EMBED_MODELS", "EmbeddingError", "EmbeddingProvider", "make_provider"]
+def embed_cached(
+    provider: EmbeddingProvider, texts: list[str], cache: Optional[JsonCache]
+) -> list[Optional[np.ndarray]]:
+    """Embed texts, reusing cached vectors keyed by provider, model and text."""
+    vectors: list[Optional[np.ndarray]] = [None] * len(texts)
+    todo: list[int] = []
+    for i, text in enumerate(texts):
+        hit = cache.get("embeddings", f"{provider.name}|{provider.model}|{text}") if cache else None
+        if hit is not None:
+            vectors[i] = np.asarray(hit["v"], dtype=np.float32)
+        else:
+            todo.append(i)
+    if todo:
+        fresh = provider.embed([texts[i] for i in todo])
+        for i, vec in zip(todo, fresh):
+            vectors[i] = vec
+            if vec is not None and cache is not None:
+                cache.set("embeddings", f"{provider.name}|{provider.model}|{texts[i]}", {"v": vec.tolist()})
+    return vectors
+
+
+__all__ = ["PROVIDERS", "DEFAULT_EMBED_MODELS", "EmbeddingError", "EmbeddingProvider", "embed_cached", "make_provider"]

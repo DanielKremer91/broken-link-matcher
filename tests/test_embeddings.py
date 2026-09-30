@@ -156,3 +156,48 @@ def test_auth_error_raises_embedding_error_immediately():
 def test_base_is_abstract():
     with pytest.raises(TypeError):
         EmbeddingProvider("m")  # type: ignore[abstract]
+
+
+from blm.cache import JsonCache
+from blm.embeddings import embed_cached
+
+
+@respx.mock
+def test_embed_cached_only_requests_misses_and_writes_back(tmp_path):
+    import json
+
+    seen = []
+
+    def handler(request):
+        inputs = json.loads(request.content)["input"]
+        seen.append(inputs)
+        return httpx.Response(200, json={"data": [{"index": i, "embedding": [float(len(t))]} for i, t in enumerate(inputs)]})
+
+    respx.post(OPENAI_URL).mock(side_effect=handler)
+    cache = JsonCache(tmp_path)
+    p = make_provider("openai", "m", api_key="k")
+    first = embed_cached(p, ["aa", "bbb"], cache)
+    assert [v.tolist() for v in first] == [[2.0], [3.0]]
+    second = embed_cached(p, ["aa", "cccc"], cache)
+    assert [v.tolist() for v in second] == [[2.0], [4.0]]
+    assert seen == [["aa", "bbb"], ["cccc"]]
+
+
+@respx.mock
+def test_embed_cached_key_includes_model(tmp_path):
+    respx.post(OPENAI_URL).mock(return_value=httpx.Response(200, json={"data": [{"index": 0, "embedding": [1.0]}]}))
+    cache = JsonCache(tmp_path)
+    embed_cached(make_provider("openai", "m1", api_key="k"), ["x"], cache)
+    assert cache.get("embeddings", "openai|m1|x") == {"v": [1.0]}
+    assert cache.get("embeddings", "openai|m2|x") is None
+
+
+def test_embed_cached_without_cache_calls_provider():
+    class Fake(EmbeddingProvider):
+        name = "fake"
+
+        def _embed_batch(self, texts):
+            return [[1.0] for _ in texts]
+
+    out = embed_cached(Fake("m"), ["a", "b"], None)
+    assert len(out) == 2 and out[0].tolist() == [1.0]
