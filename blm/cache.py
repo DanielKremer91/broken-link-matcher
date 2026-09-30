@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -32,15 +33,22 @@ class JsonCache:
     def set(self, namespace: str, key: str, value: dict) -> None:
         path = self._path(namespace, key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = path.with_suffix(".json.tmp")
-        tmp_path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
-        os.replace(tmp_path, path)
+        payload = json.dumps(value, ensure_ascii=False)
+        # unique temp file per write: concurrent sessions never share one
+        fd, tmp_name = tempfile.mkstemp(dir=path.parent, suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(payload)
+            os.replace(tmp_name, path)
+        except BaseException:
+            Path(tmp_name).unlink(missing_ok=True)
+            raise
 
     def clear(self) -> int:
         if not self.root.exists():
             return 0
         removed = 0
         for file in self.root.rglob("*.json"):
-            file.unlink()
+            file.unlink(missing_ok=True)  # another session may clear concurrently
             removed += 1
         return removed

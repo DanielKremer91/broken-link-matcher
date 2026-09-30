@@ -19,7 +19,7 @@ def test_clear_removes_everything(tmp_path):
     c = JsonCache(tmp_path)
     c.set("a", "1", {"x": 1})
     c.set("b", "2", {"x": 2})
-    assert c.clear() == 2
+    c.clear()  # must not raise FileNotFoundError
     assert c.get("a", "1") is None
 
 
@@ -56,4 +56,35 @@ def test_list_json_is_treated_as_miss(tmp_path):
     path = next((tmp_path / "a").iterdir())
     # Write a JSON array instead of object
     path.write_text("[]")
+    assert c.get("a", "1") is None
+
+
+def test_failed_write_leaves_no_tmp_file_and_keeps_old_value(tmp_path, monkeypatch):
+    import os
+
+    c = JsonCache(tmp_path)
+    c.set("a", "1", {"x": 1})
+
+    def boom(src, dst):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(os, "replace", boom)
+    try:
+        c.set("a", "1", {"x": 2})
+    except OSError:
+        pass
+    monkeypatch.undo()
+    assert list(tmp_path.glob("**/*.tmp")) == []
+    assert c.get("a", "1") == {"x": 1}
+
+
+def test_clear_tolerates_files_vanishing_concurrently(tmp_path, monkeypatch):
+    from pathlib import Path
+
+    c = JsonCache(tmp_path)
+    c.set("a", "1", {"x": 1})
+    ghost = tmp_path / "a" / "gone.json"
+    real_rglob = Path.rglob
+    monkeypatch.setattr(Path, "rglob", lambda self, pattern: [*real_rglob(self, pattern), ghost])
+    c.clear()  # must not raise FileNotFoundError
     assert c.get("a", "1") is None
