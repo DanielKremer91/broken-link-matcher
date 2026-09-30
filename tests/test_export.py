@@ -31,7 +31,7 @@ def test_dataframe_columns_and_values():
     assert df.loc[0, "Vorschlag 3"] == ""
     assert df.loc[0, "Snapshot"] == "2024-03-15"
     assert df.loc[1, "Quelle Text"] == "fallback"
-    assert bool(df.loc[1, "Content-Gap"]) is True
+    assert df.loc[1, "Content-Gap"] == "Ja"
     assert "Kein Snapshot" in df.loc[1, "Fehler"]
 
 
@@ -46,3 +46,48 @@ def test_xlsx_roundtrip():
     back = pd.read_excel(io.BytesIO(data))
     assert len(back) == 2
     assert back.loc[0, "Linkgebende URL"] == "https://a.de/p"
+
+
+def test_formula_injection_prevention():
+    """Verify that formula injection is prevented by prefixing dangerous characters."""
+    bl = BrokenBacklink(url_from="https://a.de/p", url_to="https://c.de/x", anchor="=HYPERLINK(\"x\")", domain_rating=55.0, value_rank=1)
+    r = MatchResult(bl, RecoveredContent(bl.url_to, "t", "wayback", snapshot_timestamp="20240315120000"), value_rank=1, priority=1)
+    df = results_to_dataframe([r])
+    # The dangerous anchor should start with ' to prevent formula evaluation
+    assert df.loc[0, "Anker"].startswith("'=")
+
+
+def test_formula_injection_xlsx_roundtrip():
+    """Verify that formula injection is stored as string in XLSX and survives round-trip."""
+    bl = BrokenBacklink(url_from="https://a.de/p", url_to="https://c.de/x", anchor="=HYPERLINK(\"x\")", domain_rating=55.0, value_rank=1)
+    r = MatchResult(bl, RecoveredContent(bl.url_to, "t", "wayback", snapshot_timestamp="20240315120000"), value_rank=1, priority=1)
+    df = results_to_dataframe([r])
+    data = to_xlsx_bytes(df)
+    back = pd.read_excel(io.BytesIO(data))
+    # Should be stored as string (starts with ')
+    assert isinstance(back.loc[0, "Anker"], str)
+    assert back.loc[0, "Anker"].startswith("'=")
+
+
+def test_csv_decimal_separator():
+    """Verify that CSV uses comma as decimal separator for German Excel."""
+    df = results_to_dataframe(rows())
+    data = to_csv_bytes(df)
+    # Decode and check for comma decimal separator
+    csv_str = data.decode("utf-8-sig")
+    # Score 1 of 0.91 should appear as 0,91 in CSV
+    assert "0,91" in csv_str
+    # Check header line is semicolon-joined COLUMNS
+    lines = csv_str.split("\n")
+    assert lines[0] == ";".join(["Priorität", "Rang Linkwert", "Linkgebende URL", "DR", "UR", "Traffic", "Anker", "Tote URL",
+                                  "Quelle Text", "Snapshot", "Vorschlag 1", "Score 1", "Vorschlag 2", "Score 2", "Vorschlag 3", "Score 3",
+                                  "Content-Gap", "Verifikation", "Fehler"])
+
+
+def test_content_gap_ja_nein():
+    """Verify that Content-Gap column uses Ja/Nein strings instead of True/False."""
+    df = results_to_dataframe(rows())
+    # Row 0 is not a gap
+    assert df.loc[0, "Content-Gap"] == "Nein"
+    # Row 1 is a gap
+    assert df.loc[1, "Content-Gap"] == "Ja"

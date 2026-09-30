@@ -16,6 +16,13 @@ COLUMNS = [
 ]
 
 
+def sanitize_cell(value: str) -> str:
+    """Prevent formula injection by prefixing dangerous characters with a single quote."""
+    if isinstance(value, str) and value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return "'" + value
+    return value
+
+
 def format_snapshot(ts: Optional[str]) -> str:
     if not ts or len(ts) < 8:
         return ""
@@ -29,27 +36,27 @@ def results_to_dataframe(results: list[MatchResult]) -> pd.DataFrame:
         rec = {
             "Priorität": r.priority,
             "Rang Linkwert": r.value_rank,
-            "Linkgebende URL": r.backlink.url_from,
+            "Linkgebende URL": sanitize_cell(r.backlink.url_from),
             "DR": r.backlink.domain_rating,
             "UR": r.backlink.url_rating,
             "Traffic": r.backlink.page_traffic,
-            "Anker": r.backlink.anchor,
-            "Tote URL": r.backlink.url_to,
-            "Quelle Text": r.recovered.source,
-            "Snapshot": format_snapshot(r.recovered.snapshot_timestamp),
+            "Anker": sanitize_cell(r.backlink.anchor),
+            "Tote URL": sanitize_cell(r.backlink.url_to),
+            "Quelle Text": sanitize_cell(r.recovered.source),
+            "Snapshot": sanitize_cell(format_snapshot(r.recovered.snapshot_timestamp)),
         }
         for i, m in enumerate(top, start=1):
-            rec[f"Vorschlag {i}"] = m.url if m else ""
+            rec[f"Vorschlag {i}"] = sanitize_cell(m.url) if m else ""
             rec[f"Score {i}"] = round(m.score, 3) if m else None
-        rec["Content-Gap"] = r.is_content_gap
-        rec["Verifikation"] = r.verification
-        rec["Fehler"] = " | ".join(r.errors)
+        rec["Content-Gap"] = "Ja" if r.is_content_gap else "Nein"
+        rec["Verifikation"] = sanitize_cell(r.verification)
+        rec["Fehler"] = sanitize_cell(" | ".join(r.errors))
         records.append(rec)
     return pd.DataFrame.from_records(records, columns=COLUMNS)
 
 
 def to_csv_bytes(df: pd.DataFrame) -> bytes:
-    return df.to_csv(index=False, sep=";").encode("utf-8-sig")
+    return df.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig")
 
 
 def to_xlsx_bytes(df: pd.DataFrame) -> bytes:
