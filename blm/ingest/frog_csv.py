@@ -49,7 +49,9 @@ def _parse_vector(raw) -> Optional[np.ndarray]:
         vec = np.asarray([float(p) for p in parts], dtype=np.float32)
     except ValueError:
         return None
-    return vec if vec.size else None
+    if not vec.size or not np.isfinite(vec).all():
+        return None
+    return vec
 
 
 def load_frog_embeddings(source) -> FrogImport:
@@ -75,9 +77,18 @@ def load_frog_embeddings(source) -> FrogImport:
     pages: list[OwnPage] = []
     skipped = 0
     for _, row in df.iterrows():
+        # Skip rows with missing or empty URLs
+        if pd.isna(row[url_col]):
+            skipped += 1
+            continue
+        url = str(row[url_col]).strip()
+        if not url:
+            skipped += 1
+            continue
+
         if wide_cols:
             values = pd.to_numeric(row[wide_cols], errors="coerce").to_numpy(dtype=np.float32)
-            vec = None if np.isnan(values).any() else values
+            vec = None if not np.isfinite(values).all() else values
         else:
             vec = _parse_vector(row[vector_col])
         if vec is None:
@@ -86,7 +97,7 @@ def load_frog_embeddings(source) -> FrogImport:
         title = ""
         if title_col is not None and pd.notna(row[title_col]):
             title = str(row[title_col])
-        pages.append(OwnPage(url=str(row[url_col]).strip(), vector=vec, title=title))
+        pages.append(OwnPage(url=url, vector=vec, title=title))
 
     if not pages:
         raise ValueError("Keine gültigen Embeddings in der Datei.")

@@ -45,3 +45,22 @@ def test_no_vectors_raises(tmp_path):
     f.write_text("url,other\nhttps://a.de,1\n")
     with pytest.raises(ValueError, match="Embedding"):
         load_frog_embeddings(f)
+
+
+def test_wide_format_skips_empty_url(tmp_path):
+    f = tmp_path / "empty_url.csv"
+    f.write_text("url,embedding_0,embedding_1,embedding_2\nhttps://a.de,1.0,0.0,0.0\n,2.0,0.0,0.0\nhttps://c.de,0.0,1.0,0.0\n")
+    imp = load_frog_embeddings(f)
+    assert len(imp.pages) == 2
+    assert [p.url for p in imp.pages] == ["https://a.de", "https://c.de"]
+    assert imp.skipped == 1
+
+
+def test_non_finite_vectors_skipped(tmp_path):
+    f = tmp_path / "non_finite.csv"
+    # Wide format with inf, single-column format with nan
+    f.write_text("url,embedding_0,embedding_1\nhttps://a.de,1.0,inf\nhttps://b.de,1.0,0.5\n")
+    imp = load_frog_embeddings(f)
+    assert len(imp.pages) == 1
+    assert imp.pages[0].url == "https://b.de"
+    assert imp.skipped == 1
