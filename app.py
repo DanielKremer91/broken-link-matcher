@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import os
 import time
 from pathlib import Path
@@ -62,6 +63,18 @@ with st.sidebar:
     st.caption("Schlüssel bleiben in dieser Sitzung und werden nicht gespeichert.")
 
 
+def invalidate_matching() -> None:
+    """Drop everything derived from the Frog import or the recovered texts."""
+    for key in list(S.keys()):
+        if key in ("vectors", "results", "results_params") or key.startswith(("draft_", "ta_")):
+            del S[key]
+
+
+def upload_id(f) -> str:
+    """Identify an uploaded file; file_id changes on every new upload, name is the fallback."""
+    return getattr(f, "file_id", None) or f.name
+
+
 def provider_or_error():
     try:
         return make_provider(provider, embed_model, api_key=api_key, base_url=base_url)
@@ -76,14 +89,19 @@ st.caption("Broken Link Building mit semantischem Matching: tote Wettbewerber-UR
 # ----------------------------------------------------------------- 1. own domain
 st.header("1. Eigene Domain (Screaming-Frog-Embeddings)")
 frog_file = st.file_uploader("Embeddings-Export aus dem Screaming Frog (CSV)", type=["csv"], key="frog_upload")
-if frog_file is not None and S.get("frog_name") != frog_file.name:
+if frog_file is not None and S.get("frog_upload_id") != upload_id(frog_file):
     try:
         S["frog"] = load_frog_embeddings(frog_file)
         S["frog_name"] = frog_file.name
+        S["frog_upload_id"] = upload_id(frog_file)
         S.pop("dim_ok", None)
         S.pop("probe_dim", None)
+        S.pop("dim_checked_for", None)
+        invalidate_matching()
     except ValueError as exc:
         st.error(str(exc))
+dim_settings = (provider, embed_model, base_url)
+dim_valid = S.get("dim_ok") is True and S.get("dim_checked_for") == dim_settings
 if "frog" in S:
     imp = S["frog"]
     st.write(f"{len(imp.pages)} URLs, Vektordimension {imp.dimension}, {imp.skipped} Zeilen übersprungen.")
@@ -93,10 +111,14 @@ if "frog" in S:
             try:
                 S["probe_dim"] = prov.probe_dimension()
                 S["dim_ok"] = S["probe_dim"] == imp.dimension
+                S["dim_checked_for"] = dim_settings
+                dim_valid = S["dim_ok"] is True
             except EmbeddingError as exc:
                 st.error(str(exc))
     if "probe_dim" in S:
-        if S.get("dim_ok"):
+        if S.get("dim_checked_for") != dim_settings:
+            st.warning("Dimensionscheck für die aktuellen Einstellungen erneut ausführen.")
+        elif S.get("dim_ok"):
             st.success(f"Dimension passt ({S['probe_dim']}).")
         else:
             st.error(f"Dimension passt nicht: Frog-CSV {imp.dimension}, Modell {S['probe_dim']}. Wähle exakt das Modell, das im Frog konfiguriert ist.")
@@ -106,11 +128,14 @@ st.header("2. Wettbewerber-Backlinks")
 tab_csv, tab_api = st.tabs(["CSV/XLSX-Upload", "Ahrefs-API"])
 with tab_csv:
     bl_file = st.file_uploader("Broken-Backlinks-Export (Ahrefs oder anderes Tool)", type=["csv", "xlsx"], key="bl_upload")
-    if bl_file is not None and S.get("bl_name") != bl_file.name:
+    if bl_file is not None and S.get("bl_upload_id") != upload_id(bl_file):
         try:
-            S["bl_df"] = read_table(bl_file, filename=bl_file.name)
+            new_df = read_table(bl_file, filename=bl_file.name)
+            new_mapping = detect_columns(new_df)
+            S["bl_df"] = new_df
+            S["bl_mapping"] = new_mapping
             S["bl_name"] = bl_file.name
-            S["bl_mapping"] = detect_columns(S["bl_df"])
+            S["bl_upload_id"] = upload_id(bl_file)
         except Exception as exc:  # pandas raises many types for malformed files
             st.error(f"Datei konnte nicht gelesen werden: {exc}")
     if "bl_df" in S:
@@ -130,6 +155,7 @@ with tab_csv:
         if st.button("Backlinks übernehmen"):
             try:
                 S["raw_backlinks"] = parse_backlinks(S["bl_df"], mapping)
+                S.pop("recovered_partial", None)
                 st.success(f"{len(S['raw_backlinks'])} Backlinks übernommen.")
             except ValueError as exc:
                 st.error(str(exc))
@@ -142,6 +168,7 @@ with tab_api:
     if st.button("Von Ahrefs abrufen", disabled=not (ahrefs_key and target)):
         try:
             S["raw_backlinks"] = fetch_broken_backlinks(ahrefs_key, target, limit=int(api_limit), include_traffic=include_traffic)
+            S.pop("recovered_partial", None)
             st.success(f"{len(S['raw_backlinks'])} Backlinks geladen.")
         except AhrefsError as exc:
             st.error(f"{exc} Alternative: CSV-Export aus Ahrefs hochladen.")
@@ -165,18 +192,22 @@ if "ranked" in S:
     st.caption("Immer der jüngste Snapshot mit Status 200. Ohne Snapshot: Fallback aus Anker, Kontext, Titel und URL-Pfad, kein generierter Text.")
     if st.button("Inhalte aus der Wayback Machine holen"):
         ranked = S["ranked"]
-        recovered = []
+        if S.get("recovered_partial_chars") != int(max_chars):
+            S["recovered_partial"] = {}  # texts cut at a different length are not reusable
+            S["recovered_partial_chars"] = int(max_chars)
+        partial = S.setdefault("recovered_partial", {})
         bar = st.progress(0.0, text="Starte …")
         with httpx.Client() as client:
             for i, bl in enumerate(ranked, start=1):
-                recovered.append(recover_content(bl, client, CACHE, max_chars=int(max_chars)))
+                if bl.url_to not in partial:
+                    cached = CACHE.get("wayback", bl.url_to) is not None
+                    partial[bl.url_to] = recover_content(bl, client, CACHE, max_chars=int(max_chars))
+                    if not cached and i < len(ranked):
+                        time.sleep(1.0)
                 bar.progress(i / len(ranked), text=f"{i}/{len(ranked)}: {bl.url_to}")
-                if i < len(ranked):
-                    time.sleep(1.0)
         S["recovered_for"] = ranked
-        S["recovered"] = recovered
-        for key in ("vectors", "results", "results_params"):
-            S.pop(key, None)
+        S["recovered"] = [partial[bl.url_to] for bl in ranked]
+        invalidate_matching()
     if "recovered" in S:
         rec = S["recovered"]
         counts = {src: sum(r.source == src for r in rec) for src in ("wayback", "fallback", "none")}
@@ -192,7 +223,7 @@ if "recovered" in S:
     st.header("4. Matching")
     threshold = st.slider("Schwellwert: darunter gilt eine Zeile als Content-Gap", 0.0, 1.0, 0.5, 0.01)
     match_fallback = st.checkbox("Fallback-Zeilen (ohne Snapshot) ebenfalls matchen", value=True)
-    blocked = "frog" not in S or S.get("dim_ok") is not True
+    blocked = "frog" not in S or not dim_valid
     if blocked:
         st.warning("Erst die Frog-CSV laden und den Dimensionscheck bestehen.")
     if st.button("Matching starten", disabled=blocked):
@@ -240,18 +271,19 @@ if "results" in S:
     for r in S["results"]:
         if not r.top:
             continue
+        row_key = hashlib.sha1(f"{r.backlink.url_from}|{r.backlink.url_to}".encode()).hexdigest()[:12]
         dr = f"DR {r.backlink.domain_rating:.0f}" if r.backlink.domain_rating is not None else "DR unbekannt"
         with st.expander(f"#{r.priority} · {dr} · {r.backlink.url_from}"):
             st.write(f"Tote URL: {r.backlink.url_to}")
             st.write(f"Vorschlag: {r.top[0].url} (Score {r.top[0].score:.2f}) · Verifikation: {r.verification}")
-            if st.button("Mail-Entwurf erzeugen", key=f"mail_{r.priority}"):
+            if st.button("Mail-Entwurf erzeugen", key=f"mail_{row_key}"):
                 try:
-                    S[f"draft_{r.priority}"] = draft_mail(
+                    S[f"ta_{row_key}"] = draft_mail(
                         r, sender_name or "Ich", own_domain or "unserer Seite",
                         provider=provider, model=chat_model, api_key=api_key, base_url=base_url,
                         suggestion_title=titles.get(r.top[0].url, ""),
                     )
                 except OutreachError as exc:
                     st.error(str(exc))
-            if f"draft_{r.priority}" in S:
-                st.text_area("Entwurf (editierbar)", S[f"draft_{r.priority}"], height=220, key=f"ta_{r.priority}")
+            if f"ta_{row_key}" in S:
+                st.text_area("Entwurf (editierbar)", key=f"ta_{row_key}", height=220)
