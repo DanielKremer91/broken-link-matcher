@@ -68,6 +68,10 @@ Dieselben Anbieter erzeugen auch die Mail-Entwürfe (Chat-Modell in der Seitenle
 
 Repo verbinden, `app.py` als Einstieg, Schlüssel unter App Settings → Secrets im TOML-Format hinterlegen (gleiche Namen wie in `.streamlit/secrets.example.toml`). Der Cache ist dort flüchtig.
 
+### Öffentliches Deployment
+
+Schlüssel aus Secrets oder Umgebungsvariablen werden nie in die Eingabefelder vorbefüllt und gelangen so nicht in den Browser; die Seitenleiste zeigt nur "Schlüssel aus Secrets/Umgebung aktiv". Trotzdem gilt: Eine öffentliche Cloud-App mit Schlüsseln in den Secrets lässt jeden Besucher das Kontingent des Betreibers verbrauchen (Embeddings, Mail-Entwürfe, Ahrefs-Units). Deploye die App deshalb privat (Zugriff nur für eingeladene Nutzer) oder lass die Secrets leer, damit jeder Nutzer seinen eigenen Schlüssel einträgt. Der Cache (`.cache/`) wird von allen Besuchern geteilt, und "Cache leeren" löscht ihn für alle. Das Feld Ollama-URL ist für lokale Installationen gedacht und sollte auf einem öffentlichen Deployment nicht genutzt werden, weil der Server dann Anfragen an beliebige vom Besucher eingetragene Adressen schickt.
+
 ## Tests
 
 ```bash

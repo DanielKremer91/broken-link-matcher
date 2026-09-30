@@ -26,11 +26,12 @@ from blm.wayback import recover_content
 st.set_page_config(page_title="Broken Link Matcher", page_icon="🔗", layout="wide")
 S = st.session_state
 CACHE = JsonCache(Path(__file__).parent / ".cache")
+KEY_FROM_SECRETS = "Schlüssel aus Secrets/Umgebung aktiv"
 SORT_LABELS = {"domain_rating": "Domain Rating", "url_rating": "URL Rating", "page_traffic": "Seitentraffic"}
 
 
 def secret(name: str) -> str:
-    """Env var or st.secrets fallback for a key; never persisted by the app."""
+    """Env var or st.secrets fallback for a key; never persisted and never sent to the browser."""
     value = os.environ.get(name.upper(), "")
     if value:
         return value
@@ -50,10 +51,17 @@ with st.sidebar:
         api_key = None
     else:
         base_url = None
-        api_key = st.text_input(f"{provider.capitalize()} API-Schlüssel", type="password", value=secret(f"{provider}_api_key"))
+        # never prefill a secret: widget values are serialised to the browser
+        typed_key = st.text_input(f"{provider.capitalize()} API-Schlüssel", type="password", value="")
+        api_key = typed_key or secret(f"{provider}_api_key")
+        if api_key and not typed_key:
+            st.caption(KEY_FROM_SECRETS)
     chat_model = st.text_input("Chat-Modell für Mail-Entwürfe", value=DEFAULT_CHAT_MODELS[provider])
     st.divider()
-    ahrefs_key = st.text_input("Ahrefs-API-Schlüssel (optional)", type="password", value=secret("ahrefs_api_key"))
+    typed_ahrefs = st.text_input("Ahrefs-API-Schlüssel (optional)", type="password", value="")
+    ahrefs_key = typed_ahrefs or secret("ahrefs_api_key")
+    if ahrefs_key and not typed_ahrefs:
+        st.caption(KEY_FROM_SECRETS)
     st.divider()
     sender_name = st.text_input("Dein Name (für Mail-Entwürfe)")
     own_domain = st.text_input("Deine Domain (für Mail-Entwürfe)")

@@ -184,3 +184,28 @@ def test_matching_shows_progress_and_stores_vectors(monkeypatch):
     assert calls == [["text"]]
     assert len(at.session_state["vectors"]) == 1
     assert len(at.session_state["results"]) == 1
+
+
+def test_keys_from_environment_are_never_prefilled_into_widgets(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-secret-123")
+    monkeypatch.setenv("AHREFS_API_KEY", "ahrefs-secret-456")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+
+    assert not at.exception
+    values = {t.label: t.value for t in at.sidebar.text_input}
+    assert values["Openai API-Schlüssel"] == ""
+    assert values["Ahrefs-API-Schlüssel (optional)"] == ""
+    assert not any("secret" in (t.value or "") for t in at.text_input)
+    assert [c.value for c in at.sidebar.caption].count("Schlüssel aus Secrets/Umgebung aktiv") == 2
+
+    # the environment key is still used: the Ahrefs fetch becomes available once a domain is entered
+    next(t for t in at.text_input if t.label == "Wettbewerber-Domain").input("konkurrent.de").run()
+    assert button(at, "Von Ahrefs abrufen").disabled is False
+
+
+def test_no_key_caption_without_environment_key(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("AHREFS_API_KEY", raising=False)
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert not at.exception
+    assert "Schlüssel aus Secrets/Umgebung aktiv" not in [c.value for c in at.sidebar.caption]
