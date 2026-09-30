@@ -9,6 +9,10 @@ import httpx
 import numpy as np
 
 
+# Transport failures plus malformed URLs (e.g. a mistyped Ollama URL) and header
+# encoding problems; all of them are fatal for the run.
+REQUEST_ERRORS = (httpx.HTTPError, httpx.InvalidURL, UnicodeError)
+
 # HTTP statuses that indicate a problem with the input itself (splittable).
 _PER_INPUT_STATUSES = frozenset({400, 413, 422})
 

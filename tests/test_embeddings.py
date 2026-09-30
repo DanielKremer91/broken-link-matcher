@@ -201,3 +201,14 @@ def test_embed_cached_without_cache_calls_provider():
 
     out = embed_cached(Fake("m"), ["a", "b"], None)
     assert len(out) == 2 and out[0].tolist() == [1.0]
+
+
+@pytest.mark.parametrize("base_url", ["http://[bad]", "http://localhost:abc", "http://[::1", "http://xn--a.com"])
+@respx.mock
+def test_ollama_malformed_url_raises_fatal_embedding_error(base_url):
+    p = make_provider("ollama", "nomic-embed-text", base_url=base_url)
+    with pytest.raises(EmbeddingError) as info:
+        p.embed(["x"])
+    assert info.value.fatal
+    with pytest.raises(EmbeddingError):
+        p.probe_dimension()

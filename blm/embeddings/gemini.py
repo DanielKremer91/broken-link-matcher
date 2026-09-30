@@ -5,6 +5,7 @@ from typing import Optional
 import httpx
 
 from blm.embeddings.base import (
+    REQUEST_ERRORS,
     EmbeddingError,
     EmbeddingProvider,
     check_vector_count,
@@ -30,7 +31,7 @@ class GeminiEmbeddings(EmbeddingProvider):
         body = {"requests": [{"model": f"models/{self.model}", "content": {"parts": [{"text": t}]}} for t in texts]}
         try:
             resp = self.client.post(url, params={"key": self.api_key}, json=body)
-        except httpx.HTTPError as exc:
+        except REQUEST_ERRORS as exc:
             raise EmbeddingError(f"gemini: {exc}") from exc
         raise_for_status(resp, "gemini")
         try:

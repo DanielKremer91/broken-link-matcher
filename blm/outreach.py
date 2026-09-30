@@ -98,7 +98,7 @@ def chat_complete(
         if not text:
             raise OutreachError(f"{provider}: leere Antwort")
         return text
-    except httpx.HTTPError as exc:
+    except (httpx.HTTPError, httpx.InvalidURL, UnicodeError) as exc:  # includes a mistyped Ollama URL
         raise OutreachError(f"{provider}: {exc}") from exc
     finally:
         if own_client:

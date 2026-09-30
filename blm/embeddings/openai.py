@@ -5,6 +5,7 @@ from typing import Optional
 import httpx
 
 from blm.embeddings.base import (
+    REQUEST_ERRORS,
     EmbeddingError,
     EmbeddingProvider,
     check_vector_count,
@@ -32,7 +33,7 @@ class OpenAIEmbeddings(EmbeddingProvider):
                 headers={"Authorization": f"Bearer {self.api_key}"},
                 json={"model": self.model, "input": texts},
             )
-        except httpx.HTTPError as exc:
+        except REQUEST_ERRORS as exc:
             raise EmbeddingError(f"openai: {exc}") from exc
         raise_for_status(resp, "openai")
         try:

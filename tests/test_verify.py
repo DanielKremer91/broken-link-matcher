@@ -159,3 +159,51 @@ def test_target_status_is_fetched_once_per_run():
         verify_results(rows, c, sleeper=lambda s: None)
     assert [r.verification for r in rows] == ["confirmed", "confirmed"]
     assert target.call_count == 1
+
+
+@pytest.mark.parametrize("target", ["http://[::1", "https://xn--a.com/"])
+@respx.mock
+def test_malformed_target_url_is_unknown(target):
+    with httpx.Client() as c:
+        assert verify_backlink(BrokenBacklink(url_from=FROM, url_to=target), c) == "unknown"
+
+
+@pytest.mark.parametrize("referring", ["http://[::1", "https://xn--a.com/"])
+@respx.mock
+def test_malformed_referring_url_is_unknown(referring):
+    respx.get(DEAD).mock(return_value=httpx.Response(404))
+    with httpx.Client() as c:
+        assert verify_backlink(BrokenBacklink(url_from=referring, url_to=DEAD), c) == "unknown"
+
+
+@respx.mock
+def test_malformed_href_on_referring_page_does_not_crash():
+    respx.get(DEAD).mock(return_value=httpx.Response(404))
+    html = '<a href="http://[::1">kaputt</a><a href="https://konkurrent.de/ratgeber/stahl">x</a>'
+    respx.get(FROM).mock(return_value=httpx.Response(200, html=html))
+    with httpx.Client() as c:
+        assert verify_backlink(bl(), c) == "confirmed"
+
+
+@respx.mock
+def test_verify_results_marks_malformed_rows_unknown_and_continues():
+    respx.get(DEAD).mock(return_value=httpx.Response(404))
+    respx.get(FROM).mock(return_value=httpx.Response(200, html=WITH))
+    rows = [
+        MatchResult(BrokenBacklink(url_from="http://[::1", url_to=DEAD), RecoveredContent(DEAD, "t", "wayback")),
+        MatchResult(bl(), RecoveredContent(DEAD, "t", "wayback")),
+    ]
+    with httpx.Client() as c:
+        verify_results(rows, c, sleeper=lambda s: None)
+    assert [r.verification for r in rows] == ["unknown", "confirmed"]
+
+
+def test_verify_results_last_resort_catches_unexpected_errors(monkeypatch):
+    def explode(*a, **k):
+        raise RuntimeError("unexpected")
+
+    monkeypatch.setattr("blm.verify.verify_backlink", explode)
+    rows = [MatchResult(bl(), RecoveredContent(DEAD, "t", "wayback"))]
+    with httpx.Client() as c:
+        verify_results(rows, c, sleeper=lambda s: None)
+    assert rows[0].verification == "unknown"

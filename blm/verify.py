@@ -15,6 +15,9 @@ from blm.wayback import USER_AGENT
 DEAD_CODES = {404, 410}
 MAX_HTML_BYTES = 2_000_000
 _DEFAULT_PORTS = (":80", ":443")
+# Malformed URLs from third-party exports: httpx.InvalidURL (bad port or IPv6 literal),
+# UnicodeError (invalid IDNA host), ValueError (urllib parsing).
+REQUEST_ERRORS = (httpx.HTTPError, httpx.InvalidURL, UnicodeError, ValueError)
 
 
 def canonical(url: str) -> str:
@@ -40,7 +43,7 @@ def target_status(url: str, client: httpx.Client, timeout: float = 10.0) -> Opti
     try:
         with client.stream("GET", url, **_request_kwargs(timeout)) as response:
             return response.status_code
-    except httpx.HTTPError:
+    except REQUEST_ERRORS:
         return None
 
 
@@ -50,8 +53,11 @@ def _page_links_to(html: bytes | str, page_url: str, target: str) -> bool:
     base = soup.find("base", href=True)
     base_url = urljoin(page_url, base["href"]) if base else page_url
     for a in soup.find_all("a", href=True):
-        if canonical(urljoin(base_url, a["href"])) == wanted:
-            return True
+        try:
+            if canonical(urljoin(base_url, a["href"])) == wanted:
+                return True
+        except ValueError:  # malformed href, e.g. an unclosed IPv6 literal
+            continue
     return False
 
 
@@ -88,12 +94,12 @@ def verify_backlink(
         return "fixed" if status < 400 else "unknown"
     try:
         page = _fetch_html(bl.url_from, client, timeout)
-    except httpx.HTTPError:
+        if page is None:
+            return "unknown"
+        body, final_url = page
+        return "confirmed" if _page_links_to(body, final_url, bl.url_to) else "fixed"
+    except REQUEST_ERRORS:
         return "unknown"
-    if page is None:
-        return "unknown"
-    body, final_url = page
-    return "confirmed" if _page_links_to(body, final_url, bl.url_to) else "fixed"
 
 
 def verify_results(
@@ -107,10 +113,16 @@ def verify_results(
     last_host = None
     status_cache: dict = {}
     for i, row in enumerate(results, start=1):
-        host = urlparse(row.backlink.url_from).netloc.lower()
+        try:
+            host = urlparse(row.backlink.url_from).netloc.lower()
+        except ValueError:
+            host = row.backlink.url_from
         if last_host is not None and host != last_host:
             sleeper(pause)
-        row.verification = verify_backlink(row.backlink, client, status_cache=status_cache)
+        try:
+            row.verification = verify_backlink(row.backlink, client, status_cache=status_cache)
+        except Exception:  # last resort: one odd row must not abort the whole run
+            row.verification = "unknown"
         last_host = host
         if progress:
             progress(i, len(results))
