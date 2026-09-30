@@ -133,3 +133,32 @@ def test_new_frog_upload_invalidates_matching_and_dimension_check():
     for key in ("vectors", "results", "results_params", "dim_ok", "probe_dim", "dim_checked_for"):
         assert key not in at.session_state
     assert button(at, "Matching starten").disabled is True
+
+
+def test_duplicate_backlink_pairs_get_unique_widget_keys():
+    def bl(anchor):
+        return BrokenBacklink(url_from="https://a.de/p", url_to="https://c.de/x", anchor=anchor, domain_rating=50.0)
+
+    at = seeded_app([bl("eins"), bl("zwei")])
+    at.session_state["recovered_for"] = [BrokenBacklink(**{**b.__dict__, "value_rank": i + 1})
+                                         for i, b in enumerate([bl("eins"), bl("zwei")])]
+    at.session_state["recovered"] = [RecoveredContent("https://c.de/x", "text", "wayback", "20240101000000")] * 2
+    at.session_state["vectors"] = [np.array([1.0, 0.0], dtype=np.float32)] * 2
+    at.run()
+
+    assert not at.exception
+    assert len(at.session_state["results"]) == 2
+    base = hashlib.sha1(b"https://a.de/p|https://c.de/x").hexdigest()[:12]
+    mail_keys = [b.key for b in at.button if b.key and b.key.startswith("mail_")]
+    assert mail_keys == [f"mail_{base}", f"mail_{base}-1"]
+
+
+def test_drafts_cleared_when_results_are_rebuilt_for_new_parameters():
+    at = seeded_app()
+    at.session_state["results_params"] = (0.9, True)  # differs from the default threshold 0.5
+    at.session_state["ta_someold"] = "veralteter Entwurf"
+    at.run()
+
+    assert not at.exception
+    assert at.session_state["results_params"] == (0.5, True)
+    assert "ta_someold" not in at.session_state

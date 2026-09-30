@@ -63,11 +63,18 @@ with st.sidebar:
     st.caption("Schlüssel bleiben in dieser Sitzung und werden nicht gespeichert.")
 
 
+def clear_drafts() -> None:
+    """Drop all mail drafts (the text areas hold the draft state)."""
+    for key in list(S.keys()):
+        if key.startswith("ta_"):
+            del S[key]
+
+
 def invalidate_matching() -> None:
     """Drop everything derived from the Frog import or the recovered texts."""
-    for key in list(S.keys()):
-        if key in ("vectors", "results", "results_params") or key.startswith(("draft_", "ta_")):
-            del S[key]
+    for key in ("vectors", "results", "results_params"):
+        S.pop(key, None)
+    clear_drafts()
 
 
 def upload_id(f) -> str:
@@ -247,6 +254,7 @@ if "recovered" in S:
             S["results"] = build_results(S["recovered_for"], S["recovered"], S["vectors"], S["frog"].pages,
                                          threshold=threshold, match_fallback=match_fallback)
             S["results_params"] = params
+            clear_drafts()  # a draft must not describe an outdated top suggestion
         df = results_to_dataframe(S["results"])
         only_gaps = st.checkbox("Nur Content-Gaps zeigen")
         shown = df[df["Content-Gap"] == "Ja"] if only_gaps else df
@@ -268,10 +276,14 @@ if "results" in S:
                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     st.subheader("Mail-Entwürfe")
     titles = {p.url: p.title for p in S["frog"].pages}
+    seen: dict[str, int] = {}
     for r in S["results"]:
         if not r.top:
             continue
-        row_key = hashlib.sha1(f"{r.backlink.url_from}|{r.backlink.url_to}".encode()).hexdigest()[:12]
+        base = hashlib.sha1(f"{r.backlink.url_from}|{r.backlink.url_to}".encode()).hexdigest()[:12]
+        n = seen.get(base, 0)
+        seen[base] = n + 1
+        row_key = base if n == 0 else f"{base}-{n}"  # same page may link the dead URL several times
         dr = f"DR {r.backlink.domain_rating:.0f}" if r.backlink.domain_rating is not None else "DR unbekannt"
         with st.expander(f"#{r.priority} · {dr} · {r.backlink.url_from}"):
             st.write(f"Tote URL: {r.backlink.url_to}")
