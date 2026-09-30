@@ -1,0 +1,4 @@
+Address,Title 1,Embeddings
+https://me.de/a,Seite A,"[0.5, 0.5, 0.0]"
+https://me.de/b,Seite B,"[0.0, 0.0, 1.0]"
+https://me.de/c,Seite C,
