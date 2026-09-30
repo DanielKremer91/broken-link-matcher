@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -21,14 +22,19 @@ class JsonCache:
         if not path.exists():
             return None
         try:
-            return json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError):
+            value = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(value, dict):
+                return None
+            return value
+        except (ValueError, OSError):
             return None
 
     def set(self, namespace: str, key: str, value: dict) -> None:
         path = self._path(namespace, key)
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+        tmp_path = path.with_suffix(".json.tmp")
+        tmp_path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp_path, path)
 
     def clear(self) -> int:
         if not self.root.exists():
