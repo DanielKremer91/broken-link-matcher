@@ -39,7 +39,7 @@ Python 3.11 oder neuer. Auf dem Entwicklungsrechner ist nur Python 3.9 systemwei
 | is_content | bool oder None | Link steht im Hauptinhalt |
 | http_code_target | int oder None | Statuscode der Ziel-URL laut Quelle |
 
-`OwnPage`: url, vector (numpy float32).
+`OwnPage`: url, vector (numpy float32), title (str, leer wenn der Export keine Titelspalte hat).
 
 `RecoveredContent`: url_to, text, source (`wayback`, `fallback`), snapshot_timestamp (str oder None), error (str oder None).
 
@@ -57,7 +57,7 @@ Optionaler Client für `GET https://api.ahrefs.com/v3/site-explorer/broken-backl
 Liest den Embeddings-Export des Screaming Frog (CSV mit URL-Spalte und Vektor-Spalte, Vektor als Zahlenliste in einem Feld). Liefert eine Liste `OwnPage` und die Vektordimension. Zeilen mit leerem oder nicht parsebarem Vektor werden gezählt und übersprungen, nicht abgebrochen.
 
 `blm/ranking.py`
-Filtert und sortiert Backlinks. Filter (jeweils abschaltbar): nur Dofollow, nur Content-Links. Zeilen, deren Flag None ist, bleiben erhalten. Sortierung: domain_rating absteigend, dann page_traffic absteigend, None ans Ende. Danach Kappung auf die Obergrenze (Standard 100). Dedupliziert identische url_to mehrfach vorkommende Ziel-URLs nicht, denn jede linkgebende URL ist ein eigener Outreach-Kandidat; der Wayback-Abruf dedupliziert intern per Cache.
+Filtert und sortiert Backlinks. Filter (jeweils abschaltbar): nur Dofollow, nur Content-Links. Zeilen, deren Flag None ist, bleiben erhalten. Sortierung: domain_rating absteigend, dann page_traffic absteigend, None ans Ende. Danach Kappung auf die Obergrenze (Standard 100). Mehrfach vorkommende Ziel-URLs werden nicht zusammengefasst, denn jede linkgebende URL ist ein eigener Outreach-Kandidat. Der Wayback-Abruf holt jede Ziel-URL trotzdem nur einmal, weil der Cache greift.
 
 `blm/wayback.py`
 Für eine url_to:
@@ -78,7 +78,7 @@ Normalisiert Eigen- und Wettbewerber-Vektoren auf Länge 1, berechnet die Ähnli
 Optional. Pro Zeile zwei Live-Prüfungen mit Timeout 10 Sekunden: GET auf url_to, Status 404 oder 410 gilt als weiterhin kaputt; GET auf url_from, prüft ob ein `<a href>` auf url_to (exakt oder ohne Protokoll und Trailing Slash) vorhanden ist. Ergebnis `confirmed` (kaputt und Link vorhanden), `fixed` (Ziel antwortet 2xx/3xx oder Link fehlt), `unknown` (Timeout oder Fehler). Pause 0.5 Sekunden zwischen Domains.
 
 `blm/outreach.py`
-Erzeugt einen Mail-Entwurf per Chat-Modell des gewählten Anbieters (OpenAI, Gemini oder Ollama, jeweils ein frei wählbarer Chat-Modellname mit Vorgabe). Prompt enthält: Sprache Deutsch, Länge maximal 120 Wörter, Absender-Name und eigene Domain aus der UI, url_from, anchor, snippet_left und snippet_right, url_to, Vorschlags-URL (Top 1) und deren Titel, wenn aus der Frog-CSV vorhanden, sonst URL-Slug. Tonalität: freundlich, konkret, keine Floskeln. Ausgabe ist reiner Text, editierbar im UI.
+Erzeugt einen Mail-Entwurf per Chat-Modell des gewählten Anbieters (OpenAI, Gemini oder Ollama, jeweils ein frei wählbarer Chat-Modellname mit Vorgabe). Prompt enthält: Sprache Deutsch, Länge maximal 120 Wörter, Absender-Name und eigene Domain aus der UI, url_from, anchor, snippet_left und snippet_right, url_to, Vorschlags-URL (Top 1) und deren lesbar gemachter URL-Pfad. Die Frog-CSV enthält keine Titel; enthält der Export optional eine Titelspalte, wird sie erkannt und mitgegeben. Tonalität: freundlich, konkret, keine Floskeln. Ausgabe ist reiner Text, editierbar im UI.
 
 `blm/cache.py`
 Datei-Cache im Projektordner `.cache/`, JSON pro Eintrag. Schlüssel für Wayback: SHA-256 der url_to. Schlüssel für Embeddings: SHA-256 aus Anbieter, Modellname und Text. Cache lässt sich in der UI leeren.
