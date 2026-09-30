@@ -1,0 +1,132 @@
+"""Recover the content of a dead URL from the Wayback Machine.
+
+Always uses the newest snapshot with HTTP status 200. Fetches the raw archived
+HTML with the ``id_`` flag so no Wayback toolbar or rewritten links end up in
+the text. Falls back to a plain concatenation of fields Ahrefs already
+delivered; nothing is generated.
+"""
+
+from __future__ import annotations
+
+import re
+import time
+from dataclasses import asdict
+from typing import Callable, Optional
+from urllib.parse import unquote, urlparse
+
+import httpx
+import trafilatura
+from bs4 import BeautifulSoup
+
+from blm.cache import JsonCache
+from blm.models import BrokenBacklink, RecoveredContent
+
+CDX_URL = "https://web.archive.org/cdx/search/cdx"
+USER_AGENT = "broken-link-matcher/0.1 (SEO research tool; polite crawler, 1 req/s)"
+RETRY_PAUSES = (2, 4, 8)
+_EXT_RE = re.compile(r"\.(html?|php|aspx?|jsp)$", re.IGNORECASE)
+
+
+class WaybackError(Exception):
+    pass
+
+
+def _get_with_retry(client: httpx.Client, url: str, params: Optional[dict], sleeper: Callable[[float], None]) -> httpx.Response:
+    last_error = "unknown"
+    for attempt in range(len(RETRY_PAUSES) + 1):
+        try:
+            resp = client.get(url, params=params, headers={"User-Agent": USER_AGENT}, timeout=30.0, follow_redirects=True)
+        except httpx.TransportError as exc:
+            last_error = str(exc)
+        else:
+            if resp.status_code == 429 or resp.status_code >= 500:
+                last_error = f"HTTP {resp.status_code}"
+            else:
+                return resp
+        if attempt < len(RETRY_PAUSES):
+            sleeper(RETRY_PAUSES[attempt])
+    raise WaybackError(f"Wayback request failed after retries: {last_error}")
+
+
+def latest_snapshot(url: str, client: httpx.Client, sleeper: Callable[[float], None] = time.sleep) -> Optional[tuple[str, str]]:
+    """Return (timestamp, original_url) of the newest 200 snapshot, or None."""
+    params = {"url": url, "output": "json", "filter": "statuscode:200", "fl": "timestamp,original", "limit": "-1"}
+    resp = _get_with_retry(client, CDX_URL, params, sleeper)
+    if resp.status_code != 200 or not resp.content.strip():
+        return None
+    rows = resp.json()
+    if len(rows) < 2:
+        return None
+    timestamp, original = rows[-1][0], rows[-1][1]
+    return str(timestamp), str(original)
+
+
+def snapshot_url(timestamp: str, original: str) -> str:
+    return f"https://web.archive.org/web/{timestamp}id_/{original}"
+
+
+def extract_text(html: str) -> str:
+    text = trafilatura.extract(html, include_comments=False, include_tables=True, favor_recall=True)
+    if text and text.strip():
+        return text.strip()
+    soup = BeautifulSoup(html, "lxml")
+    for tag in soup(["script", "style", "noscript", "nav", "footer", "header"]):
+        tag.decompose()
+    body = soup.body or soup
+    return body.get_text(" ", strip=True)
+
+
+def slug_words(url: str) -> str:
+    path = unquote(urlparse(url).path)
+    path = _EXT_RE.sub("", path)
+    words = re.sub(r"[-_/.+]+", " ", path)
+    return re.sub(r"\s+", " ", words).strip()
+
+
+def fallback_text(backlink: BrokenBacklink) -> Optional[str]:
+    """Concatenate fields Ahrefs already delivered. Returns None if all are empty."""
+    parts = [p.strip() for p in (backlink.title_from, backlink.anchor, backlink.snippet_left, backlink.snippet_right) if p and p.strip()]
+    slug = slug_words(backlink.url_to)
+    if slug:
+        parts.append(slug)
+    if not parts:
+        return None
+    return ". ".join(p.rstrip(".") for p in parts)
+
+
+def recover_content(
+    backlink: BrokenBacklink,
+    client: httpx.Client,
+    cache: Optional[JsonCache],
+    *,
+    max_chars: int = 12000,
+    sleeper: Callable[[float], None] = time.sleep,
+) -> RecoveredContent:
+    url = backlink.url_to
+    if cache is not None:
+        hit = cache.get("wayback", url)
+        if hit is not None:
+            return RecoveredContent(**hit)
+
+    error: Optional[str] = None
+    try:
+        snap = latest_snapshot(url, client, sleeper)
+        if snap is not None:
+            timestamp, original = snap
+            resp = _get_with_retry(client, snapshot_url(timestamp, original), None, sleeper)
+            text = extract_text(resp.text)[:max_chars] if resp.status_code == 200 else ""
+            if text:
+                result = RecoveredContent(url_to=url, text=text, source="wayback", snapshot_timestamp=timestamp)
+                if cache is not None:
+                    cache.set("wayback", url, asdict(result))
+                return result
+            error = "Snapshot ohne extrahierbaren Text"
+        else:
+            error = "Kein Snapshot mit Status 200"
+    except WaybackError as exc:
+        error = f"Wayback-Fehler: {exc}"
+
+    fallback = fallback_text(backlink)
+    if fallback is None:
+        return RecoveredContent(url_to=url, text=None, source="none", error=error)
+    return RecoveredContent(url_to=url, text=fallback[:max_chars], source="fallback", error=error)
