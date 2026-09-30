@@ -41,9 +41,9 @@ Python 3.11 oder neuer. Auf dem Entwicklungsrechner ist nur Python 3.9 systemwei
 
 `OwnPage`: url, vector (numpy float32), title (str, leer wenn der Export keine Titelspalte hat).
 
-`RecoveredContent`: url_to, text, source (`wayback`, `fallback`), snapshot_timestamp (str oder None), error (str oder None).
+`RecoveredContent`: url_to, text (str oder None), source (`wayback`, `fallback`, `none`), snapshot_timestamp (str oder None), error (str oder None).
 
-`MatchResult`: backlink, recovered, top (Liste aus bis zu drei Paaren url plus score), is_content_gap (bool), verification (`confirmed`, `fixed`, `unknown`, `skipped`), errors (Liste str).
+`MatchResult`: backlink, recovered, top (Liste aus bis zu drei Paaren url plus score, leer wenn nicht gematcht), is_content_gap (bool), value_rank (int), priority (int), verification (`confirmed`, `fixed`, `unknown`, `skipped`), errors (Liste str).
 
 ### 2.2 Module
 
@@ -57,14 +57,14 @@ Optionaler Client für `GET https://api.ahrefs.com/v3/site-explorer/broken-backl
 Liest den Embeddings-Export des Screaming Frog (CSV mit URL-Spalte und Vektor-Spalte, Vektor als Zahlenliste in einem Feld). Liefert eine Liste `OwnPage` und die Vektordimension. Zeilen mit leerem oder nicht parsebarem Vektor werden gezählt und übersprungen, nicht abgebrochen.
 
 `blm/ranking.py`
-Filtert und sortiert Backlinks. Filter (jeweils abschaltbar): nur Dofollow, nur Content-Links. Zeilen, deren Flag None ist, bleiben erhalten. Sortierung: domain_rating absteigend, dann page_traffic absteigend, None ans Ende. Danach Kappung auf die Obergrenze (Standard 100). Mehrfach vorkommende Ziel-URLs werden nicht zusammengefasst, denn jede linkgebende URL ist ein eigener Outreach-Kandidat. Der Wayback-Abruf holt jede Ziel-URL trotzdem nur einmal, weil der Cache greift.
+Filtert und sortiert Backlinks; die Priorisierung der Linkgeber passiert hier im Tool, unabhängig von der Reihenfolge im Export. Filter (jeweils abschaltbar): nur Dofollow, nur Content-Links, Mindest-DR (Schieberegler 0 bis 100, Standard 0). Zeilen, deren Flag None ist, bleiben erhalten. Sortierkriterium wählbar: domain_rating (Standard), url_rating oder page_traffic, jeweils absteigend; Zweitkriterium ist page_traffic, None ans Ende. Danach Kappung auf die Obergrenze (Standard 100). Jeder Datensatz erhält seinen Rang (1 = wertvollster Linkgeber) im Feld `value_rank`. Mehrfach vorkommende Ziel-URLs werden nicht zusammengefasst, denn jede linkgebende URL ist ein eigener Outreach-Kandidat. Der Wayback-Abruf holt jede Ziel-URL trotzdem nur einmal, weil der Cache greift.
 
 `blm/wayback.py`
 Für eine url_to:
 1. CDX-Abfrage: `https://web.archive.org/cdx/search/cdx?url=<url_to>&output=json&filter=statuscode:200&fl=timestamp,original&limit=-1`. Ergebnis ist der jüngste Snapshot mit Status 200. Es wird immer dieser jüngste Snapshot genommen, keine Wahl älterer Snapshots.
 2. Abruf des Rohinhalts: `https://web.archive.org/web/<timestamp>id_/<original>`. Das Suffix `id_` liefert das Original-HTML ohne Wayback-Toolbar und ohne umgeschriebene Links.
 3. Haupttext-Extraktion mit `trafilatura`. Liefert trafilatura nichts, Fallback auf den sichtbaren Text des body per BeautifulSoup. Text wird auf eine konfigurierbare Zeichenzahl gekürzt (Standard 12000 Zeichen), um Token-Limits der Embedding-Modelle einzuhalten.
-4. Fallback ohne Snapshot oder ohne Text: Ersatztext aus title_from, anchor, snippet_left, snippet_right und dem lesbar gemachten URL-Pfad (Bindestriche und Slashes zu Leerzeichen). source=`fallback`.
+4. Fallback ohne Snapshot oder ohne Text: Ersatztext ausschließlich aus vorhandenen Daten der Backlink-Quelle: title_from, anchor, snippet_left, snippet_right und die Wörter des URL-Pfads (Bindestriche und Slashes zu Leerzeichen). Es wird nichts generiert und kein LLM beteiligt; der Fallback ist eine reine Verkettung bereits vorliegender Felder. source=`fallback`. Sind alle diese Felder leer, gibt es keinen Fallback, der Datensatz erhält text=None und wird nicht gematcht.
 
 Rate-Limit: sequentielle Abrufe mit einer Pause von 1 Sekunde zwischen Anfragen. Bei HTTP 429 oder 5xx bis zu drei Wiederholungen mit Pausen von 2, 4, 8 Sekunden. Danach Fallback mit error-Text. Ein einstellbarer User-Agent mit Kontakt-Hinweis wird gesendet.
 
@@ -72,7 +72,7 @@ Rate-Limit: sequentielle Abrufe mit einer Pause von 1 Sekunde zwischen Anfragen.
 Gemeinsame Schnittstelle `EmbeddingProvider.embed(texts: list[str]) -> np.ndarray` mit Batching. Anbieter: OpenAI (Embeddings-API, Modellname frei wählbar, Vorgaben text-embedding-3-small, text-embedding-3-large), Gemini (Embeddings-API, Vorgaben gemini-embedding-001, text-embedding-004), Ollama (lokale HTTP-API, Modellname frei). Dimensionscheck: `provider.probe_dimension()` embeddet einen kurzen Probestring und gibt die Länge zurück. Stimmt sie nicht mit der Dimension der Frog-CSV überein, blockiert die UI das Matching und nennt beide Werte. Ein Tabellen-Hinweis in der UI erklärt, welches Frog-Setting welchem Anbieter entspricht.
 
 `blm/matcher.py`
-Normalisiert Eigen- und Wettbewerber-Vektoren auf Länge 1, berechnet die Ähnlichkeitsmatrix per Matrixprodukt, wählt pro Zeile die drei höchsten Scores. `is_content_gap` ist wahr, wenn der beste Score unter dem Schwellwert liegt. Schwellwert kommt aus der UI (Schieberegler 0.0 bis 1.0, Standard 0.5). Reine numpy-Funktion, keine IO.
+Normalisiert Eigen- und Wettbewerber-Vektoren auf Länge 1, berechnet die Ähnlichkeitsmatrix per Matrixprodukt, wählt pro Zeile die drei höchsten Scores. `is_content_gap` ist wahr, wenn der beste Score unter dem Schwellwert liegt. Schwellwert kommt aus der UI (Schieberegler 0.0 bis 1.0, Standard 0.5). Ein Schalter in der UI (Standard: an) entscheidet, ob Datensätze mit source=`fallback` überhaupt gematcht werden; ist er aus, erscheinen sie in der Tabelle mit dem Hinweis "kein Snapshot" und ohne Vorschläge. Datensätze mit text=None werden nie gematcht. Zusätzlich vergibt der Matcher eine Prioritätsspalte `priority`: Reihenfolge nach `value_rank` innerhalb der Gruppe der Nicht-Content-Gaps, danach die Content-Gaps in derselben Reihenfolge. So stehen wertvolle Linkgeber mit gutem Pendant oben, Content-Gaps bleiben als eigene Gruppe sichtbar. Reine numpy- und Sortierlogik, keine IO.
 
 `blm/verify.py`
 Optional. Pro Zeile zwei Live-Prüfungen mit Timeout 10 Sekunden: GET auf url_to, Status 404 oder 410 gilt als weiterhin kaputt; GET auf url_from, prüft ob ein `<a href>` auf url_to (exakt oder ohne Protokoll und Trailing Slash) vorhanden ist. Ergebnis `confirmed` (kaputt und Link vorhanden), `fixed` (Ziel antwortet 2xx/3xx oder Link fehlt), `unknown` (Timeout oder Fehler). Pause 0.5 Sekunden zwischen Domains.
@@ -90,9 +90,9 @@ Sprache Deutsch. Seitenleiste: Embedding-Anbieter (Auswahl), Embedding-Modellnam
 Hauptbereich, fünf Abschnitte, jeder aktiviert sich erst, wenn der vorherige Ergebnisse hat:
 
 1. Eigene Domain: Upload Frog-CSV. Anzeige: Anzahl URLs, Vektordimension, übersprungene Zeilen. Knopf Dimensionscheck, Ergebnis grün oder roter Blocker.
-2. Wettbewerber-Backlinks: Tab CSV-Upload oder Tab Ahrefs-API (Domain, Limit, Traffic mitladen). Danach Spaltenzuordnung (nur sichtbar, wenn automatisch unvollständig), Filter-Schalter, Obergrenze, sortierte Vorschautabelle.
+2. Wettbewerber-Backlinks: Tab CSV-Upload oder Tab Ahrefs-API (Domain, Limit, Traffic mitladen). Danach Spaltenzuordnung (nur sichtbar, wenn automatisch unvollständig), Filter-Schalter, Mindest-DR, Sortierkriterium, Obergrenze, sortierte Vorschautabelle mit Rang.
 3. Wayback-Abruf: Startknopf, Fortschrittsbalken, danach Kennzahlen: Snapshots gefunden, Fallbacks, Fehler. Aufklappbare Vorschau des extrahierten Texts pro URL.
-4. Matching: Schwellwert-Regler, Startknopf, Ergebnistabelle mit url_from, DR, url_to, Snapshot-Datum oder Fallback, Top 1 bis 3 mit Score, Content-Gap-Markierung. Content-Gap-Zeilen farblich hervorgehoben und als eigener Filter wählbar.
+4. Matching: Schwellwert-Regler, Schalter Fallback-Zeilen matchen, Startknopf, Ergebnistabelle sortiert nach Priorität mit url_from, DR, url_to, Snapshot-Datum, Fallback oder kein Snapshot, Top 1 bis 3 mit Score, Content-Gap-Markierung. Content-Gap-Zeilen farblich hervorgehoben und als eigener Filter wählbar.
 5. Verifikation und Outreach: Schalter Live-Check, Startknopf, Spalte Verifikation in der Tabelle. Export als CSV und XLSX. Pro Zeile ein Aufklapper mit Knopf Mail-Entwurf erzeugen, Ergebnis in einem editierbaren Textfeld.
 
 Lange Läufe (Wayback, Embedding, Verifikation) zeigen Fortschritt und schreiben Zwischenergebnisse in den Session-State, damit ein Rerun von Streamlit nicht alles verwirft.
@@ -108,8 +108,7 @@ Drei Wege, ein Zielformat:
 ## 4. Fehlerbehandlung
 
 - Wayback 429/5xx: drei Wiederholungen mit Backoff, dann Fallback-Text mit error.
-- Kein Snapshot mit Status 200: Fallback-Text, source=`fallback`.
-- Leere Extraktion: Fallback-Text.
+- Kein Snapshot mit Status 200 oder leere Extraktion: Fallback aus vorhandenen Ahrefs-Feldern, source=`fallback`, deutlich als solcher markiert. Kein generierter Text. Sind auch diese Felder leer: text=None, kein Matching, Hinweis "kein Snapshot".
 - Dimensionsabweichung: Matching blockiert, Meldung mit beiden Werten und Hinweis auf Frog-Einstellung.
 - Fehlender Schlüssel: betroffener Abschnitt deaktiviert mit Hinweis.
 - Ahrefs-API-Fehler: Meldung mit Statuscode und Antworttext, Hinweis auf CSV-Weg.
@@ -124,10 +123,10 @@ Pytest, kein Netzwerkzugriff in Tests, HTTP über `respx` gemockt.
 - `tests/fixtures/`: Ahrefs-UI-Export (klein, anonymisiert), Ahrefs-API-Export im MCP-Format, Frog-Embeddings-CSV mit drei URLs und Dimension 8, CDX-JSON-Antwort, archiviertes Beispiel-HTML, Beispiel-HTML einer linkgebenden Seite mit und ohne Link.
 - `backlinks_csv`: beide Namensschemata, fehlende Pflichtspalte liefert Zuordnungsbedarf, boolesche Werte in allen Schreibweisen.
 - `frog_csv`: Dimension korrekt erkannt, defekte Zeile wird übersprungen und gezählt.
-- `ranking`: Filter- und Sortierlogik inklusive None-Werte und Kappung.
-- `wayback`: jüngster 200er-Snapshot wird gewählt, `id_`-URL korrekt gebaut, Retry bei 429, Fallback-Text bei leerem CDX-Ergebnis, Textkürzung.
+- `ranking`: Filter- und Sortierlogik inklusive None-Werte, Mindest-DR, wählbares Sortierkriterium, Kappung und value_rank.
+- `wayback`: jüngster 200er-Snapshot wird gewählt, `id_`-URL korrekt gebaut, Retry bei 429, Fallback aus Ahrefs-Feldern bei leerem CDX-Ergebnis, text=None wenn auch die Felder leer sind, Textkürzung.
 - `embeddings`: jeder Anbieter parst seine gemockte Antwort korrekt, Batching, probe_dimension.
-- `matcher`: synthetische Vektoren mit bekanntem Ergebnis, Top 3 Reihenfolge, Content-Gap-Schwelle, Normalisierung.
+- `matcher`: synthetische Vektoren mit bekanntem Ergebnis, Top 3 Reihenfolge, Content-Gap-Schwelle, Normalisierung, Fallback-Schalter, text=None wird übersprungen, Prioritätsreihenfolge.
 - `verify`: alle drei Ergebniszustände.
 - `outreach`: Prompt enthält alle Pflichtfelder, gemockte Antwort wird durchgereicht.
 - `cache`: Schreiben, Lesen, Leeren, Schlüsselunterschied bei anderem Modell.
