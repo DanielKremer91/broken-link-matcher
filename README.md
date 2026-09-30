@@ -34,12 +34,16 @@ pip install -r requirements.txt
 streamlit run app.py
 ```
 
+Unter Windows lautet die Aktivierung `.venv\Scripts\activate` statt `source .venv/bin/activate`.
+
+`requirements.txt` enthält nur die Laufzeit-Abhängigkeiten. Für die Tests zusätzlich `requirements-dev.txt` installieren (siehe Abschnitt Tests).
+
 ## Screaming Frog vorbereiten
 
 - Richte im Screaming Frog einen Embeddings-Anbieter ein (OpenAI, Gemini oder Ollama) und wähle ein Embedding-Modell. In der aktuellen Frog-Version findest du das unter Configuration → API Access bzw. im Embeddings-Feature. Die genauen Menüpunkte unterscheiden sich je nach Version, maßgeblich ist die Frog-Dokumentation.
 - Crawle deine Domain und exportiere die Embeddings als CSV.
 - Erwartetes Layout (geprüft gegen Screaming Frog 24.3): eine Spalte `url`, danach `embedding_0 … embedding_N` mit je einem Wert pro Spalte. Zusätzlich akzeptiert das Tool eine Spalte `Address` als URL und eine einzelne Spalte mit einer Vektorliste wie `[0.1, 0.2, …]`. Eine Titelspalte (`title`) wird, falls vorhanden, für die Mail-Entwürfe genutzt.
-- Merke dir Anbieter und Modellnamen. In der Seitenleiste musst du exakt dieselben wählen, sonst liegen die Vektoren in unterschiedlichen Räumen. Der Dimensionscheck fängt Abweichungen in der Vektorlänge ab, erkennt aber nicht jeden Modellwechsel mit gleicher Dimension.
+- Merke dir Anbieter und Modellnamen (Hilfe im Abschnitt 1 der App: "Welches Modell habe ich im Frog?"). In der Seitenleiste musst du exakt dieselben wählen, sonst liegen die Vektoren in unterschiedlichen Räumen. Der Dimensionscheck fängt Abweichungen in der Vektorlänge ab, erkennt aber nicht jeden Modellwechsel mit gleicher Dimension.
 - Das Tool normalisiert alle Vektoren vor dem Vergleich, die Kosinus-Ähnlichkeit hängt also nicht von der Vektorlänge ab.
 
 ## Ahrefs-Daten
@@ -55,18 +59,23 @@ streamlit run app.py
 
 Über die Seitenleiste, Umgebungsvariablen (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `AHREFS_API_KEY`) oder `.streamlit/secrets.toml` (Vorlage: `.streamlit/secrets.example.toml`). Die Umgebungsvariable hat Vorrang vor der Secrets-Datei. Schlüssel werden nie auf Platte geschrieben. Ollama läuft lokal und braucht keinen Schlüssel, nur die URL (Standard `http://localhost:11434`).
 
-Dieselben Anbieter erzeugen auch die Mail-Entwürfe (Chat-Modell in der Seitenleiste einstellbar). Die Entwürfe sind der einzige generierte Text im Tool, sie sind editierbar und gehören vor dem Versand geprüft.
+Schlüssel aus Secrets oder Umgebung werden nie in die Eingabefelder übernommen; die Seitenleiste zeigt dann "Schlüssel aus Secrets/Umgebung aktiv". Ein eingetippter Schlüssel hat Vorrang. Ohne Schlüssel (OpenAI, Gemini) sind Dimensionscheck und Mail-Entwürfe gesperrt.
+
+Dieselben Anbieter erzeugen auch die Mail-Entwürfe (Chat-Modell in der Seitenleiste einstellbar). Dafür müssen Name und Domain in der Seitenleiste eingetragen sein; für Content-Gap-Zeilen gibt es keinen Entwurf. Die Entwürfe sind der einzige generierte Text im Tool, sie sind editierbar und gehören vor dem Versand geprüft.
 
 ## Kosten und Etikette
 
-- Wayback Machine: pro tote URL zwei Anfragen (CDX-Abfrage nach dem jüngsten Snapshot mit Status 200, danach der Rohdaten-Abruf über das `id_`-Flag, also ohne Wayback-Toolbar), mit einer Sekunde Pause zwischen den URLs. Bei Fehlern, Status 429 und 5xx wird mit Backoff (2, 4, 8 Sekunden) wiederholt. Bitte nicht parallelisieren. Bereits geholte Seiten kommen aus dem Cache und kosten keine Pause.
-- Embeddings: pro toter URL ein Text von maximal 12000 Zeichen (in Abschnitt 3 einstellbar, 1000 bis 50000). Wayback-Texte und Embeddings werden in `.cache/` neben `app.py` gespeichert; in der Seitenleiste leert "Cache leeren" das Verzeichnis.
+- Wayback Machine: pro tote URL zwei Anfragen (CDX-Abfrage nach dem jüngsten Snapshot mit Status 200, danach der Rohdaten-Abruf über das `id_`-Flag, also ohne Wayback-Toolbar), mit einer Sekunde Pause zwischen den beiden Anfragen und einer Sekunde Pause zwischen den URLs. Bei Fehlern, Status 429 und 5xx wird mit Backoff (2, 4, 8 Sekunden) wiederholt. Bitte nicht parallelisieren. Bereits geholte Seiten kommen aus dem Cache und kosten keine Pause.
+- User-Agent: Wayback-Abruf und Live-Check senden `broken-link-matcher/0.1 (…)`. Trag in der Seitenleiste unter "Kontakt für User-Agent" eine E-Mail-Adresse oder URL ein, dann wird sie mitgeschickt und Betreiber können dich erreichen.
+- Embeddings: pro toter URL ein Text von maximal 12000 Zeichen (in Abschnitt 3 einstellbar, 1000 bis 50000). Gleiche Texte werden nur einmal eingebettet. Bei Status 429, 5xx und Zeitüberschreitungen wird bis zu dreimal wiederholt (2, 4, 8 Sekunden, ein numerischer Retry-After-Header wird bis 30 Sekunden beachtet). Fertige Batches landen sofort im Cache, ein Abbruch verliert also nur den laufenden Batch.
+- Cache: Wayback-Texte (bis 50000 Zeichen, gekürzt auf die eingestellte Länge) und Embeddings werden in `.cache/` neben `app.py` gespeichert; "Cache leeren" in der Seitenleiste löscht die gespeicherten Einträge.
+- Live-Check: "confirmed" heißt, das Ziel antwortet noch mit 404 oder 410 und die verlinkende Seite enthält den Link noch. Leitet das Ziel inzwischen auf eine erreichbare Seite weiter oder ist der Link entfernt, gilt die Zeile als "fixed". Nicht eindeutige Antworten (Netzwerkfehler, 403, 429, 5xx, fehlerhafte URLs) ergeben "unknown".
 - Schwellwert: 0,5 ist ein Startwert. Die Score-Verteilung hängt vom Modell ab; an eigenen Daten kalibrieren.
 - Export: Die CSV nutzt Semikolon als Trennzeichen und Dezimalkomma, damit sie in deutschem Excel direkt sauber öffnet. Die Excel-Datei enthält dieselben Spalten im Blatt "Treffer".
 
 ## Deployment auf Streamlit Community Cloud
 
-Repo verbinden, `app.py` als Einstieg, Schlüssel unter App Settings → Secrets im TOML-Format hinterlegen (gleiche Namen wie in `.streamlit/secrets.example.toml`). Der Cache ist dort flüchtig.
+Repo verbinden, `app.py` als Einstieg, Schlüssel unter App Settings → Secrets im TOML-Format hinterlegen (gleiche Namen wie in `.streamlit/secrets.example.toml`). Streamlit Cloud installiert `requirements.txt`, also nur die Laufzeit-Abhängigkeiten; `requirements-dev.txt` wird dort nicht gebraucht. Der Cache ist dort flüchtig.
 
 ### Öffentliches Deployment
 
@@ -75,11 +84,12 @@ Schlüssel aus Secrets oder Umgebungsvariablen werden nie in die Eingabefelder v
 ## Tests
 
 ```bash
+pip install -r requirements-dev.txt   # bzw. uv pip install -r requirements-dev.txt
 pytest -q
 ```
 
-Die Suite umfasst 190 Tests und läuft ohne Netzwerkzugriff; HTTP wird mit respx gemockt.
+Alle Tests laufen ohne Netzwerkzugriff; HTTP wird mit respx gemockt.
 
 ## English summary
 
-Broken link building with semantic matching: pull a competitor's broken backlinks (Ahrefs export or API), recover the dead pages from the Wayback Machine (newest 200 snapshot via the CDX API, raw HTML via `id_`), embed with the same model your Screaming Frog used for your own site, rank your top 3 matching URLs by cosine similarity, flag content gaps, verify live, export (semicolon CSV with decimal comma, or XLSX), and draft outreach mails. Pages without a snapshot fall back to a plain concatenation of Ahrefs fields; nothing is generated except the editable mail drafts. The Ahrefs UI export may be UTF-16; the reader handles UTF-8, UTF-16 with BOM and Windows-1252. If columns are not recognised, map them in the UI and feel free to open an issue with the column names. Python 3.11+, Streamlit, no provider SDKs, 190 tests, all mocked.
+Broken link building with semantic matching: pull a competitor's broken backlinks (Ahrefs export or API), recover the dead pages from the Wayback Machine (newest 200 snapshot via the CDX API, raw HTML via `id_`), embed with the same model your Screaming Frog used for your own site, rank your top 3 matching URLs by cosine similarity, flag content gaps, verify live, export (semicolon CSV with decimal comma, or XLSX), and draft outreach mails. Pages without a snapshot fall back to a plain concatenation of Ahrefs fields; nothing is generated except the editable mail drafts. The Ahrefs UI export may be UTF-16; the reader handles UTF-8, UTF-16 with BOM and Windows-1252. If columns are not recognised, map them in the UI and feel free to open an issue with the column names. Python 3.11+, Streamlit, no provider SDKs; install `requirements-dev.txt` to run the tests, which are fully mocked.
