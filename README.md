@@ -42,6 +42,7 @@ Unter Windows lautet die Aktivierung `.venv\Scripts\activate` statt `source .ven
 
 - Richte im Screaming Frog einen Embeddings-Anbieter ein (OpenAI, Gemini oder Ollama) und wähle ein Embedding-Modell. In der aktuellen Frog-Version findest du das unter Configuration → API Access bzw. im Embeddings-Feature. Die genauen Menüpunkte unterscheiden sich je nach Version, maßgeblich ist die Frog-Dokumentation.
 - Crawle deine Domain und exportiere die Embeddings als CSV.
+- Akzeptierte Formate: CSV, TSV oder TXT (UTF-8, UTF-16 oder Windows-1252, Trennzeichen Komma, Semikolon, Tab oder Pipe) sowie XLSX. Öffne den Export nicht in Excel, um ihn wieder als CSV zu speichern: Excel kürzt Zellen mit mehr als 32767 Zeichen, solche Zeilen werden übersprungen. Erkennt das Tool die Spalten nicht, kannst du URL- und Embedding-Spalte in der App selbst zuordnen.
 - Erwartetes Layout (geprüft gegen Screaming Frog 24.3): eine Spalte `url`, danach `embedding_0 … embedding_N` mit je einem Wert pro Spalte. Zusätzlich akzeptiert das Tool eine Spalte `Address` als URL und eine einzelne Spalte mit einer Vektorliste wie `[0.1, 0.2, …]`. Eine Titelspalte (`title`) wird, falls vorhanden, für die Mail-Entwürfe genutzt.
 - Merke dir Anbieter und Modellnamen (Hilfe im Abschnitt 1 der App: "Welches Modell habe ich im Frog?"). In der Seitenleiste musst du exakt dieselben wählen, sonst liegen die Vektoren in unterschiedlichen Räumen. Der Dimensionscheck fängt Abweichungen in der Vektorlänge ab, erkennt aber nicht jeden Modellwechsel mit gleicher Dimension.
 - Das Tool normalisiert alle Vektoren vor dem Vergleich, die Kosinus-Ähnlichkeit hängt also nicht von der Vektorlänge ab.
@@ -49,7 +50,8 @@ Unter Windows lautet die Aktivierung `.venv\Scripts\activate` statt `source .ven
 ## Ahrefs-Daten
 
 - Export aus der Ahrefs-Oberfläche: Im Site Explorer den Bericht zu den Broken Backlinks der Wettbewerber-Domain öffnen (Bezeichnung und Menüpfad können je nach Ahrefs-Version abweichen), Filter Dofollow setzen, nach DR sortieren, als CSV exportieren.
-- Der UI-Export kann UTF-16 kodiert sein. Das Tool liest UTF-8, UTF-16 (mit BOM) und Windows-1252 sowie Komma, Semikolon, Tab und Pipe als Trennzeichen automatisch.
+- Der UI-Export kann UTF-16 kodiert sein. Das Tool liest CSV, TSV und TXT in UTF-8, UTF-16 (mit BOM) und Windows-1252 sowie Komma, Semikolon, Tab und Pipe als Trennzeichen automatisch, außerdem XLSX (erstes Blatt).
+- Speichere den Export nicht mit Excel als CSV: Excel macht aus Dezimalwerten wie 4.6 Datumsangaben wie "04. Jun". Das Tool rechnet solche Werte zurück und zeigt an, wie viele es waren.
 - Alternativ Ahrefs-API v3 (planabhängig): Schlüssel in der Seitenleiste eintragen, Wettbewerber-Domain und maximale Zeilenzahl (Standard 100) angeben. Abgerufen werden Dofollow-Content-Links, ein Link pro verweisender Domain, absteigend nach Domain Rating. Jede Zeile kostet API-Units; Seitentraffic kostet 10 Units extra pro Zeile und ist deshalb optional. Im Tab "Ahrefs-API" lassen sich die serverseitigen Filter einzeln setzen (Dofollow, Content-Links, Spam ausschließen, nur 404/410, Mindest-DR); Units fallen pro zurückgegebener Zeile an.
 - Andere Tools: Export (CSV oder XLSX) hochladen und die Spalten manuell zuordnen. Pflichtfelder sind verlinkende URL und tote Ziel-URL.
 - Falls Spalten nicht erkannt werden, per Zuordnungsmaske zuweisen und gerne ein Issue mit den Spaltennamen eröffnen.

@@ -57,9 +57,9 @@ Broken Link Matcher: tote Wettbewerber-URLs mit eigenen Seiten matchen (ohne Obe
 
 options:
   -h, --help            show this help message and exit
-  --frog FROG           Screaming-Frog-Embeddings-Export (CSV)
+  --frog FROG           Screaming-Frog-Embeddings-Export (CSV/TSV/TXT/XLSX)
   --backlinks BACKLINKS
-                        Broken-Backlinks-Export (CSV/XLSX)
+                        Broken-Backlinks-Export (CSV/TSV/TXT/XLSX)
   --provider {openai,gemini,ollama}
                         Embedding-Anbieter wie im Frog
   --model MODEL         Embedding-Modell wie im Frog (Standard je Anbieter)
