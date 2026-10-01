@@ -209,3 +209,9 @@ def test_write_output_splits_drafts_key_and_strips_occurrence_suffix(tmp_path):
     md = drafts.read_text()
     assert "Tote URL: https://dead.de/y\n" in md and "#2" not in md
     assert "Erster" in md and "Zweiter" in md
+
+
+def test_summary_lines_mention_excel_date_repairs_only_when_present():
+    assert not any("Excel" in line for line in cli.summary_lines(PipelineSummary()))
+    lines = cli.summary_lines(PipelineSummary(excel_dates_repaired=19))
+    assert "Hinweis: 19 Excel-Datumswerte zurückgerechnet" in lines

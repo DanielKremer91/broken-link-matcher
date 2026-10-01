@@ -34,8 +34,8 @@ def build_parser() -> argparse.ArgumentParser:
         description="Broken Link Matcher: tote Wettbewerber-URLs mit eigenen Seiten matchen (ohne Oberfläche).",
         epilog="Schlüssel nur über Umgebungsvariablen: OPENAI_API_KEY, GEMINI_API_KEY, OLLAMA_URL.",
     )
-    p.add_argument("--frog", required=True, type=Path, help="Screaming-Frog-Embeddings-Export (CSV)")
-    p.add_argument("--backlinks", required=True, type=Path, help="Broken-Backlinks-Export (CSV/XLSX)")
+    p.add_argument("--frog", required=True, type=Path, help="Screaming-Frog-Embeddings-Export (CSV/TSV/TXT/XLSX)")
+    p.add_argument("--backlinks", required=True, type=Path, help="Broken-Backlinks-Export (CSV/TSV/TXT/XLSX)")
     p.add_argument("--provider", choices=PROVIDERS, default="openai", help="Embedding-Anbieter wie im Frog")
     p.add_argument("--model", help="Embedding-Modell wie im Frog (Standard je Anbieter)")
     p.add_argument("--out", required=True, type=Path, help="Ergebnisdatei .xlsx oder .csv")
@@ -100,6 +100,8 @@ def summary_lines(summary) -> list[str]:
         lines.append("Verifikation: " + ", ".join(f"{k} {v}" for k, v in sorted(s.verified.items())))
     if s.drafts:
         lines.append(f"Mail-Entwürfe: {s.drafts}")
+    if getattr(s, "excel_dates_repaired", 0) > 0:
+        lines.append(f"Hinweis: {s.excel_dates_repaired} Excel-Datumswerte zurückgerechnet")
     for e in s.errors:
         lines.append(f"Fehler: {e}")
     return lines

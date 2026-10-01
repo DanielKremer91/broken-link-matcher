@@ -75,6 +75,7 @@ class PipelineSummary:
     unmatched: int = 0
     verified: dict[str, int] = field(default_factory=dict)
     drafts: int = 0
+    excel_dates_repaired: int = 0
     errors: list[str] = field(default_factory=list)
 
 
@@ -89,7 +90,8 @@ def summary_to_dict(summary: PipelineSummary) -> dict:
     return asdict(summary)
 
 
-def load_inputs(cfg: PipelineConfig) -> tuple[FrogImport, list[BrokenBacklink]]:
+def load_inputs(cfg: PipelineConfig, *, report: Optional[dict] = None) -> tuple[FrogImport, list[BrokenBacklink]]:
+    """Read both inputs (CSV/TSV/TXT or Excel). `report` receives parse_backlinks' counters."""
     try:
         frog = load_frog_embeddings(cfg.frog_path)
     except (ValueError, OSError) as exc:
@@ -103,7 +105,7 @@ def load_inputs(cfg: PipelineConfig) -> tuple[FrogImport, list[BrokenBacklink]]:
         raise PipelineError(
             f"Pflichtspalten nicht erkannt: {', '.join(cm.missing)}. Gefundene Spalten: {', '.join(cm.columns)}"
         )
-    return frog, parse_backlinks(df, cm.mapping)
+    return frog, parse_backlinks(df, cm.mapping, report=report)
 
 
 def _check_dimension(provider: EmbeddingProvider, frog: FrogImport) -> int:
@@ -174,8 +176,10 @@ def run_pipeline(
     if cfg.sort_by not in SORT_FIELDS:
         raise PipelineError(f"Unbekanntes Sortierkriterium: {cfg.sort_by}. Erlaubt: {', '.join(SORT_FIELDS)}")
 
-    frog, backlinks = load_inputs(cfg)
-    summary = PipelineSummary(own_pages=len(frog.pages), backlinks_total=len(backlinks))
+    report: dict = {}
+    frog, backlinks = load_inputs(cfg, report=report)
+    summary = PipelineSummary(own_pages=len(frog.pages), backlinks_total=len(backlinks),
+                              excel_dates_repaired=report.get("excel_dates_repaired", 0))
     summary.dimension = _check_dimension(provider, frog)
 
     ranked = rank_backlinks(

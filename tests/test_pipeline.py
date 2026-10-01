@@ -256,3 +256,39 @@ def test_fallback_is_per_backlink_when_no_snapshot(tmp_path):
     assert texts["https://blog.example/a"].startswith("Anker A")
     assert texts["https://blog.example/b"].startswith("Anker B")
     assert all(r.recovered.source == "fallback" for r in res.results)
+
+
+# ------------------------------------------------------------------ Excel date repair and new formats
+def test_load_inputs_reports_excel_date_repairs():
+    report: dict = {}
+    _, backlinks = load_inputs(cfg(backlinks_path=FIX / "excel_damaged_backlinks.csv"), report=report)
+    assert [b.domain_rating for b in backlinks] == [4.6, 3.3, 72.0]
+    assert report["excel_dates_repaired"] == 4
+
+
+def test_load_inputs_reads_xlsx_frog_and_backlinks(tmp_path):
+    import pandas as pd
+
+    frog = tmp_path / "frog.xlsx"
+    pd.read_csv(FIX / "pipeline_frog.csv", dtype=str).to_excel(frog, index=False)
+    backlinks = tmp_path / "bl.xlsx"
+    pd.read_csv(FIX / "pipeline_backlinks.csv", dtype=str, keep_default_na=False).to_excel(backlinks, index=False)
+    frog_imp, rows = load_inputs(cfg(frog_path=frog, backlinks_path=backlinks))
+    assert frog_imp.dimension == 3 and len(frog_imp.pages) == 3
+    assert len(rows) == 3
+
+
+def test_summary_counts_excel_date_repairs(tmp_path):
+    with respx.mock:
+        mock_wayback()
+        res = run_pipeline(cfg(backlinks_path=FIX / "excel_damaged_backlinks.csv"), KeywordProvider(),
+                           cache=JsonCache(tmp_path), sleeper=no_sleep)
+    assert res.summary.excel_dates_repaired == 4
+    assert summary_to_dict(res.summary)["excel_dates_repaired"] == 4
+
+
+def test_summary_default_has_no_excel_date_repairs(tmp_path):
+    with respx.mock:
+        mock_wayback()
+        res = run_pipeline(cfg(), KeywordProvider(), cache=JsonCache(tmp_path), sleeper=no_sleep)
+    assert res.summary.excel_dates_repaired == 0
