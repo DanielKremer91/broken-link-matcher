@@ -822,3 +822,105 @@ def test_info_expander_mentions_los_gehts():
     info = next(e for e in at.expander if e.label.startswith("ℹ️"))
     text = " ".join(m.value for m in info.markdown)
     assert "Los geht's" in text and "einzelnen Buttons" in text
+
+
+# ------------------------------------------------------------------ Los geht's: error handling, empty filter state
+HINT_EMPTY = "Die Filter in Schritt 2 lassen keine Backlinks übrig. Mindest-DR oder Schalter lockern."
+
+
+def test_provider_error_does_not_repeat_an_old_dimension_mismatch(monkeypatch):
+    from blm.embeddings.base import EmbeddingError
+
+    def broken(*a, **k):
+        raise EmbeddingError("Schlüssel ungültig")
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr("blm.embeddings.make_provider", broken)
+    at = loaded_app()
+    at.session_state["dim_ok"] = False
+    at.session_state["probe_dim"] = 3
+    at.session_state["dim_checked_for"] = ("openai", "altes-modell", None)
+    at.run()
+    button(at, RUN_ALL).click().run()
+
+    assert not at.exception
+    errors = [e.value for e in at.error]
+    assert len(errors) == 1, errors
+    assert "Schlüssel ungültig" in errors[0]
+    assert not any("Dimension passt nicht" in e for e in errors)
+    assert "recovered" not in at.session_state
+
+
+def test_filters_leaving_no_backlinks_block_the_run(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = loaded_app().run()
+    next(s for s in at.slider if s.label == "Mindest-DR").set_value(100).run()
+
+    assert not at.exception
+    assert at.session_state["ranked"] == []
+    assert HINT_EMPTY in [w.value for w in at.warning]
+    assert HINT_READY not in hints(at)
+    assert button(at, RUN_ALL).disabled is True
+    caption = next(c.value for c in at.caption if c.value.startswith("Es fehlt"))
+    assert "Filter" in caption and "Schritt 2" in caption
+
+
+def test_no_success_hint_when_filters_leave_nothing_after_a_run(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = seeded_app().run()
+    assert HINT_DONE in hints(at)
+    next(s for s in at.slider if s.label == "Mindest-DR").set_value(100).run()
+
+    assert not at.exception
+    assert HINT_EMPTY in [w.value for w in at.warning]
+    assert HINT_DONE not in hints(at)
+    assert button(at, RUN_ALL).disabled is True
+
+
+def test_matching_failure_mid_run_is_shown_after_rerun(monkeypatch):
+    import httpx
+    import respx
+
+    from blm.embeddings.base import EmbeddingError, EmbeddingProvider
+    from blm.wayback import CDX_URL
+
+    class FailsOnTexts(EmbeddingProvider):
+        name = "fake"
+
+        def _embed_batch(self, texts):
+            if texts == ["Dimensionstest"]:
+                return [[1.0, 0.0]]
+            raise EmbeddingError("Kontingent erschöpft")
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr("blm.embeddings.make_provider", lambda *a, **k: FailsOnTexts("fake-model", client=object()))
+    monkeypatch.setattr("blm.cache.JsonCache.get", lambda self, ns, key: None)
+    monkeypatch.setattr("blm.cache.JsonCache.set", lambda self, ns, key, value: None)
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    with respx.mock(assert_all_called=False) as mock:
+        mock.get(CDX_URL).mock(return_value=httpx.Response(200, json=[["timestamp", "original"]]))
+        at = loaded_app().run()
+        button(at, RUN_ALL).click().run()
+
+    assert not at.exception
+    assert at.session_state["dim_ok"] is True
+    assert "recovered" in at.session_state
+    assert "results" not in at.session_state
+    assert HINT_DONE not in hints(at)
+    assert any("Kontingent erschöpft" in e.value for e in at.error)
+    assert any(h.value == "4. Matching" for h in at.header)  # sections reflect the new state
+
+
+def test_run_error_is_shown_only_once(monkeypatch):
+    from blm.embeddings.base import EmbeddingError
+
+    def broken(*a, **k):
+        raise EmbeddingError("Schlüssel ungültig")
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr("blm.embeddings.make_provider", broken)
+    at = loaded_app().run()
+    button(at, RUN_ALL).click().run()
+    assert any("Schlüssel ungültig" in e.value for e in at.error)
+    at.run()
+    assert not any("Schlüssel ungültig" in e.value for e in at.error)

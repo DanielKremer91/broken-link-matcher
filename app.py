@@ -6,6 +6,7 @@ import hashlib
 import os
 import time
 from pathlib import Path
+from typing import Callable
 
 import httpx
 import pandas as pd
@@ -169,11 +170,11 @@ def upload_id(f) -> str:
     return getattr(f, "file_id", None) or f.name
 
 
-def provider_or_error():
+def provider_or_error(report: Callable[[str], object] = st.error):
     try:
         return make_provider(provider, embed_model, api_key=api_key, base_url=base_url)
     except EmbeddingError as exc:
-        st.error(str(exc))
+        report(str(exc))
         return None
 
 
@@ -186,15 +187,18 @@ def dim_is_valid() -> bool:
     return S.get("dim_ok") is True and S.get("dim_checked_for") == dim_settings
 
 
-def run_dimension_check() -> bool:
-    """Embed a probe text and compare its length with the Frog vectors; True when they match."""
-    prov = provider_or_error()
+def run_dimension_check(report: Callable[[str], object] = st.error) -> bool:
+    """Embed a probe text and compare its length with the Frog vectors; True when they match.
+
+    Provider errors go to ``report``; a mismatch is shown by step 1 from the stored state.
+    """
+    prov = provider_or_error(report)
     if prov is None:
         return False
     try:
         S["probe_dim"] = prov.probe_dimension()
     except EmbeddingError as exc:
-        st.error(str(exc))
+        report(str(exc))
         return False
     S["dim_ok"] = S["probe_dim"] == S["frog"].dimension
     S["dim_checked_for"] = dim_settings
@@ -236,9 +240,9 @@ def run_wayback() -> None:
     invalidate_matching()
 
 
-def run_matching() -> bool:
+def run_matching(report: Callable[[str], object] = st.error) -> bool:
     """Embed the recovered texts; the results are built from the vectors in step 4."""
-    prov = provider_or_error()
+    prov = provider_or_error(report)
     if prov is None:
         return False
     texts = [r.text for r in S["recovered"]]
@@ -249,7 +253,7 @@ def run_matching() -> bool:
                              progress=lambda done, total: bar.progress(done / total, text=f"Embeddings: {done}/{total} Texte"))
         bar.progress(1.0, text="Embeddings fertig.")
     except EmbeddingError as exc:
-        st.error(str(exc))
+        report(str(exc))
         return False
     vectors = [None] * len(texts)
     for j, i in enumerate(idx):
@@ -259,21 +263,25 @@ def run_matching() -> bool:
     return True
 
 
-def run_all() -> bool:
-    """One click for dimension check, Wayback fetch and matching; stops at the first failure."""
+def run_all() -> str | None:
+    """One click for dimension check, Wayback fetch and matching; stops at the first failure.
+
+    Returns None on success, otherwise the error text to show after the rerun.
+    """
+    errors: list[str] = []
     if dim_is_valid():
         st.write("Dimensionscheck: bereits bestanden.")
     else:
         st.write("Dimensionscheck …")
-        if not run_dimension_check():
-            if S.get("dim_ok") is False:
-                st.error(f"Dimension passt nicht: Frog-Export {S['frog'].dimension}, Modell {S['probe_dim']}. "
-                         "Wähle exakt das Modell, das im Frog konfiguriert ist.")
-            return False
+        if not run_dimension_check(report=errors.append):
+            # a mismatch has no provider error; step 1 shows its details from the stored state
+            return errors[0] if errors else "Die Dimension passt nicht zum Frog-Export, Details in Schritt 1."
     st.write("Wayback-Abruf …")
     run_wayback()
     st.write("Matching …")
-    return run_matching()
+    if not run_matching(report=errors.append):
+        return errors[0] if errors else "Matching fehlgeschlagen."
+    return None
 
 
 def next_step_hint() -> tuple[str, str]:
@@ -282,11 +290,13 @@ def next_step_hint() -> tuple[str, str]:
         return "info", "Nächster Schritt: Screaming-Frog-Export in Schritt 1 hochladen."
     if "ranked" not in S:
         return "info", "Nächster Schritt: Broken Backlinks in Schritt 2 hochladen oder per API laden."
+    if not S["ranked"]:
+        return "warning", "Die Filter in Schritt 2 lassen keine Backlinks übrig. Mindest-DR oder Schalter lockern."
     if key_missing:
         return "warning", "Nächster Schritt: API-Schlüssel in der Seitenleiste eintragen, dann \"Los geht's\" klicken."
     if "recovered_for" in S and S["recovered_for"] != S["ranked"]:
         return "warning", "Filter geändert. \"Los geht's\" erneut klicken, damit die Ergebnisse zur aktuellen Auswahl passen."
-    if "results" in S:
+    if S.get("results"):
         return "success", "Ergebnisse liegen vor. Optional in Schritt 5 live prüfen, exportieren oder Mail-Entwürfe erzeugen."
     return "info", "Alles bereit. Klicke \"Los geht's\" für Dimensionscheck, Wayback-Abruf und Matching in einem Durchlauf."
 
@@ -298,6 +308,8 @@ def missing_inputs() -> list[str]:
         missing.append("Screaming-Frog-Export (Schritt 1)")
     if "ranked" not in S:
         missing.append("Broken Backlinks (Schritt 2)")
+    elif not S["ranked"]:
+        missing.append("mindestens ein Backlink nach den Filtern (Schritt 2)")
     if key_missing:
         missing.append("API-Schlüssel (Seitenleiste)")
     return missing
@@ -513,7 +525,7 @@ if "ranked" in S:
                                 help="Begrenzt den Text, der embedded wird. 12000 Zeichen reichen für Ratgeberseiten und bleiben unter den Token-Limits.")
     st.caption("Immer der jüngste Snapshot mit Status 200. Ohne Snapshot: Fallback aus Anker, Kontext, Titel und URL-Pfad, kein generierter Text.")
     if "recovered_for" in S and S["recovered_for"] != S["ranked"]:
-        st.warning("Filter oder Backlinks geändert. Wayback-Abruf erneut starten, damit Ergebnisse zur aktuellen Auswahl passen.")
+        st.warning("Filter oder Backlinks geändert, Wayback-Abruf erneut starten.")
     if st.button("Inhalte aus der Wayback Machine holen",
                  help="Holt je toter URL den jüngsten Snapshot mit Status 200 aus archive.org, etwa zwei bis vier Sekunden pro neuer URL, gecachte URLs sind sofort da."):
         run_wayback()
@@ -617,6 +629,8 @@ if "results" in S:
 
 # ----------------------------------------------------------------- next step + one-click run
 with next_step_box:
+    if "run_error" in S:  # set by a failed "Los geht's" run before its rerun
+        st.error(S.pop("run_error"))
     kind, hint = next_step_hint()
     getattr(st, kind)(hint)
     missing = missing_inputs()
@@ -624,9 +638,10 @@ with next_step_box:
                  help="Führt Dimensionscheck, Wayback-Abruf und Matching nacheinander aus. Kostet Embedding-Tokens, "
                       "gecachte Texte und Vektoren werden wiederverwendet."):
         with st.status("Läuft …", expanded=True) as run_status:
-            ok = run_all()
-            run_status.update(label="Fertig." if ok else "Abgebrochen.", state="complete" if ok else "error")
-        if ok:
-            st.rerun()  # sections 1 to 5 above were rendered before the run
+            run_error = run_all()
+            run_status.update(label="Abgebrochen." if run_error else "Fertig.", state="error" if run_error else "complete")
+        if run_error:
+            S["run_error"] = f"\"Los geht's\" abgebrochen: {run_error}"
+        st.rerun()  # sections 1 to 5 above were rendered before the run
     if missing:
         st.caption("Es fehlt noch: " + ", ".join(missing) + ".")
