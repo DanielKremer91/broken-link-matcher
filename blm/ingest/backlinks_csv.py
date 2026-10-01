@@ -113,14 +113,45 @@ def _normalise_number(text: str) -> str:
     return text
 
 
-def _to_float(value) -> Optional[float]:
+_MONTHS = {
+    "jan": 1, "feb": 2, "mär": 3, "mrz": 3, "mar": 3, "apr": 4, "mai": 5, "may": 5, "jun": 6, "jul": 7,
+    "aug": 8, "sep": 9, "okt": 10, "oct": 10, "nov": 11, "dez": 12, "dec": 12,
+}
+# Excel shows "4.6" as a German date ("04. Jun"); "M.r" also covers "März" written in
+# MacRoman and read back as UTF-8 with a replacement character.
+_EXCEL_DATE_DE = re.compile(
+    r"^(\d{1,2})\.\s?(Jan|Feb|Mär|Mrz|M.r|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\.?$", re.IGNORECASE
+)
+_EXCEL_DATE_EN = re.compile(r"^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$", re.IGNORECASE)
+
+
+def _excel_date_to_float(text: str) -> Optional[float]:
+    match = _EXCEL_DATE_DE.match(text) or _EXCEL_DATE_EN.match(text)
+    if match is None:
+        return None
+    day, month = match.groups()
+    month_number = _MONTHS.get(month.lower(), 3)  # only "M?r" is not in the table: March
+    return float(f"{int(day)}.{month_number}")
+
+
+def _parse_float(value) -> tuple[Optional[float], bool]:
+    """(number, repaired_from_excel_date)."""
     if _is_blank(value):
-        return None
+        return None, False
+    text = str(value).strip()
+    repaired = False
     try:
-        result = float(_normalise_number(str(value)))
+        result = float(_normalise_number(text))
     except (ValueError, OverflowError):
-        return None
-    return result if math.isfinite(result) else None
+        result = _excel_date_to_float(text)
+        if result is None:
+            return None, False
+        repaired = True
+    return (result, repaired) if math.isfinite(result) else (None, False)
+
+
+def _to_float(value) -> Optional[float]:
+    return _parse_float(value)[0]
 
 
 def _to_int(value) -> Optional[int]:
@@ -132,15 +163,32 @@ def _text(value) -> str:
     return "" if _is_blank(value) else str(value).strip()
 
 
-def parse_backlinks(df: pd.DataFrame, mapping: dict[str, str]) -> list[BrokenBacklink]:
-    """Build BrokenBacklink rows. Rows missing url_from or url_to are dropped."""
+def parse_backlinks(
+    df: pd.DataFrame, mapping: dict[str, str], *, report: Optional[dict] = None
+) -> list[BrokenBacklink]:
+    """Build BrokenBacklink rows. Rows missing url_from or url_to are dropped.
+
+    If `report` is given, report["excel_dates_repaired"] is increased by the number of
+    numeric cells that Excel had turned into dates (e.g. "04. Jun" for 4.6).
+    """
     for field in REQUIRED_FIELDS:
         if field not in mapping:
             raise ValueError(f"Pflichtfeld nicht zugeordnet: {field}")
+    repaired = 0
 
     def col(row, field):
         name = mapping.get(field)
         return row[name] if name is not None and name in row.index else None
+
+    def number(row, field) -> Optional[float]:
+        nonlocal repaired
+        value, was_date = _parse_float(col(row, field))
+        repaired += was_date
+        return value
+
+    def integer(row, field) -> Optional[int]:
+        value = number(row, field)
+        return None if value is None else int(value)
 
     rows: list[BrokenBacklink] = []
     for _, row in df.iterrows():
@@ -159,12 +207,14 @@ def parse_backlinks(df: pd.DataFrame, mapping: dict[str, str]) -> list[BrokenBac
                 snippet_left=_text(col(row, "snippet_left")),
                 snippet_right=_text(col(row, "snippet_right")),
                 title_from=_text(col(row, "title_from")),
-                domain_rating=_to_float(col(row, "domain_rating")),
-                url_rating=_to_float(col(row, "url_rating")),
-                page_traffic=_to_int(col(row, "page_traffic")),
+                domain_rating=number(row, "domain_rating"),
+                url_rating=number(row, "url_rating"),
+                page_traffic=integer(row, "page_traffic"),
                 is_dofollow=dofollow,
                 is_content=parse_bool(col(row, "is_content")),
-                http_code_target=_to_int(col(row, "http_code_target")),
+                http_code_target=integer(row, "http_code_target"),
             )
         )
+    if report is not None:
+        report["excel_dates_repaired"] = report.get("excel_dates_repaired", 0) + repaired
     return rows

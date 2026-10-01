@@ -199,3 +199,35 @@ def test_mixed_encoding_file_is_read_with_replacement(tmp_path):
     assert list(df.columns) == ["url_from", "url_to", "title"]
     assert df.loc[0, "url_to"] == "https://b.de/x"
     assert df.loc[0, "title"].startswith("Küche – M")
+
+
+# ------------------------------------------------------------------ Excel turned decimals into dates
+@pytest.mark.parametrize(
+    "value,expected",
+    [("04. Jun", 4.6), ("03. M�r", 3.3), ("03. Mär", 3.3), ("03. Mrz", 3.3), ("01. Jan", 1.1),
+     ("4.Jun", 4.6), ("12. Dez.", 12.12), ("01. okt", 1.1), ("4-Jun", 4.6), ("1-Jan", 1.1), ("31-Dec", 31.12),
+     ("04. Juni", None), ("4-Juni", None), ("Jun", None)],
+)
+def test_excel_date_strings_are_turned_back_into_decimals(value, expected):
+    from blm.ingest.backlinks_csv import _to_float
+
+    assert _to_float(value) == expected
+
+
+def test_excel_damaged_fixture_reports_repairs():
+    df = read_table(FIX / "excel_damaged_backlinks.csv")
+    report: dict = {}
+    rows = parse_backlinks(df, detect_columns(df).mapping, report=report)
+    assert [r.domain_rating for r in rows] == [4.6, 3.3, 72.0]
+    assert [r.url_rating for r in rows] == [12.0, 1.1, 1.1]
+    assert [r.page_traffic for r in rows] == [1200, None, 5]
+    assert rows[2].anchor == "Größe"
+    assert report == {"excel_dates_repaired": 4}
+
+
+def test_report_accumulates_and_is_optional():
+    df = read_table(FIX / "ahrefs_ui_export.csv")
+    report = {"excel_dates_repaired": 2}
+    parse_backlinks(df, detect_columns(df).mapping, report=report)
+    assert report == {"excel_dates_repaired": 2}
+    assert len(parse_backlinks(df, detect_columns(df).mapping)) == 2
