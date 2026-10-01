@@ -75,7 +75,10 @@ def _decode(data: bytes) -> str:
             return data.decode(encoding)
         except UnicodeDecodeError:
             continue
-    raise ValueError("Datei konnte nicht gelesen werden: Zeichenkodierung nicht erkannt")
+    # Mixed encodings happen in practice: Excel on macOS keeps the original UTF-8 text but
+    # writes its own generated strings (e.g. "03. März") in MacRoman. Keep the readable
+    # majority and mark the few undecodable bytes instead of refusing the whole file.
+    return data.decode("utf-8", errors="replace")
 
 
 def _sniff_delimiter(text: str) -> str:

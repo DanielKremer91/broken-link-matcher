@@ -189,3 +189,13 @@ def test_read_table_accepts_binary_stream():
     stream = io.BytesIO("url_from,url_to\nhttps://a.de,https://b.de\n".encode("utf-8"))
     df = read_table(stream, filename="upload.csv")
     assert list(df.columns) == ["url_from", "url_to"]
+
+
+def test_mixed_encoding_file_is_read_with_replacement(tmp_path):
+    """Excel on macOS re-saves mostly UTF-8 text but writes its own date strings in MacRoman."""
+    p = tmp_path / "mixed.csv"
+    p.write_bytes("url_from;url_to;title\nhttps://a.de;https://b.de/x;Küche – ".encode("utf-8") + b"M\x8arz\n")
+    df = read_table(p)
+    assert list(df.columns) == ["url_from", "url_to", "title"]
+    assert df.loc[0, "url_to"] == "https://b.de/x"
+    assert df.loc[0, "title"].startswith("Küche – M")
