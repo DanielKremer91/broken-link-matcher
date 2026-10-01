@@ -151,7 +151,9 @@ def load_frog_embeddings(source, *, url_col: Optional[str] = None, vector_col: O
 
     if wide_cols:
         # read_table returns strings; blanks and junk become NaN and skip the row
-        matrix = df[wide_cols].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=np.float32)
+        # (decimal commas from German Excel are accepted)
+        text = df[wide_cols].apply(lambda s: s.astype(str).str.replace(",", ".", regex=False))
+        matrix = text.apply(pd.to_numeric, errors="coerce").to_numpy(dtype=np.float32)
         vectors = [row.copy() if np.isfinite(row).all() else None for row in matrix]
     else:
         vectors = [_parse_vector(v) for v in df[vec_col].tolist()]
@@ -170,9 +172,10 @@ def load_frog_embeddings(source, *, url_col: Optional[str] = None, vector_col: O
         raise ValueError(f"Keine gültigen Embeddings in der Datei.{hint}")
 
     # A cell cut by Excel's 32767-character limit has fewer values than the rest: the
-    # most common length wins (ties: the length seen first), the others are skipped.
+    # most common length wins (ties: the longer one, truncation only shortens), the
+    # others are skipped.
     sizes = Counter(p.vector.size for p in candidates)
-    dimension = max(sizes, key=sizes.__getitem__)
+    dimension = max(sizes, key=lambda n: (sizes[n], n))
     pages = [p for p in candidates if p.vector.size == dimension]
     skipped += len(candidates) - len(pages)
     return FrogImport(pages=pages, dimension=int(dimension), skipped=skipped, table=info)

@@ -61,7 +61,7 @@ Embeddings und findet die inhaltlich passendste Seite deiner eigenen Domain als 
 ausreichend passt, entsteht als Nebenprodukt eine Liste von Content-Gaps.
 
 **Voraussetzungen**
-- Ein Screaming-Frog-Crawl deiner eigenen Domain mit aktivierten Embeddings und der Export der Embeddings (CSV).
+- Ein Screaming-Frog-Crawl deiner eigenen Domain mit aktivierten Embeddings und der Export der Embeddings (CSV oder XLSX).
 - Ein Export der Broken Backlinks des Wettbewerbers aus Ahrefs oder einem anderen Tool, alternativ ein Ahrefs-API-Schlüssel.
 - Ein API-Schlüssel für denselben Embedding-Anbieter, den du im Frog verwendet hast (bei Ollama genügt die lokale URL).
 
@@ -272,7 +272,7 @@ if "frog" in S:
         elif S.get("dim_ok"):
             st.success(f"Dimension passt ({S['probe_dim']}).")
         else:
-            st.error(f"Dimension passt nicht: Frog-CSV {imp.dimension}, Modell {S['probe_dim']}. Wähle exakt das Modell, das im Frog konfiguriert ist.")
+            st.error(f"Dimension passt nicht: Frog-Export {imp.dimension}, Modell {S['probe_dim']}. Wähle exakt das Modell, das im Frog konfiguriert ist.")
 
 # ----------------------------------------------------------------- 2. backlinks
 st.header("2. Wettbewerber-Backlinks")
@@ -292,7 +292,8 @@ with tab_csv:
             S["bl_name"] = bl_file.name
             S["bl_upload_id"] = upload_id(bl_file)
         except Exception as exc:  # pandas raises many types for malformed files
-            st.error(f"Datei konnte nicht gelesen werden: {exc}")
+            # read_table_info's ValueErrors already carry the German prefix
+            st.error(str(exc) if isinstance(exc, ValueError) else f"Datei konnte nicht gelesen werden: {exc}")
     if "bl_df" in S:
         cm = S["bl_mapping"]
         mapping = dict(cm.mapping)
@@ -437,7 +438,7 @@ if "recovered" in S:
                                  help="Zeilen ohne Wayback-Snapshot werden mit Anker, Kontext, Titel und URL-Pfad gematcht. Ergebnis ist unschärfer, aber oft brauchbar.")
     blocked = "frog" not in S or not dim_valid
     if blocked:
-        st.warning("Erst die Frog-CSV laden und den Dimensionscheck bestehen.")
+        st.warning("Erst den Frog-Export laden und den Dimensionscheck bestehen.")
     if st.button("Matching starten", disabled=blocked,
                  help="Berechnet Embeddings der rekonstruierten Texte (kostet Tokens beim Anbieter) und ordnet jeder toten URL die ähnlichste eigene Seite zu."):
         prov = provider_or_error()

@@ -212,3 +212,19 @@ def test_excel_truncated_cell_is_skipped_by_majority_dimension(tmp_path):
     assert imp.dimension == 8
     assert [p.url for p in imp.pages] == ["https://me.de/a", "https://me.de/b"]
     assert imp.skipped == 1
+
+
+def test_tie_between_lengths_prefers_the_longer_vector(tmp_path):
+    f = tmp_path / "tie.csv"
+    f.write_text('Address,Embeddings\nhttps://me.de/cut,"0.1,0.2"\nhttps://me.de/full,"0.1,0.2,0.3"\n')
+    imp = load_frog_embeddings(f)
+    assert imp.dimension == 3 and [p.url for p in imp.pages] == ["https://me.de/full"]
+    assert imp.skipped == 1
+
+
+def test_wide_columns_with_decimal_commas(tmp_path):
+    f = tmp_path / "wide_de.csv"
+    f.write_text("url;embedding_0;embedding_1\nhttps://me.de/a;0,1;0,25\nhttps://me.de/b;1;0\n", encoding="utf-8")
+    imp = load_frog_embeddings(f)
+    assert imp.dimension == 2 and imp.skipped == 0
+    assert imp.pages[0].vector.tolist() == pytest.approx([0.1, 0.25])

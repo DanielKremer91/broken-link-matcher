@@ -123,9 +123,15 @@ _EXCEL_DATE_DE = re.compile(
     r"^(\d{1,2})\.\s?(Jan|Feb|Mär|Mrz|M.r|Apr|Mai|Jun|Jul|Aug|Sep|Okt|Nov|Dez)\.?$", re.IGNORECASE
 )
 _EXCEL_DATE_EN = re.compile(r"^(\d{1,2})-(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)$", re.IGNORECASE)
+# XLSX keeps such cells as real dates, which arrive as "2026-06-04 00:00:00".
+_EXCEL_DATE_ISO = re.compile(r"^\d{4}-(\d{2})-(\d{2})(?: 00:00:00)?$")
 
 
 def _excel_date_to_float(text: str) -> Optional[float]:
+    iso = _EXCEL_DATE_ISO.match(text)
+    if iso is not None:
+        month, day = iso.groups()
+        return float(f"{int(day)}.{int(month)}")
     match = _EXCEL_DATE_DE.match(text) or _EXCEL_DATE_EN.match(text)
     if match is None:
         return None

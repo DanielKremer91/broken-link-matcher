@@ -634,3 +634,11 @@ def test_frog_mapping_form_keeps_wide_columns_when_only_url_is_mapped():
     button(at, "Zuordnung übernehmen").click().run()
     assert not at.exception
     assert at.session_state["frog"].dimension == 2
+
+
+def test_backlink_read_error_shows_prefix_once():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    at.file_uploader(key="bl_upload").set_value(("alt.xls", b"\x00junk bytes, not a workbook", "application/vnd.ms-excel")).run()
+    assert not at.exception
+    errors = [e.value for e in at.error]
+    assert errors and all(e.count("Datei konnte nicht gelesen werden") == 1 for e in errors), errors

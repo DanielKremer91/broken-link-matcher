@@ -206,7 +206,8 @@ def test_mixed_encoding_file_is_read_with_replacement(tmp_path):
     "value,expected",
     [("04. Jun", 4.6), ("03. M�r", 3.3), ("03. Mär", 3.3), ("03. Mrz", 3.3), ("01. Jan", 1.1),
      ("4.Jun", 4.6), ("12. Dez.", 12.12), ("01. okt", 1.1), ("4-Jun", 4.6), ("1-Jan", 1.1), ("31-Dec", 31.12),
-     ("04. Juni", None), ("4-Juni", None), ("Jun", None)],
+     ("2026-06-04 00:00:00", 4.6), ("2026-01-01", 1.1), ("2026-12-31", 31.12),
+     ("2026-06-04 12:30:00", None), ("04. Juni", None), ("4-Juni", None), ("Jun", None)],
 )
 def test_excel_date_strings_are_turned_back_into_decimals(value, expected):
     from blm.ingest.backlinks_csv import _to_float
@@ -231,3 +232,18 @@ def test_report_accumulates_and_is_optional():
     parse_backlinks(df, detect_columns(df).mapping, report=report)
     assert report == {"excel_dates_repaired": 2}
     assert len(parse_backlinks(df, detect_columns(df).mapping)) == 2
+
+
+def test_xlsx_datetime_cells_are_repaired_and_counted(tmp_path):
+    import datetime as dt
+
+    import pandas as pd
+
+    p = tmp_path / "dates.xlsx"
+    pd.DataFrame({"Referring page URL": ["https://a.de", "https://c.de"], "Target URL": ["https://b.de/x", "https://b.de/y"],
+                  "Domain rating": [dt.datetime(2026, 6, 4), 72]}).to_excel(p, index=False)
+    df = read_table(p)
+    report: dict = {}
+    rows = parse_backlinks(df, detect_columns(df).mapping, report=report)
+    assert [r.domain_rating for r in rows] == [4.6, 72.0]
+    assert report == {"excel_dates_repaired": 1}

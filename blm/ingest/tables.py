@@ -45,8 +45,8 @@ def _mostly_utf8(data: bytes) -> Optional[str]:
     umlaut into mojibake, so prefer UTF-8 with replacement when the damage is small.
     """
     text = data.decode("utf-8", errors="replace")
-    bad = text.count("�")
-    good = sum(1 for ch in text if ord(ch) >= 0x80 and ch != "�")
+    bad = text.count("\ufffd")
+    good = sum(1 for ch in text if ord(ch) >= 0x80 and ch != "\ufffd")
     if good == 0 or bad > max(2, good // 10):
         return None  # not UTF-8 at all (e.g. plain cp1252), let the other codecs try
     return text
