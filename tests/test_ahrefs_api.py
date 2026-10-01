@@ -5,14 +5,14 @@ import httpx
 import pytest
 import respx
 
-from blm.ingest.ahrefs_api import AHREFS_URL, AhrefsError, fetch_broken_backlinks
+from blm.ingest.ahrefs_api import AHREFS_URL, AhrefsError, describe_filters, fetch_broken_backlinks
 
 FIX = Path(__file__).parent / "fixtures"
 RESPONSE = json.loads((FIX / "ahrefs_api_response.json").read_text())
 
 
 @respx.mock
-def test_fetch_maps_fields_and_sets_dofollow_content_true():
+def test_fetch_maps_fields_and_flags_from_response():
     route = respx.get(AHREFS_URL).mock(return_value=httpx.Response(200, json=RESPONSE))
     rows = fetch_broken_backlinks("tok", "konkurrent.de", limit=50)
     assert len(rows) == 2
@@ -29,9 +29,7 @@ def test_fetch_maps_fields_and_sets_dofollow_content_true():
     assert p["order_by"] == "domain_rating_source:desc"
     assert p["limit"] == "50"
     assert "traffic" not in p["select"].split(",")
-    where = json.loads(p["where"])
-    assert {"field": "is_dofollow", "is": ["eq", True]} in where["and"]
-    assert {"field": "is_content", "is": ["eq", True]} in where["and"]
+    assert "is_dofollow" in p["select"].split(",") and "is_content" in p["select"].split(",")
 
 
 @respx.mock
@@ -85,3 +83,81 @@ def test_blank_target_makes_no_request():
     with pytest.raises(AhrefsError):
         fetch_broken_backlinks("tok", "  ")
     assert not route.called
+
+
+DEAD = {"or": [{"field": "http_code_target", "is": ["eq", 404]}, {"field": "http_code_target", "is": ["eq", 410]}]}
+ALL_OFF = dict(dofollow_only=False, content_only=False, exclude_spam=False, dead_only=False)
+
+
+def fetched_where(**kwargs):
+    route = respx.get(AHREFS_URL).mock(return_value=httpx.Response(200, json=RESPONSE))
+    fetch_broken_backlinks("tok", "konkurrent.de", **kwargs)
+    params = route.calls.last.request.url.params
+    return json.loads(params["where"]) if "where" in params else None
+
+
+@respx.mock
+def test_default_where_is_dofollow_content_no_spam_dead_only():
+    assert fetched_where() == {"and": [
+        {"field": "is_dofollow", "is": ["eq", True]},
+        {"field": "is_content", "is": ["eq", True]},
+        {"field": "is_spam", "is": ["eq", False]},
+        DEAD,
+    ]}
+
+
+@respx.mock
+def test_all_filters_off_sends_no_where_param():
+    assert fetched_where(**ALL_OFF) is None
+
+
+@respx.mock
+def test_single_filter_is_wrapped_in_and():
+    assert fetched_where(**{**ALL_OFF, "dead_only": True}) == {"and": [DEAD]}
+
+
+@respx.mock
+def test_min_dr_and_language_appear_in_where():
+    where = fetched_where(**ALL_OFF, min_dr=30, language="de")
+    assert where == {"and": [
+        {"field": "domain_rating_source", "is": ["gte", 30]},
+        {"field": "languages", "list_is": {"any": ["eq", "de"]}},
+    ]}
+
+
+@respx.mock
+def test_min_dr_zero_and_blank_language_add_nothing():
+    assert fetched_where(**ALL_OFF, min_dr=0, language="  ") is None
+
+
+@respx.mock
+def test_language_is_trimmed():
+    where = fetched_where(**ALL_OFF, language=" de ")
+    assert where == {"and": [{"field": "languages", "list_is": {"any": ["eq", "de"]}}]}
+
+
+@respx.mock
+def test_flags_map_from_response_and_stay_none_when_absent():
+    resp = {"backlinks": [
+        dict(RESPONSE["backlinks"][0], is_dofollow=True, is_content=False),
+        dict(RESPONSE["backlinks"][1], is_dofollow=False, is_content=True),
+        {k: v for k, v in RESPONSE["backlinks"][1].items() if k not in ("is_dofollow", "is_content")},
+    ]}
+    respx.get(AHREFS_URL).mock(return_value=httpx.Response(200, json=resp))
+    rows = fetch_broken_backlinks("tok", "konkurrent.de", **ALL_OFF)
+    assert (rows[0].is_dofollow, rows[0].is_content) == (True, False)
+    assert (rows[1].is_dofollow, rows[1].is_content) == (False, True)
+    assert (rows[2].is_dofollow, rows[2].is_content) == (None, None)
+
+
+def test_describe_filters_defaults():
+    assert describe_filters() == "Dofollow · Content-Links · ohne Spam · nur 404/410"
+
+
+def test_describe_filters_all_off():
+    assert describe_filters(**ALL_OFF) == "keine Filter"
+
+
+def test_describe_filters_with_dr_and_language():
+    assert describe_filters(min_dr=30, language="de") == "Dofollow · Content-Links · ohne Spam · nur 404/410 · DR ≥ 30 · Sprache de"
+    assert describe_filters(**ALL_OFF, min_dr=45.5, language=" EN ") == "DR ≥ 45.5 · Sprache EN"

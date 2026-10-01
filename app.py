@@ -14,7 +14,7 @@ import streamlit as st
 from blm.cache import JsonCache
 from blm.embeddings import DEFAULT_EMBED_MODELS, PROVIDERS, EmbeddingError, embed_cached, make_provider
 from blm.export import results_to_dataframe, to_csv_bytes, to_xlsx_bytes
-from blm.ingest.ahrefs_api import AhrefsError, fetch_broken_backlinks
+from blm.ingest.ahrefs_api import AhrefsError, describe_filters, fetch_broken_backlinks
 from blm.ingest.backlinks_csv import OPTIONAL_FIELDS, REQUIRED_FIELDS, detect_columns, parse_backlinks, read_table
 from blm.ingest.frog_csv import load_frog_embeddings
 from blm.matcher import build_results
@@ -280,12 +280,30 @@ with tab_api:
                                 help="Obergrenze der abgerufenen Zeilen. Jede Zeile kostet Ahrefs-API-Units, ein kleiner Wert für den ersten Test spart Budget.")
     include_traffic = st.checkbox("Seitentraffic mitladen (10 API-Units extra pro Zeile)",
                                   help="Lädt den geschätzten Traffic der linkgebenden Seite für die Sortierung nach Seitentraffic. Kostet 10 Units extra pro Zeile.")
+    f1, f2, f3, f4 = st.columns(4)
+    api_dofollow = f1.checkbox("Nur Dofollow", value=True, key="api_dofollow",
+                               help="Ahrefs liefert nur Links ohne nofollow, sponsored oder ugc. Nur sie geben Linkkraft weiter.")
+    api_content = f2.checkbox("Nur Content-Links", value=True, key="api_content",
+                              help="Ahrefs liefert nur Links aus dem redaktionellen Inhalt, keine aus Navigation, Footer oder Sidebar.")
+    api_exclude_spam = f3.checkbox("Spam-Domains ausschließen", value=True, key="api_exclude_spam",
+                                   help="Lässt Domains weg, die Ahrefs als Spam einstuft. Spart Units und vermeidet wertlose Linkquellen.")
+    api_dead_only = f4.checkbox("Nur tote Ziele (404/410)", value=True, key="api_dead_only",
+                                help="Nur Links, deren Ziel-URL aktuell mit 404 oder 410 antwortet. Ohne den Haken kommen auch Weiterleitungen und Fehlerseiten.")
+    f5, f6 = st.columns(2)
+    api_min_dr = f5.number_input("Mindest-DR (API-seitig)", min_value=0, max_value=100, value=0, step=5,
+                                 help="Ahrefs liefert nur linkgebende Domains ab diesem Domain Rating. 0 schaltet den Filter aus.")
+    api_language = f6.text_input("Sprache (ISO-Code, optional)", placeholder="de",
+                                 help="Zweistelliger Sprachcode der linkgebenden Seite, z. B. de oder en. Leer lässt alle Sprachen zu.")
+    api_filters = dict(dofollow_only=api_dofollow, content_only=api_content, exclude_spam=api_exclude_spam,
+                       dead_only=api_dead_only, min_dr=float(api_min_dr), language=api_language.strip() or None)
+    st.caption("Aktive API-Filter: " + describe_filters(**api_filters))
+    st.caption("Filter werden serverseitig angewendet und sparen API-Units. Pro Zeile kostet der Abruf Units.")
     if not ahrefs_key:
         st.caption("Ohne Ahrefs-API-Schlüssel steht nur der CSV-Weg zur Verfügung.")
     if st.button("Von Ahrefs abrufen", disabled=not (ahrefs_key and target),
                  help="Lädt die Broken Backlinks der Domain über die Ahrefs-API v3, ein Link pro verweisender Domain. Verbraucht API-Units."):
         try:
-            S["raw_backlinks"] = fetch_broken_backlinks(ahrefs_key, target, limit=int(api_limit), include_traffic=include_traffic)
+            S["raw_backlinks"] = fetch_broken_backlinks(ahrefs_key, target, limit=int(api_limit), include_traffic=include_traffic, **api_filters)
             reset_backlink_state()
             st.success(f"{len(S['raw_backlinks'])} Backlinks geladen.")
         except AhrefsError as exc:

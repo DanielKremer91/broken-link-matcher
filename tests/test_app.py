@@ -486,3 +486,54 @@ def test_sidebar_widgets_have_help():
     sidebar = [*at.sidebar.selectbox, *at.sidebar.text_input, *at.sidebar.button]
     assert len(sidebar) >= 8
     assert all(w.help for w in sidebar)
+
+
+# ------------------------------------------------------------------ configurable Ahrefs API filters
+API_FILTER_LABELS = ["Nur Dofollow", "Nur Content-Links", "Spam-Domains ausschließen", "Nur tote Ziele (404/410)"]
+
+
+def api_checkbox(at: AppTest, label: str):
+    # section 2 also has "Nur Dofollow"/"Nur Content-Links" post-fetch filters: the API tab one comes first
+    return next(c for c in at.checkbox if c.label == label)
+
+
+def test_ahrefs_tab_shows_filter_checkboxes_caption_and_cost_hint():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert not at.exception
+    labels = [c.label for c in at.checkbox]
+    for label in API_FILTER_LABELS:
+        assert label in labels, label
+    assert all(c.value for c in at.checkbox if c.label in API_FILTER_LABELS)
+    assert "Aktive API-Filter: Dofollow · Content-Links · ohne Spam · nur 404/410" in [c.value for c in at.caption]
+    assert "Filter werden serverseitig angewendet und sparen API-Units. Pro Zeile kostet der Abruf Units." in [c.value for c in at.caption]
+    assert next(n for n in at.number_input if n.label == "Mindest-DR (API-seitig)").value == 0
+    assert next(t for t in at.text_input if t.label == "Sprache (ISO-Code, optional)").value == ""
+
+
+def test_ahrefs_filter_caption_follows_widgets_and_flags_are_passed_to_fetch(monkeypatch):
+    monkeypatch.setenv("AHREFS_API_KEY", "ah-test")
+    calls = []
+    monkeypatch.setattr("blm.ingest.ahrefs_api.fetch_broken_backlinks",
+                        lambda token, target, **kw: calls.append((token, target, kw)) or
+                        [BrokenBacklink(url_from="https://neu.de/p", url_to="https://c.de/neu")])
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    next(t for t in at.text_input if t.label == "Wettbewerber-Domain").input("konkurrent.de")
+    next(t for t in at.text_input if t.label == "Sprache (ISO-Code, optional)").input("de")
+    next(n for n in at.number_input if n.label == "Mindest-DR (API-seitig)").set_value(30)
+    at.checkbox(key="api_exclude_spam").uncheck()
+    at.run()
+    assert "Aktive API-Filter: Dofollow · Content-Links · nur 404/410 · DR ≥ 30 · Sprache de" in [c.value for c in at.caption]
+    button(at, "Von Ahrefs abrufen").click().run()
+    assert not at.exception
+    (token, target, kw), = calls
+    assert (token, target) == ("ah-test", "konkurrent.de")
+    assert kw == dict(limit=100, include_traffic=False, dofollow_only=True, content_only=True,
+                      exclude_spam=False, dead_only=True, min_dr=30.0, language="de")
+
+
+def test_ahrefs_filter_widgets_have_help():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    widgets = [c for c in at.checkbox if c.label in API_FILTER_LABELS]
+    widgets += [n for n in at.number_input if n.label == "Mindest-DR (API-seitig)"]
+    widgets += [t for t in at.text_input if t.label == "Sprache (ISO-Code, optional)"]
+    assert len(widgets) == 6 and all(w.help for w in widgets)
