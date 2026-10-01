@@ -192,7 +192,7 @@ with st.expander("ℹ️ Was macht dieses Tool und wie nutze ich es?", expanded=
 # ----------------------------------------------------------------- 1. own domain
 st.header("1. Eigene Domain (Screaming-Frog-Embeddings)")
 frog_file = st.file_uploader("Embeddings-Export aus dem Screaming Frog (CSV)", type=["csv"], key="frog_upload",
-                             help="Bulk Export → Embeddings aus dem Screaming Frog. Spalten: url, embedding_0 … embedding_N.")
+                             help="Bulk Export → Embeddings aus dem Screaming Frog. Spalten: url plus embedding_0 … embedding_N, oder Address plus eine Spalte, deren Name Embed enthält.")
 with st.expander("Welches Modell habe ich im Frog?"):
     st.markdown(FROG_MODEL_HINT)
 if frog_file is not None and S.get("frog_upload_id") != upload_id(frog_file):

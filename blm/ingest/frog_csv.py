@@ -38,6 +38,20 @@ def _find_column(columns: dict[str, str], candidates: tuple[str, ...]) -> Option
     return None
 
 
+def _find_fuzzy_vector_column(columns: dict[str, str], url_col: str) -> Optional[str]:
+    """Screaming Frog names the UI export column after the extractor ("Embeddings Fressnapf 1").
+
+    Accept the first column whose name contains "embed" or "vector", except the URL
+    column and columns that obviously hold a model name rather than numbers.
+    """
+    for lowered, original in columns.items():
+        if original == url_col:
+            continue
+        if ("embed" in lowered or "vector" in lowered) and "model" not in lowered:
+            return original
+    return None
+
+
 def _parse_vector(raw) -> Optional[np.ndarray]:
     if raw is None or (isinstance(raw, float) and np.isnan(raw)):
         return None
@@ -68,10 +82,13 @@ def load_frog_embeddings(source) -> FrogImport:
         (c for c in df.columns if _WIDE_RE.fullmatch(str(c).strip())),
         key=lambda c: int(_WIDE_RE.fullmatch(str(c).strip()).group(1)),
     )
-    vector_col = None if wide_cols else _find_column(columns, VECTOR_CANDIDATES)
+    vector_col = None
+    if not wide_cols:
+        vector_col = _find_column(columns, VECTOR_CANDIDATES) or _find_fuzzy_vector_column(columns, url_col)
     if not wide_cols and vector_col is None:
         raise ValueError(
-            "Keine Embedding-Spalten gefunden (erwartet 'embedding_0 ...' oder eine Spalte 'Embeddings')."
+            "Keine Embedding-Spalten gefunden (erwartet 'embedding_0 ...' oder eine Spalte, "
+            "deren Name 'Embed' oder 'Vector' enthält, z. B. 'Embeddings Fressnapf 1')."
         )
 
     pages: list[OwnPage] = []

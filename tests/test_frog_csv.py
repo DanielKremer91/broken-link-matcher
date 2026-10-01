@@ -64,3 +64,22 @@ def test_non_finite_vectors_skipped(tmp_path):
     assert len(imp.pages) == 1
     assert imp.pages[0].url == "https://b.de"
     assert imp.skipped == 1
+
+
+def test_single_column_detected_by_substring_in_header(tmp_path):
+    """Screaming Frog UI exports name the column after the extractor, e.g. 'Embeddings Fressnapf 1'."""
+    f = tmp_path / "ui_export.csv"
+    f.write_text(
+        '﻿"Address","Content Type","Status Code","Status","Embeddings Fressnapf 1"\n'
+        '"https://me.de/a","text/html","200","","0.1,0.2,0.3"\n'
+        '"https://me.de/b","text/html","200","","0.0,1.0,0.0"\n'
+    )
+    imp = load_frog_embeddings(f)
+    assert imp.dimension == 3 and [p.url for p in imp.pages] == ["https://me.de/a", "https://me.de/b"]
+
+
+def test_substring_match_prefers_exact_candidate_and_skips_url_column(tmp_path):
+    f = tmp_path / "two.csv"
+    f.write_text("Address,Embedding Model,Embeddings\nhttps://me.de/a,text-embedding-3-small,\"1,0\"\n")
+    imp = load_frog_embeddings(f)
+    assert imp.dimension == 2
