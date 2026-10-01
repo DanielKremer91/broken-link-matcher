@@ -15,8 +15,9 @@ from blm.cache import JsonCache
 from blm.embeddings import DEFAULT_EMBED_MODELS, PROVIDERS, EmbeddingError, embed_cached, make_provider
 from blm.export import results_to_dataframe, to_csv_bytes, to_xlsx_bytes
 from blm.ingest.ahrefs_api import AhrefsError, describe_filters, fetch_broken_backlinks
-from blm.ingest.backlinks_csv import OPTIONAL_FIELDS, REQUIRED_FIELDS, detect_columns, parse_backlinks, read_table
-from blm.ingest.frog_csv import load_frog_embeddings
+from blm.ingest.backlinks_csv import OPTIONAL_FIELDS, REQUIRED_FIELDS, detect_columns, parse_backlinks
+from blm.ingest.frog_csv import detect_frog_columns, load_frog_embeddings
+from blm.ingest.tables import describe_table_info, read_table_info
 from blm.matcher import build_results
 from blm.outreach import DEFAULT_CHAT_MODELS, OutreachError, draft_mail
 from blm.ranking import SORT_FIELDS, rank_backlinks
@@ -78,6 +79,7 @@ ausreichend passt, entsteht als Nebenprodukt eine Liste von Content-Gaps.
 - Kosten: Ahrefs berechnet Units pro abgerufener Zeile, der Embedding-Anbieter Tokens pro toter URL.
 - Derselbe Ablauf steht als Kommandozeile für Claude Code zur Verfügung (`cli.py`, siehe `docs/agentic-workflow.md`).
 """
+FROG_WIDE_OPTION = "(Spalten embedding_0 bis embedding_N)"
 SORT_LABELS = {"domain_rating": "Domain Rating", "url_rating": "URL Rating", "page_traffic": "Seitentraffic"}
 
 
@@ -191,26 +193,66 @@ with st.expander("ℹ️ Was macht dieses Tool und wie nutze ich es?", expanded=
 
 # ----------------------------------------------------------------- 1. own domain
 st.header("1. Eigene Domain (Screaming-Frog-Embeddings)")
-frog_file = st.file_uploader("Embeddings-Export aus dem Screaming Frog (CSV)", type=["csv"], key="frog_upload",
-                             help="Bulk Export → Embeddings aus dem Screaming Frog. Spalten: url plus embedding_0 … embedding_N, oder Address plus eine Spalte, deren Name Embed enthält.")
+frog_file = st.file_uploader(
+    "Embeddings-Export aus dem Screaming Frog (CSV oder XLSX)", type=["csv", "xlsx", "xlsm", "tsv", "txt"], key="frog_upload",
+    help="Bulk Export → Embeddings als CSV, TSV, TXT oder XLSX (url plus embedding_N oder Address plus Embed-Spalte). "
+         "Nicht mit Excel als CSV speichern, Excel kürzt lange Vektoren.")
 with st.expander("Welches Modell habe ich im Frog?"):
     st.markdown(FROG_MODEL_HINT)
-if frog_file is not None and S.get("frog_upload_id") != upload_id(frog_file):
+
+
+def accept_frog(imp, f) -> None:
+    """Store a successful Frog import and drop everything derived from the previous one."""
+    S["frog"] = imp
+    S["frog_name"] = f.name
+    S["frog_upload_id"] = upload_id(f)
+    for key in ("dim_ok", "probe_dim", "dim_checked_for", "frog_failed_id", "frog_error", "frog_columns"):
+        S.pop(key, None)
+    invalidate_matching()
+
+
+frog_id = upload_id(frog_file) if frog_file is not None else None
+if frog_file is not None and frog_id not in (S.get("frog_upload_id"), S.get("frog_failed_id")):
     try:
-        S["frog"] = load_frog_embeddings(frog_file)
-        S["frog_name"] = frog_file.name
-        S["frog_upload_id"] = upload_id(frog_file)
-        S.pop("dim_ok", None)
-        S.pop("probe_dim", None)
-        S.pop("dim_checked_for", None)
-        invalidate_matching()
+        accept_frog(load_frog_embeddings(frog_file), frog_file)
     except ValueError as exc:
-        st.error(str(exc))
+        S["frog_failed_id"] = frog_id
+        S["frog_error"] = str(exc)
+        try:  # read once more to offer a manual column mapping
+            S["frog_columns"] = detect_frog_columns(read_table_info(frog_file, filename=frog_file.name)[0])
+        except ValueError:
+            S.pop("frog_columns", None)
+if frog_file is not None and frog_id == S.get("frog_failed_id"):
+    st.error(S["frog_error"])
+    frog_cols = S.get("frog_columns")
+    if frog_cols is not None and frog_cols.columns:
+        st.write("Spalten selbst zuordnen:")
+        options = frog_cols.columns
+        vec_options = ([FROG_WIDE_OPTION] if frog_cols.wide else []) + options
+        m1, m2 = st.columns(2)
+        url_choice = m1.selectbox(
+            "URL-Spalte", options, key=f"frog_map_url_{frog_id}",
+            index=options.index(frog_cols.url_col) if frog_cols.url_col in options else 0,
+            help="Spalte mit den Adressen deiner Seiten, im Frog meist Address.")
+        vec_choice = m2.selectbox(
+            "Embedding-Spalte", vec_options, key=f"frog_map_vec_{frog_id}",
+            index=vec_options.index(frog_cols.vector_col) if frog_cols.vector_col in vec_options else (
+                0 if frog_cols.wide else min(1, len(vec_options) - 1)),
+            help="Spalte mit dem Vektor als Zahlenliste, z. B. 0.1,0.2,0.3 oder [0.1, 0.2], oder die Spalten embedding_0 bis embedding_N.")
+        if st.button("Zuordnung übernehmen", help="Liest die Datei erneut mit den gewählten Spalten für URL und Embedding."):
+            try:
+                vector_col = None if vec_choice == FROG_WIDE_OPTION else vec_choice
+                accept_frog(load_frog_embeddings(frog_file, url_col=url_choice, vector_col=vector_col), frog_file)
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
 dim_settings = (provider, embed_model, base_url)
 dim_valid = S.get("dim_ok") is True and S.get("dim_checked_for") == dim_settings
 if "frog" in S:
     imp = S["frog"]
     st.write(f"{len(imp.pages)} URLs, Vektordimension {imp.dimension}, {imp.skipped} Zeilen übersprungen.")
+    if getattr(imp, "table", None) is not None:
+        st.caption(describe_table_info(imp.table))
     if key_missing:
         st.caption(KEY_MISSING_HINT)
     if st.button("Dimensionscheck gegen gewähltes Modell", disabled=key_missing,
@@ -236,13 +278,16 @@ if "frog" in S:
 st.header("2. Wettbewerber-Backlinks")
 tab_csv, tab_api = st.tabs(["CSV/XLSX-Upload", "Ahrefs-API"])
 with tab_csv:
-    bl_file = st.file_uploader("Broken-Backlinks-Export (Ahrefs oder anderes Tool)", type=["csv", "xlsx"], key="bl_upload",
-                               help="Broken-Backlinks-Export aus Ahrefs (UI, API oder MCP) oder einem anderen Tool. Unbekannte Spalten kannst du danach zuordnen.")
+    bl_file = st.file_uploader(
+        "Broken-Backlinks-Export (Ahrefs oder anderes Tool)", type=["csv", "xlsx", "xlsm", "xls", "tsv", "txt"], key="bl_upload",
+        help="Export aus Ahrefs oder einem anderen Tool als CSV, TSV, TXT oder XLSX, Spalten ordnest du danach zu. "
+             "Mit Excel gespeicherte CSVs können Zahlen als Datum enthalten.")
     if bl_file is not None and S.get("bl_upload_id") != upload_id(bl_file):
         try:
-            new_df = read_table(bl_file, filename=bl_file.name)
+            new_df, new_info = read_table_info(bl_file, filename=bl_file.name)
             new_mapping = detect_columns(new_df)
             S["bl_df"] = new_df
+            S["bl_info"] = new_info
             S["bl_mapping"] = new_mapping
             S["bl_name"] = bl_file.name
             S["bl_upload_id"] = upload_id(bl_file)
@@ -255,6 +300,8 @@ with tab_csv:
             st.warning("Pflichtspalten nicht erkannt. Bitte zuordnen.")
         else:
             st.success(f"{len(cm.mapping)} Spalten automatisch erkannt ({len(S['bl_df'])} Zeilen).")
+        if S.get("bl_info") is not None:
+            st.caption(describe_table_info(S["bl_info"]))
         if cm.missing or st.checkbox("Spaltenzuordnung anpassen",
                                      help="Ordne die Spalten deiner Datei den Feldern des Tools selbst zu, falls die automatische Erkennung falsch liegt."):
             options = ["(keine)"] + cm.columns
@@ -268,9 +315,14 @@ with tab_csv:
                     mapping[field] = choice
         if st.button("Backlinks übernehmen", help="Übernimmt die Datei mit der gewählten Spaltenzuordnung als Backlink-Liste und verwirft spätere Schritte."):
             try:
-                S["raw_backlinks"] = parse_backlinks(S["bl_df"], mapping)
+                parse_report: dict = {}
+                S["raw_backlinks"] = parse_backlinks(S["bl_df"], mapping, report=parse_report)
                 reset_backlink_state()
                 st.success(f"{len(S['raw_backlinks'])} Backlinks übernommen.")
+                repaired = parse_report.get("excel_dates_repaired", 0)
+                if repaired > 0:
+                    st.warning(f"{repaired} Zahlenwerte sahen wie Excel-Datumsangaben aus (z. B. '04. Jun' für 4.6) "
+                               "und wurden zurückgerechnet. Tipp: CSV nicht mit Excel speichern.")
             except ValueError as exc:
                 st.error(str(exc))
 with tab_api:

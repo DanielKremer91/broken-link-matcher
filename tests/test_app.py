@@ -532,3 +532,105 @@ def test_ahrefs_filter_widgets_have_help():
     widgets = [c for c in at.checkbox if c.label in API_FILTER_LABELS]
     widgets += [n for n in at.number_input if n.label == "Mindest-DR (API-seitig)"]
     assert len(widgets) == 5 and all(w.help for w in widgets)
+
+
+# ------------------------------------------------------------------ upload formats, Frog mapping form, Excel dates
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+
+
+def assert_good_help(widget):
+    assert widget.help and len(widget.help) < 200 and "—" not in widget.help, widget.help
+
+
+def test_uploaders_accept_csv_variants_and_excel_and_mention_excel_caveat():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    frog = at.file_uploader(key="frog_upload")
+    backlinks = at.file_uploader(key="bl_upload")
+    assert frog.proto.type == [".csv", ".xlsx", ".xlsm", ".tsv", ".txt"]
+    assert backlinks.proto.type == [".csv", ".xlsx", ".xlsm", ".xls", ".tsv", ".txt"]
+    for widget in (frog, backlinks):
+        assert_good_help(widget)
+        assert "XLSX" in widget.help and "Excel" in widget.help
+
+
+def test_frog_upload_shows_how_the_file_was_read():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    csv = b"url;embedding_0;embedding_1\nhttps://me.de/a;1;0\nhttps://me.de/b;0;1\n"
+    at.file_uploader(key="frog_upload").set_value(("frog.csv", csv, "text/csv")).run()
+    assert not at.exception
+    assert len(at.session_state["frog"].pages) == 2
+    assert any(c.value == "Gelesen: CSV · Trennzeichen ; · UTF-8 · 2 Zeilen" for c in at.caption)
+
+
+def test_frog_mapping_form_loads_unknown_columns():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    csv = b'Seite,Typ,Zahlen\nhttps://me.de/a,html,"0.1,0.2"\nhttps://me.de/b,html,"0.2,0.1"\n'
+    at.file_uploader(key="frog_upload").set_value(("custom.csv", csv, "text/csv")).run()
+    assert not at.exception
+    assert "frog" not in at.session_state
+    assert any("Seite, Typ, Zahlen" in e.value for e in at.error)
+    url_box = next(s for s in at.selectbox if s.label == "URL-Spalte")
+    vec_box = next(s for s in at.selectbox if s.label == "Embedding-Spalte")
+    assert list(url_box.options) == ["Seite", "Typ", "Zahlen"]
+    for widget in (url_box, vec_box, button(at, "Zuordnung übernehmen")):
+        assert_good_help(widget)
+
+    url_box.set_value("Seite")
+    vec_box.set_value("Zahlen")
+    at.run()
+    button(at, "Zuordnung übernehmen").click().run()
+
+    assert not at.exception
+    imp = at.session_state["frog"]
+    assert [p.url for p in imp.pages] == ["https://me.de/a", "https://me.de/b"] and imp.dimension == 2
+    assert at.session_state["frog_name"] == "custom.csv"
+    assert not any(s.label == "URL-Spalte" for s in at.selectbox)
+    assert not at.error
+    assert any(c.value.startswith("Gelesen: CSV") for c in at.caption)
+
+
+def test_frog_mapping_form_shows_error_for_wrong_choice():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    csv = b'Seite,Zahlen\nhttps://me.de/a,"0.1,0.2"\n'
+    at.file_uploader(key="frog_upload").set_value(("custom.csv", csv, "text/csv")).run()
+    next(s for s in at.selectbox if s.label == "URL-Spalte").set_value("Zahlen")
+    next(s for s in at.selectbox if s.label == "Embedding-Spalte").set_value("Seite")
+    at.run()
+    button(at, "Zuordnung übernehmen").click().run()
+    assert not at.exception
+    assert "frog" not in at.session_state
+    assert any("Keine gültigen Embeddings" in e.value for e in at.error)
+
+
+def test_backlink_upload_shows_table_info_and_excel_date_warning():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    data = (FIXTURES / "excel_damaged_backlinks.csv").read_bytes()
+    at.file_uploader(key="bl_upload").set_value(("excel.csv", data, "text/csv")).run()
+    assert not at.exception
+    assert any(c.value == "Gelesen: CSV · Trennzeichen ; · UTF-8 mit Ersatzzeichen · 3 Zeilen" for c in at.caption)
+    button(at, "Backlinks übernehmen").click().run()
+    assert [b.domain_rating for b in at.session_state["raw_backlinks"]] == [4.6, 3.3, 72.0]
+    assert any(w.value == "4 Zahlenwerte sahen wie Excel-Datumsangaben aus (z. B. '04. Jun' für 4.6) und wurden "
+               "zurückgerechnet. Tipp: CSV nicht mit Excel speichern." for w in at.warning)
+
+
+def test_no_excel_date_warning_for_clean_file():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    csv = b"Referring page URL,Target URL,Domain rating\nhttps://a.de/p,https://c.de/x,4.6\n"
+    at.file_uploader(key="bl_upload").set_value(("clean.csv", csv, "text/csv")).run()
+    button(at, "Backlinks übernehmen").click().run()
+    assert not at.exception
+    assert not any("Excel-Datumsangaben" in w.value for w in at.warning)
+
+
+def test_frog_mapping_form_keeps_wide_columns_when_only_url_is_mapped():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    csv = b"Seite,embedding_0,embedding_1\nhttps://me.de/a,1,0\nhttps://me.de/b,0,1\n"
+    at.file_uploader(key="frog_upload").set_value(("wide.csv", csv, "text/csv")).run()
+    vec_box = next(s for s in at.selectbox if s.label == "Embedding-Spalte")
+    assert vec_box.value == "(Spalten embedding_0 bis embedding_N)"
+    next(s for s in at.selectbox if s.label == "URL-Spalte").set_value("Seite")
+    at.run()
+    button(at, "Zuordnung übernehmen").click().run()
+    assert not at.exception
+    assert at.session_state["frog"].dimension == 2
