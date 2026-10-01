@@ -401,3 +401,16 @@ def test_content_gap_rows_get_no_draft_button(monkeypatch):
     assert at.session_state["results"][0].is_content_gap
     assert not any(b.key and b.key.startswith("mail_") for b in at.button)
     assert any("Content-Gap" in c.value for c in at.caption)
+
+
+def test_recognised_columns_show_success_message():
+    from pathlib import Path as _P
+
+    at = AppTest.from_file(str(_P(__file__).resolve().parent.parent / "app.py"), default_timeout=30)
+    at.session_state["frog"] = FrogImport(pages=[OwnPage("https://me.de/a", np.array([1.0, 0.0], dtype=np.float32))], dimension=2, skipped=0)
+    at.session_state["frog_name"] = "frog.csv"
+    at.run()
+    csv_path = _P(__file__).resolve().parent.parent / "examples" / "broken-backlinks-ahrefs-com.csv"
+    at.file_uploader(key="bl_upload").set_value(("broken-backlinks-ahrefs-com.csv", csv_path.read_bytes(), "text/csv")).run()
+    assert not at.exception
+    assert any("9 Spalten automatisch erkannt (15 Zeilen)" in s.value for s in at.success)

@@ -186,6 +186,8 @@ with tab_csv:
         mapping = dict(cm.mapping)
         if cm.missing:
             st.warning("Pflichtspalten nicht erkannt. Bitte zuordnen.")
+        else:
+            st.success(f"{len(cm.mapping)} Spalten automatisch erkannt ({len(S['bl_df'])} Zeilen).")
         if cm.missing or st.checkbox("Spaltenzuordnung anpassen"):
             options = ["(keine)"] + cm.columns
             for field in REQUIRED_FIELDS + OPTIONAL_FIELDS:
