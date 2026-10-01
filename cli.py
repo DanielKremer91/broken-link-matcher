@@ -53,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--sender", default="", help="Absender-Name für Mail-Entwürfe")
     p.add_argument("--domain", default="", help="eigene Domain für Mail-Entwürfe")
     p.add_argument("--chat-model", help="Chat-Modell für Entwürfe (Standard je Anbieter)")
-    p.add_argument("--drafts-out", type=Path, help="Markdown-Datei für die Mail-Entwürfe")
+    p.add_argument("--drafts-out", type=Path, help="Markdown-Datei für die Mail-Entwürfe (Standard: <Name von --out>-entwuerfe.md neben --out)")
     p.add_argument("--cache-dir", type=Path, default=Path(__file__).parent / ".cache")
     p.add_argument("--json", action="store_true", help="Zusammenfassung als JSON auf stdout")
     p.add_argument("--quiet", action="store_true", help="keinen Fortschritt auf stderr")
@@ -72,12 +72,6 @@ def resolve_credentials(provider: str) -> tuple[Optional[str], Optional[str]]:
 
 
 def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[Path]) -> None:
-    df = results_to_dataframe(result.results)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    if out_path.suffix.lower() == ".xlsx":
-        out_path.write_bytes(to_xlsx_bytes(df))
-    else:
-        out_path.write_bytes(to_csv_bytes(df))
     if drafts_path is not None:
         lines = ["# Mail-Entwürfe", ""]
         for key, text in result.drafts.items():
@@ -85,7 +79,13 @@ def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[P
             url_to = re.sub(r"#\d+$", "", url_to)  # occurrence suffix for repeated pairs
             lines += [f"## {url_from}", "", f"Tote URL: {url_to}", "", text, ""]
         drafts_path.parent.mkdir(parents=True, exist_ok=True)
-        drafts_path.write_text("\n".join(lines), encoding="utf-8")
+        drafts_path.write_text("\n".join(lines), encoding="utf-8")  # drafts first: they cost money
+    df = results_to_dataframe(result.results)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if out_path.suffix.lower() == ".xlsx":
+        out_path.write_bytes(to_xlsx_bytes(df))
+    else:
+        out_path.write_bytes(to_csv_bytes(df))
 
 
 def summary_lines(summary) -> list[str]:
@@ -108,10 +108,32 @@ def summary_lines(summary) -> list[str]:
 def main(argv: Optional[list[str]] = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.out.is_dir() or (args.drafts_out and args.drafts_out.is_dir()):
+        print("Abbruch: --out/--drafts-out zeigt auf ein Verzeichnis.", file=sys.stderr)
+        return 1
     if args.out.suffix.lower() not in (".xlsx", ".csv"):
         parser.error("--out muss auf .xlsx oder .csv enden")
+    if args.pause < 0:
+        parser.error("--pause darf nicht negativ sein")
+    if args.limit < 1:
+        parser.error("--limit muss mindestens 1 sein")
+    if args.max_chars < 1000:
+        parser.error("--max-chars muss mindestens 1000 sein")
+    if not 0 <= args.min_dr <= 100:
+        parser.error("--min-dr muss zwischen 0 und 100 liegen")
     if args.drafts and (not args.sender.strip() or not args.domain.strip()):
         print("Mail-Entwürfe brauchen --sender und --domain.", file=sys.stderr)
+        return 1
+
+    drafts_out: Optional[Path] = None
+    if args.drafts:
+        drafts_out = args.drafts_out or args.out.with_name(f"{args.out.stem}-entwuerfe.md")
+    targets = [args.out] + ([drafts_out] if drafts_out else [])
+    try:
+        for t in targets:
+            t.parent.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        print(f"Abbruch: Ausgabeordner kann nicht angelegt werden: {exc}", file=sys.stderr)
         return 1
 
     def progress(stage: str, done: int, total: int) -> None:
@@ -134,16 +156,20 @@ def main(argv: Optional[list[str]] = None) -> int:
         )
         result = run_pipeline(cfg, provider, chat=chat, cache=JsonCache(args.cache_dir),
                               sleeper=default_sleeper, progress=progress)
-        write_output(result, args.out, args.drafts_out if args.drafts else None)
     except (PipelineError, EmbeddingError) as exc:
         print(f"Abbruch: {exc}", file=sys.stderr)
+        return 1
+    try:
+        write_output(result, args.out, drafts_out)
+    except OSError as exc:
+        print(f"Abbruch: Ergebnisdatei konnte nicht geschrieben werden: {exc}", file=sys.stderr)
         return 1
 
     if args.json:
         payload = summary_to_dict(result.summary)
         payload["output"] = str(args.out)
-        if args.drafts_out and args.drafts:
-            payload["drafts_output"] = str(args.drafts_out)
+        if drafts_out:
+            payload["drafts_output"] = str(drafts_out)
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         for line in summary_lines(result.summary):

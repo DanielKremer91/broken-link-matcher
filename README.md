@@ -91,7 +91,7 @@ export OPENAI_API_KEY=...   # Schlüssel nur über die Umgebung, nie als Argumen
   --provider openai --model text-embedding-3-small --out ergebnis.xlsx --verify --json
 ```
 
-Exit-Code 0 bei Erfolg, 1 bei Laufzeitfehlern, 2 bei ungültigen Argumenten. App und CLI teilen sich den Cache-Ordner `.cache/`. Prompt, Voraussetzungen und die vollständige Optionsliste stehen in [docs/agentic-workflow.md](docs/agentic-workflow.md).
+Mit `--drafts` landen die Mail-Entwürfe standardmäßig in `<Name von --out>-entwuerfe.md` neben der Ergebnisdatei (änderbar mit `--drafts-out`). Exit-Code 0 bei Erfolg, 1 bei Laufzeitfehlern, 2 bei ungültigen Argumenten. App und CLI teilen sich den Cache-Ordner `.cache/`. Prompt, Voraussetzungen und die vollständige Optionsliste stehen in [docs/agentic-workflow.md](docs/agentic-workflow.md).
 
 ## Tests
 

@@ -34,11 +34,11 @@ Hänge diese Optionen an den Aufruf aus Schritt 3 an:
 --drafts --sender "Name" --domain meine-domain.de --drafts-out entwuerfe.md
 ```
 
-Die Entwürfe landen als Markdown in `entwuerfe.md` (pro Linkgeber ein Abschnitt mit toter URL und Text). Es gibt keinen Entwurf für Content-Gap-Zeilen. Der Chat-Anbieter ist derselbe wie beim Embedding; das Modell lässt sich mit `--chat-model` ändern. Die Entwürfe gehören vor dem Versand geprüft. Ohne `--drafts-out` werden keine Entwürfe geschrieben.
+Die Entwürfe landen als Markdown in `entwuerfe.md` (pro Backlink ein Abschnitt mit toter URL und Text). Es gibt keinen Entwurf für Content-Gap-Zeilen. Der Chat-Anbieter ist derselbe wie beim Embedding; das Modell lässt sich mit `--chat-model` ändern. Die Entwürfe gehören vor dem Versand geprüft. Ohne `--drafts-out` schreibt `cli.py` die Entwürfe nach `<Name von --out>-entwuerfe.md` neben die Ergebnisdatei (bei `--out ergebnis.xlsx` also `ergebnis-entwuerfe.md`).
 
 ## Was Claude danach tun soll
 
-Lies die JSON-Zusammenfassung auf stdout, öffne die XLSX-Datei und liste die fünf wichtigsten Linkgeber (hoher Domain Rating, starker Treffer, Verifikation "confirmed", also Ziel noch tot und Link noch vorhanden; "fixed" heißt, das Ziel ist inzwischen erreichbar) mit je einem Satz Begründung. Führe die Content-Gaps in einer eigenen Liste auf: das sind tote URLs, zu denen deine Seite thematisch nichts Passendes hat. Dort lohnt neuer Content statt einer Umleitung.
+Lies die JSON-Zusammenfassung auf stdout, öffne die XLSX-Datei und liste die fünf wichtigsten Linkgeber (hoher Domain Rating, starker Treffer, Verifikation "confirmed", also Ziel noch tot und Link noch vorhanden; "fixed" heißt, die tote URL antwortet wieder oder die verlinkende Seite verlinkt nicht mehr darauf; beides lohnt keinen Outreach mehr) mit je einem Satz Begründung. Führe die Content-Gaps in einer eigenen Liste auf: das sind tote URLs, zu denen deine Seite thematisch nichts Passendes hat. Dort lohnt neuer Content statt einer Umleitung.
 
 ## CLI-Referenz
 
@@ -81,7 +81,8 @@ options:
   --chat-model CHAT_MODEL
                         Chat-Modell für Entwürfe (Standard je Anbieter)
   --drafts-out DRAFTS_OUT
-                        Markdown-Datei für die Mail-Entwürfe
+                        Markdown-Datei für die Mail-Entwürfe (Standard: <Name von
+                        --out>-entwuerfe.md neben --out)
   --cache-dir CACHE_DIR
   --json                Zusammenfassung als JSON auf stdout
   --quiet               keinen Fortschritt auf stderr
@@ -94,8 +95,8 @@ Schlüssel nur über Umgebungsvariablen: OPENAI_API_KEY, GEMINI_API_KEY, OLLAMA_
 | Code | Bedeutung |
 |---|---|
 | 0 | Lauf erfolgreich, Ergebnisdatei geschrieben |
-| 1 | Laufzeitfehler: fehlender Schlüssel, nicht lesbare oder unpassende Eingabedatei, Dimensionskonflikt, Anbieter nicht erreichbar, fehlende `--sender`/`--domain` bei `--drafts` |
-| 2 | Ungültige Argumente (argparse), zum Beispiel unbekannte Option oder `--out` ohne Endung `.xlsx` oder `.csv` |
+| 1 | Laufzeitfehler: fehlender Schlüssel, Ausgabepfad ist ein Verzeichnis oder nicht beschreibbar, nicht lesbare oder unpassende Eingabedatei, Dimensionskonflikt, Anbieter nicht erreichbar, fehlende `--sender`/`--domain` bei `--drafts` |
+| 2 | Ungültige Argumente (argparse), zum Beispiel unbekannte Option, negative `--pause`, `--limit` unter 1, `--max-chars` unter 1000, `--min-dr` außerhalb 0 bis 100 oder `--out` ohne Endung `.xlsx` oder `.csv` |
 
 Fehlermeldungen stehen auf stderr, die Zusammenfassung (Text oder mit `--json` als JSON) auf stdout. Der Fortschritt läuft auf stderr und lässt sich mit `--quiet` abschalten.
 

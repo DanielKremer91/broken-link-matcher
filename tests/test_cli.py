@@ -97,11 +97,106 @@ def test_ollama_needs_no_key(monkeypatch, tmp_path, fake_provider):
         assert cli.main(args) == 0
 
 
-def test_key_never_appears_in_help_or_errors(tmp_path, capsys):
+def test_help_exits_0_and_offers_no_key_option(capsys):
     with pytest.raises(SystemExit) as exc:
         cli.main(["--help"])
     assert exc.value.code == 0
     assert "api-key" not in capsys.readouterr().out.lower()
+
+
+@respx.mock
+def test_key_value_never_leaks_into_output_or_files(monkeypatch, tmp_path, capsys, fake_provider):
+    secret = "sk-test-secret-value"
+    monkeypatch.setenv("OPENAI_API_KEY", secret)
+    mock_wayback()
+    respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "Hallo Entwurf"}}]}))
+    args = base_args(tmp_path, out="e.csv") + ["--json", "--drafts", "--sender", "Daniel", "--domain", "me.de",
+                                              "--drafts-out", str(tmp_path / "drafts.md")]
+    assert cli.main(args) == 0
+    captured = capsys.readouterr()
+    assert secret not in captured.out and secret not in captured.err
+    assert secret.encode() not in (tmp_path / "e.csv").read_bytes()
+    assert secret not in (tmp_path / "drafts.md").read_text()
+
+
+def test_out_pointing_at_directory_exits_1_before_provider(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    built = []
+    monkeypatch.setattr(cli, "make_provider", lambda *a, **k: built.append(1))
+    args = base_args(tmp_path)
+    args[args.index("--out") + 1] = str(tmp_path)
+    assert cli.main(args) == 1
+    assert "Verzeichnis" in capsys.readouterr().err
+    assert built == []
+
+
+def test_drafts_out_pointing_at_directory_exits_1_before_provider(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    built = []
+    monkeypatch.setattr(cli, "make_provider", lambda *a, **k: built.append(1))
+    args = base_args(tmp_path) + ["--drafts", "--sender", "D", "--domain", "me.de", "--drafts-out", str(tmp_path)]
+    assert cli.main(args) == 1
+    assert "Verzeichnis" in capsys.readouterr().err
+    assert built == []
+
+
+def test_unusable_output_parent_exits_1_before_provider(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    built = []
+    monkeypatch.setattr(cli, "make_provider", lambda *a, **k: built.append(1))
+    blocker = tmp_path / "datei"
+    blocker.write_text("x")
+    args = base_args(tmp_path)
+    args[args.index("--out") + 1] = str(blocker / "sub" / "e.xlsx")
+    assert cli.main(args) == 1
+    assert "Abbruch" in capsys.readouterr().err
+    assert built == []
+
+
+@respx.mock
+def test_write_failure_after_run_exits_1_without_traceback(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+
+    def boom(*a, **k):
+        raise PermissionError("gesperrt")
+
+    monkeypatch.setattr(cli, "write_output", boom)
+    assert cli.main(base_args(tmp_path)) == 1
+    err = capsys.readouterr().err
+    assert "Ergebnisdatei konnte nicht geschrieben werden" in err and "gesperrt" in err
+
+
+@respx.mock
+def test_drafts_default_to_file_next_to_out(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "Hallo Entwurf"}}]}))
+    args = base_args(tmp_path) + ["--drafts", "--sender", "D", "--domain", "me.de", "--json"]
+    assert cli.main(args) == 0
+    default = tmp_path / "ergebnis-entwuerfe.md"
+    assert default.read_text().count("Hallo Entwurf") == 2
+    assert json.loads(capsys.readouterr().out)["drafts_output"] == str(default)
+
+
+def test_write_output_writes_drafts_before_results(tmp_path):
+    result = PipelineResult(results=[], summary=PipelineSummary(), drafts={"https://a.de|https://b.de": "T"})
+    blocked = tmp_path / "ordner"
+    blocked.mkdir()
+    drafts = tmp_path / "d.md"
+    with pytest.raises(OSError):
+        cli.write_output(result, blocked, drafts)  # results path is a directory
+    assert drafts.exists()
+
+
+@pytest.mark.parametrize("flag,value", [("--pause", "-1"), ("--limit", "0"), ("--limit", "-5"),
+                                        ("--max-chars", "999"), ("--min-dr", "-1"), ("--min-dr", "101")])
+def test_invalid_numeric_arguments_exit_2(tmp_path, flag, value):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(base_args(tmp_path) + [flag, value])
+    assert exc.value.code == 2
 
 
 def test_write_output_splits_drafts_key_and_strips_occurrence_suffix(tmp_path):
