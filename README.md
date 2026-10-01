@@ -81,6 +81,18 @@ Repo verbinden, `app.py` als Einstieg, Schlüssel unter App Settings → Secrets
 
 Schlüssel aus Secrets oder Umgebungsvariablen werden nie in die Eingabefelder vorbefüllt und gelangen so nicht in den Browser; die Seitenleiste zeigt nur "Schlüssel aus Secrets/Umgebung aktiv". Trotzdem gilt: Eine öffentliche Cloud-App mit Schlüsseln in den Secrets lässt jeden Besucher das Kontingent des Betreibers verbrauchen (Embeddings, Mail-Entwürfe, Ahrefs-Units). Deploye die App deshalb privat (Zugriff nur für eingeladene Nutzer) oder lass die Secrets leer, damit jeder Nutzer seinen eigenen Schlüssel einträgt. Der Cache (`.cache/`) wird von allen Besuchern geteilt, und "Cache leeren" löscht ihn für alle. Das Feld Ollama-URL ist für lokale Installationen gedacht und sollte auf einem öffentlichen Deployment nicht genutzt werden, weil der Server dann Anfragen an beliebige vom Besucher eingetragene Adressen schickt.
 
+## Agentischer Weg (Claude Code / Terminal)
+
+`cli.py` führt denselben Workflow ohne Oberfläche aus. Claude Code kann so die Eingaben über den Screaming-Frog-MCP und den Ahrefs-MCP holen, das Tool aufrufen und die Ergebnisse auswerten.
+
+```bash
+export OPENAI_API_KEY=...   # Schlüssel nur über die Umgebung, nie als Argument
+.venv/bin/python cli.py --frog frog-embeddings.csv --backlinks broken-backlinks-konkurrent.csv \
+  --provider openai --model text-embedding-3-small --out ergebnis.xlsx --verify --json
+```
+
+Exit-Code 0 bei Erfolg, 1 bei Laufzeitfehlern, 2 bei ungültigen Argumenten. App und CLI teilen sich den Cache-Ordner `.cache/`. Prompt, Voraussetzungen und die vollständige Optionsliste stehen in [docs/agentic-workflow.md](docs/agentic-workflow.md).
+
 ## Tests
 
 ```bash
@@ -92,4 +104,4 @@ Alle Tests laufen ohne Netzwerkzugriff; HTTP wird mit respx gemockt.
 
 ## English summary
 
-Broken link building with semantic matching: pull a competitor's broken backlinks (Ahrefs export or API), recover the dead pages from the Wayback Machine (newest 200 snapshot via the CDX API, raw HTML via `id_`), embed with the same model your Screaming Frog used for your own site, rank your top 3 matching URLs by cosine similarity, flag content gaps, verify live, export (semicolon CSV with decimal comma, or XLSX), and draft outreach mails. Pages without a snapshot fall back to a plain concatenation of Ahrefs fields; nothing is generated except the editable mail drafts. The Ahrefs UI export may be UTF-16; the reader handles UTF-8, UTF-16 with BOM and Windows-1252. If columns are not recognised, map them in the UI and feel free to open an issue with the column names. Python 3.11+, Streamlit, no provider SDKs; install `requirements-dev.txt` to run the tests, which are fully mocked.
+Broken link building with semantic matching: pull a competitor's broken backlinks (Ahrefs export or API), recover the dead pages from the Wayback Machine (newest 200 snapshot via the CDX API, raw HTML via `id_`), embed with the same model your Screaming Frog used for your own site, rank your top 3 matching URLs by cosine similarity, flag content gaps, verify live, export (semicolon CSV with decimal comma, or XLSX), and draft outreach mails. Pages without a snapshot fall back to a plain concatenation of Ahrefs fields; nothing is generated except the editable mail drafts. The Ahrefs UI export may be UTF-16; the reader handles UTF-8, UTF-16 with BOM and Windows-1252. If columns are not recognised, map them in the UI and feel free to open an issue with the column names. Python 3.11+, Streamlit, no provider SDKs; install `requirements-dev.txt` to run the tests, which are fully mocked. A command-line entry point, `cli.py`, runs the same pipeline headlessly so an agent such as Claude Code can drive it. Keys are read from environment variables only; see `docs/agentic-workflow.md`.
