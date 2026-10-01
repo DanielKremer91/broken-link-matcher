@@ -72,6 +72,8 @@ ausreichend passt, entsteht als Nebenprodukt eine Liste von Content-Gaps.
 4. Matching: Embeddings berechnen, die passendste eigene Seite je Backlink bestimmen, Content-Gaps markieren.
 5. Verifikation und Outreach: optional live prüfen, Ergebnisse als CSV oder Excel laden, Mail-Entwürfe erzeugen.
 
+"Los geht's" führt den Dimensionscheck aus Schritt 1 sowie die Schritte 3 und 4 in einem Durchlauf aus. Die einzelnen Buttons bleiben für erneute Läufe erhalten.
+
 **Hinweise**
 - Texte werden nie erfunden: Sie stammen aus der Wayback Machine oder werden aus Ahrefs-Feldern (Anker, Kontext, Titel) zusammengesetzt.
 - Der einzige generierte Text ist der optionale Mail-Entwurf. Es wird nichts versendet.
@@ -176,6 +178,130 @@ def provider_or_error():
 
 
 key_missing = provider != "ollama" and not api_key  # Ollama needs no key
+dim_settings = (provider, embed_model, base_url)
+
+
+def dim_is_valid() -> bool:
+    """The recorded dimension check passed for the current provider settings."""
+    return S.get("dim_ok") is True and S.get("dim_checked_for") == dim_settings
+
+
+def run_dimension_check() -> bool:
+    """Embed a probe text and compare its length with the Frog vectors; True when they match."""
+    prov = provider_or_error()
+    if prov is None:
+        return False
+    try:
+        S["probe_dim"] = prov.probe_dimension()
+    except EmbeddingError as exc:
+        st.error(str(exc))
+        return False
+    S["dim_ok"] = S["probe_dim"] == S["frog"].dimension
+    S["dim_checked_for"] = dim_settings
+    return S["dim_ok"]
+
+
+def run_wayback() -> None:
+    """Recover the text of every ranked dead URL; snapshot texts are reused across runs."""
+    ranked = S["ranked"]
+    max_chars = int(S.get("max_chars", 12000))  # widget of step 3, may not be rendered yet
+    if S.get("recovered_partial_chars") != max_chars:
+        S["recovered_partial"] = {}  # texts cut at a different length are not reusable
+        S["recovered_partial_chars"] = max_chars
+    # only snapshot texts are kept across runs: they belong to the dead URL, while a
+    # fallback is built from one backlink's own anchor and context
+    partial = S.setdefault("recovered_partial", {})
+    failed: dict[str, str | None] = {}  # dead URL -> error of this run, fallback per backlink
+    recovered = []
+    bar = st.progress(0.0, text="Starte …")
+    with httpx.Client() as client:
+        for i, bl in enumerate(ranked, start=1):
+            if bl.url_to in partial:
+                rc = partial[bl.url_to]
+            elif bl.url_to in failed:
+                rc = fallback_content(bl, failed[bl.url_to], max_chars)
+            else:
+                cached = CACHE.get("wayback", bl.url_to) is not None
+                rc = recover_content(bl, client, CACHE, max_chars=max_chars, user_agent=agent)
+                if rc.source == "wayback":
+                    partial[bl.url_to] = rc
+                else:
+                    failed[bl.url_to] = rc.error
+                if not cached and i < len(ranked):
+                    time.sleep(1.0)
+            recovered.append(rc)
+            bar.progress(i / len(ranked), text=f"{i}/{len(ranked)}: {bl.url_to}")
+    S["recovered_for"] = ranked
+    S["recovered"] = recovered
+    invalidate_matching()
+
+
+def run_matching() -> bool:
+    """Embed the recovered texts; the results are built from the vectors in step 4."""
+    prov = provider_or_error()
+    if prov is None:
+        return False
+    texts = [r.text for r in S["recovered"]]
+    idx = [i for i, t in enumerate(texts) if t]
+    try:
+        bar = st.progress(0.0, text="Embeddings werden berechnet …")
+        fresh = embed_cached(prov, [texts[i] for i in idx], CACHE,
+                             progress=lambda done, total: bar.progress(done / total, text=f"Embeddings: {done}/{total} Texte"))
+        bar.progress(1.0, text="Embeddings fertig.")
+    except EmbeddingError as exc:
+        st.error(str(exc))
+        return False
+    vectors = [None] * len(texts)
+    for j, i in enumerate(idx):
+        vectors[i] = fresh[j]
+    S["vectors"] = vectors
+    S.pop("results_params", None)
+    return True
+
+
+def run_all() -> bool:
+    """One click for dimension check, Wayback fetch and matching; stops at the first failure."""
+    if dim_is_valid():
+        st.write("Dimensionscheck: bereits bestanden.")
+    else:
+        st.write("Dimensionscheck …")
+        if not run_dimension_check():
+            if S.get("dim_ok") is False:
+                st.error(f"Dimension passt nicht: Frog-Export {S['frog'].dimension}, Modell {S['probe_dim']}. "
+                         "Wähle exakt das Modell, das im Frog konfiguriert ist.")
+            return False
+    st.write("Wayback-Abruf …")
+    run_wayback()
+    st.write("Matching …")
+    return run_matching()
+
+
+def next_step_hint() -> tuple[str, str]:
+    """(kind, text) for the guidance box: what the user should do next."""
+    if "frog" not in S:
+        return "info", "Nächster Schritt: Screaming-Frog-Export in Schritt 1 hochladen."
+    if "ranked" not in S:
+        return "info", "Nächster Schritt: Broken Backlinks in Schritt 2 hochladen oder per API laden."
+    if key_missing:
+        return "warning", "Nächster Schritt: API-Schlüssel in der Seitenleiste eintragen, dann \"Los geht's\" klicken."
+    if "recovered_for" in S and S["recovered_for"] != S["ranked"]:
+        return "warning", "Filter geändert. \"Los geht's\" erneut klicken, damit die Ergebnisse zur aktuellen Auswahl passen."
+    if "results" in S:
+        return "success", "Ergebnisse liegen vor. Optional in Schritt 5 live prüfen, exportieren oder Mail-Entwürfe erzeugen."
+    return "info", "Alles bereit. Klicke \"Los geht's\" für Dimensionscheck, Wayback-Abruf und Matching in einem Durchlauf."
+
+
+def missing_inputs() -> list[str]:
+    """What still blocks the one-click run."""
+    missing = []
+    if "frog" not in S:
+        missing.append("Screaming-Frog-Export (Schritt 1)")
+    if "ranked" not in S:
+        missing.append("Broken Backlinks (Schritt 2)")
+    if key_missing:
+        missing.append("API-Schlüssel (Seitenleiste)")
+    return missing
+
 
 st.title("Broken Link Matcher")
 st.markdown(
@@ -190,6 +316,8 @@ st.markdown(
 )
 with st.expander("ℹ️ Was macht dieses Tool und wie nutze ich es?", expanded=False):
     st.markdown(INFO_TEXT)
+# filled at the end of the script, so hint and button see this run's uploads and filters
+next_step_box = st.container()
 
 # ----------------------------------------------------------------- 1. own domain
 st.header("1. Eigene Domain (Screaming-Frog-Embeddings)")
@@ -246,8 +374,7 @@ if frog_file is not None and frog_id == S.get("frog_failed_id"):
                 st.rerun()
             except ValueError as exc:
                 st.error(str(exc))
-dim_settings = (provider, embed_model, base_url)
-dim_valid = S.get("dim_ok") is True and S.get("dim_checked_for") == dim_settings
+dim_valid = dim_is_valid()
 if "frog" in S:
     imp = S["frog"]
     st.write(f"{len(imp.pages)} URLs, Vektordimension {imp.dimension}, {imp.skipped} Zeilen übersprungen.")
@@ -257,15 +384,8 @@ if "frog" in S:
         st.caption(KEY_MISSING_HINT)
     if st.button("Dimensionscheck gegen gewähltes Modell", disabled=key_missing,
                  help="Embeddet einen Probetext mit dem gewählten Modell und vergleicht die Vektorlänge mit deiner Frog-Datei."):
-        prov = provider_or_error()
-        if prov is not None:
-            try:
-                S["probe_dim"] = prov.probe_dimension()
-                S["dim_ok"] = S["probe_dim"] == imp.dimension
-                S["dim_checked_for"] = dim_settings
-                dim_valid = S["dim_ok"] is True
-            except EmbeddingError as exc:
-                st.error(str(exc))
+        run_dimension_check()
+        dim_valid = dim_is_valid()
     if "probe_dim" in S:
         if S.get("dim_checked_for") != dim_settings:
             st.warning("Dimensionscheck für die aktuellen Einstellungen erneut ausführen.")
@@ -389,43 +509,14 @@ if "raw_backlinks" in S:
 # ----------------------------------------------------------------- 3. wayback
 if "ranked" in S:
     st.header("3. Wayback-Abruf")
-    max_chars = st.number_input("Maximale Zeichen pro Text", min_value=1000, max_value=50000, value=12000, step=1000,
+    st.number_input("Maximale Zeichen pro Text", min_value=1000, max_value=50000, value=12000, step=1000, key="max_chars",
                                 help="Begrenzt den Text, der embedded wird. 12000 Zeichen reichen für Ratgeberseiten und bleiben unter den Token-Limits.")
     st.caption("Immer der jüngste Snapshot mit Status 200. Ohne Snapshot: Fallback aus Anker, Kontext, Titel und URL-Pfad, kein generierter Text.")
     if "recovered_for" in S and S["recovered_for"] != S["ranked"]:
         st.warning("Filter oder Backlinks geändert. Wayback-Abruf erneut starten, damit Ergebnisse zur aktuellen Auswahl passen.")
     if st.button("Inhalte aus der Wayback Machine holen",
                  help="Holt je toter URL den jüngsten Snapshot mit Status 200 aus archive.org, etwa zwei bis vier Sekunden pro neuer URL, gecachte URLs sind sofort da."):
-        ranked = S["ranked"]
-        if S.get("recovered_partial_chars") != int(max_chars):
-            S["recovered_partial"] = {}  # texts cut at a different length are not reusable
-            S["recovered_partial_chars"] = int(max_chars)
-        # only snapshot texts are kept across runs: they belong to the dead URL, while a
-        # fallback is built from one backlink's own anchor and context
-        partial = S.setdefault("recovered_partial", {})
-        failed: dict[str, str | None] = {}  # dead URL -> error of this run, fallback per backlink
-        recovered = []
-        bar = st.progress(0.0, text="Starte …")
-        with httpx.Client() as client:
-            for i, bl in enumerate(ranked, start=1):
-                if bl.url_to in partial:
-                    rc = partial[bl.url_to]
-                elif bl.url_to in failed:
-                    rc = fallback_content(bl, failed[bl.url_to], int(max_chars))
-                else:
-                    cached = CACHE.get("wayback", bl.url_to) is not None
-                    rc = recover_content(bl, client, CACHE, max_chars=int(max_chars), user_agent=agent)
-                    if rc.source == "wayback":
-                        partial[bl.url_to] = rc
-                    else:
-                        failed[bl.url_to] = rc.error
-                    if not cached and i < len(ranked):
-                        time.sleep(1.0)
-                recovered.append(rc)
-                bar.progress(i / len(ranked), text=f"{i}/{len(ranked)}: {bl.url_to}")
-        S["recovered_for"] = ranked
-        S["recovered"] = recovered
-        invalidate_matching()
+        run_wayback()
     if "recovered" in S:
         rec = S["recovered"]
         counts = {src: sum(r.source == src for r in rec) for src in ("wayback", "fallback", "none")}
@@ -450,22 +541,7 @@ if "recovered" in S:
         st.warning("Erst den Frog-Export laden und den Dimensionscheck bestehen.")
     if st.button("Matching starten", disabled=blocked,
                  help="Berechnet Embeddings der rekonstruierten Texte (kostet Tokens beim Anbieter) und ordnet jeder toten URL die ähnlichste eigene Seite zu."):
-        prov = provider_or_error()
-        if prov is not None:
-            texts = [r.text for r in S["recovered"]]
-            idx = [i for i, t in enumerate(texts) if t]
-            try:
-                bar = st.progress(0.0, text="Embeddings werden berechnet …")
-                fresh = embed_cached(prov, [texts[i] for i in idx], CACHE,
-                                     progress=lambda done, total: bar.progress(done / total, text=f"Embeddings: {done}/{total} Texte"))
-                bar.progress(1.0, text="Embeddings fertig.")
-                vectors = [None] * len(texts)
-                for j, i in enumerate(idx):
-                    vectors[i] = fresh[j]
-                S["vectors"] = vectors
-                S.pop("results_params", None)
-            except EmbeddingError as exc:
-                st.error(str(exc))
+        run_matching()
     if "vectors" in S:
         params = (threshold, match_fallback)
         if S.get("results_params") != params:
@@ -538,3 +614,19 @@ if "results" in S:
             if f"ta_{row_key}" in S:
                 st.text_area("Entwurf (editierbar)", key=f"ta_{row_key}", height=220,
                              help="Du kannst den Entwurf hier direkt anpassen. Er wird nicht versendet, kopiere ihn in dein Mailprogramm.")
+
+# ----------------------------------------------------------------- next step + one-click run
+with next_step_box:
+    kind, hint = next_step_hint()
+    getattr(st, kind)(hint)
+    missing = missing_inputs()
+    if st.button("Los geht's", type="primary", key="run_all", disabled=bool(missing),
+                 help="Führt Dimensionscheck, Wayback-Abruf und Matching nacheinander aus. Kostet Embedding-Tokens, "
+                      "gecachte Texte und Vektoren werden wiederverwendet."):
+        with st.status("Läuft …", expanded=True) as run_status:
+            ok = run_all()
+            run_status.update(label="Fertig." if ok else "Abgebrochen.", state="complete" if ok else "error")
+        if ok:
+            st.rerun()  # sections 1 to 5 above were rendered before the run
+    if missing:
+        st.caption("Es fehlt noch: " + ", ".join(missing) + ".")

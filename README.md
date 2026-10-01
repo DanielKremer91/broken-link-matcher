@@ -14,6 +14,8 @@ Die App ist in fünf Abschnitte gegliedert, die du von oben nach unten durchgehs
 4. Matching: Embeddings mit demselben Modell wie im Frog, Top 3 pro URL, Content-Gap unter dem Schwellwert.
 5. Verifikation und Outreach: Live-Check (Ziel noch 404? Link noch da?), Export als CSV oder Excel, Mail-Entwurf pro Treffer.
 
+Sind Frog-Export, Backlinks und API-Schlüssel da, führt "Los geht's" den Dimensionscheck aus Schritt 1 sowie die Schritte 3 und 4 in einem Durchlauf aus. Die einzelnen Buttons bleiben für erneute Läufe erhalten.
+
 ## Installation
 
 Mit uv (empfohlen, holt Python 3.11 selbst):

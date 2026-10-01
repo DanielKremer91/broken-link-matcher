@@ -653,3 +653,172 @@ def test_backlink_read_error_shows_prefix_once():
     assert not at.exception
     errors = [e.value for e in at.error]
     assert errors and all(e.count("Datei konnte nicht gelesen werden") == 1 for e in errors), errors
+
+
+# ------------------------------------------------------------------ next-step guidance and one-click run
+HINT_NO_FROG = "Nächster Schritt: Screaming-Frog-Export in Schritt 1 hochladen."
+HINT_NO_BACKLINKS = "Nächster Schritt: Broken Backlinks in Schritt 2 hochladen oder per API laden."
+HINT_KEY = "Nächster Schritt: API-Schlüssel in der Seitenleiste eintragen, dann \"Los geht's\" klicken."
+HINT_READY = "Alles bereit. Klicke \"Los geht's\" für Dimensionscheck, Wayback-Abruf und Matching in einem Durchlauf."
+HINT_DONE = "Ergebnisse liegen vor. Optional in Schritt 5 live prüfen, exportieren oder Mail-Entwürfe erzeugen."
+HINT_FILTERS = "Filter geändert. \"Los geht's\" erneut klicken, damit die Ergebnisse zur aktuellen Auswahl passen."
+RUN_ALL = "Los geht's"
+
+
+def fake_provider(dimension: int):
+    """Stands in for make_provider's result: fixed vectors of the given dimension, no network."""
+    from blm.embeddings.base import EmbeddingProvider
+
+    class FakeProvider(EmbeddingProvider):
+        name = "fake"
+
+        def _embed_batch(self, texts):
+            return [[1.0] + [0.0] * (dimension - 1) for _ in texts]
+
+    return FakeProvider("fake-model", client=object())
+
+
+def loaded_app(backlinks=None) -> AppTest:
+    """Frog import and raw backlinks present, nothing checked, fetched or matched yet."""
+    at = AppTest.from_file(APP, default_timeout=30)
+    pages = [OwnPage("https://me.de/a", np.array([1.0, 0.0], dtype=np.float32), title="Seite A"),
+             OwnPage("https://me.de/b", np.array([0.0, 1.0], dtype=np.float32))]
+    at.session_state["frog"] = FrogImport(pages=pages, dimension=2, skipped=0)
+    at.session_state["frog_name"] = "frog.csv"
+    at.session_state["raw_backlinks"] = backlinks or [
+        BrokenBacklink(url_from="https://a.de/p", url_to="https://c.de/x", anchor="x", domain_rating=50.0)]
+    return at
+
+
+def hints(at: AppTest) -> list[str]:
+    return [e.value for kind in ("info", "warning", "success") for e in getattr(at, kind)]
+
+
+def test_hint_without_frog(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert not at.exception
+    assert HINT_NO_FROG in [i.value for i in at.info]
+    assert button(at, RUN_ALL).disabled is True
+
+
+def test_hint_with_frog_only(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = AppTest.from_file(APP, default_timeout=30)
+    at.session_state["frog"] = FrogImport(pages=[OwnPage("https://me.de/a", np.array([1.0, 0.0], dtype=np.float32))],
+                                          dimension=2, skipped=0)
+    at.run()
+    assert not at.exception
+    assert HINT_NO_BACKLINKS in [i.value for i in at.info]
+    assert button(at, RUN_ALL).disabled is True
+
+
+def test_hint_follows_frog_upload_in_the_same_run(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    csv = b"url,embedding_0,embedding_1\nhttps://me.de/a,1,0\nhttps://me.de/b,0,1\n"
+    at.file_uploader(key="frog_upload").set_value(("frog.csv", csv, "text/csv")).run()
+    assert not at.exception
+    assert HINT_NO_BACKLINKS in [i.value for i in at.info]
+    assert HINT_NO_FROG not in hints(at)
+
+
+def test_hint_and_button_when_both_loaded_but_key_missing(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    at = loaded_app().run()
+    assert not at.exception
+    assert HINT_KEY in [w.value for w in at.warning]
+    assert button(at, RUN_ALL).disabled is True
+    assert any("API-Schlüssel" in c.value and "Es fehlt" in c.value for c in at.caption)
+
+
+def test_hint_and_button_when_both_loaded_with_key(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = loaded_app().run()
+    assert not at.exception
+    assert HINT_READY in [i.value for i in at.info]
+    run_all = button(at, RUN_ALL)
+    assert run_all.disabled is False
+    assert run_all.proto.type == "primary"
+    assert not any(c.value.startswith("Es fehlt") for c in at.caption)
+
+
+def test_disabled_caption_lists_everything_missing(monkeypatch):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    caption = next(c.value for c in at.caption if c.value.startswith("Es fehlt"))
+    for needle in ("Screaming-Frog-Export", "Broken Backlinks", "API-Schlüssel"):
+        assert needle in caption, needle
+
+
+def test_hint_when_results_present(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = seeded_app().run()
+    assert not at.exception
+    assert HINT_DONE in [s.value for s in at.success]
+    assert HINT_READY not in hints(at)
+
+
+def test_hint_when_filters_changed_after_a_run(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = seeded_app()
+    at.session_state["recovered_for"] = [BrokenBacklink(url_from="https://alt.de/p", url_to="https://c.de/alt", value_rank=1)]
+    at.run()
+    assert not at.exception
+    assert HINT_FILTERS in [w.value for w in at.warning]
+    assert HINT_DONE not in hints(at)
+
+
+def test_los_gehts_runs_check_wayback_and_matching(monkeypatch):
+    import httpx
+    import respx
+
+    from blm.wayback import CDX_URL
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr("blm.embeddings.make_provider", lambda *a, **k: fake_provider(2))
+    monkeypatch.setattr("blm.cache.JsonCache.get", lambda self, ns, key: None)
+    monkeypatch.setattr("blm.cache.JsonCache.set", lambda self, ns, key, value: None)
+    monkeypatch.setattr(time, "sleep", lambda s: None)
+    backlinks = [BrokenBacklink(url_from=f"https://a.de/{i}", url_to=to, anchor=f"anker {i}", domain_rating=90.0 - i)
+                 for i, to in enumerate(["https://c.de/tot", "https://c.de/tot", "https://c.de/weg"])]
+    with respx.mock(assert_all_called=False) as mock:
+        cdx = mock.get(CDX_URL).mock(return_value=httpx.Response(200, json=[["timestamp", "original"]]))
+        at = loaded_app(backlinks).run()
+        assert "dim_ok" not in at.session_state
+        button(at, RUN_ALL).click().run()
+
+    assert not at.exception
+    assert cdx.call_count == 2  # one CDX query per distinct dead URL
+    assert at.session_state["dim_ok"] is True
+    assert len(at.session_state["recovered"]) == 3
+    assert len(at.session_state["results"]) == 3
+    assert HINT_DONE in [s.value for s in at.success]
+    assert any(s.value.startswith("Dimension passt") for s in at.success)
+
+
+def test_los_gehts_stops_after_failed_dimension_check(monkeypatch):
+    import httpx
+    import respx
+
+    from blm.wayback import CDX_URL
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setattr("blm.embeddings.make_provider", lambda *a, **k: fake_provider(3))
+    with respx.mock(assert_all_called=False) as mock:
+        cdx = mock.get(CDX_URL).mock(return_value=httpx.Response(200, json=[["timestamp", "original"]]))
+        at = loaded_app().run()
+        button(at, RUN_ALL).click().run()
+
+    assert not at.exception
+    assert cdx.call_count == 0
+    assert at.session_state["dim_ok"] is False
+    assert "recovered" not in at.session_state and "results" not in at.session_state
+    assert any("Dimension passt nicht" in e.value for e in at.error)
+
+
+def test_info_expander_mentions_los_gehts():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    info = next(e for e in at.expander if e.label.startswith("ℹ️"))
+    text = " ".join(m.value for m in info.markdown)
+    assert "Los geht's" in text and "einzelnen Buttons" in text
