@@ -6,8 +6,6 @@ Column detection is alias based. Extend FIELD_ALIASES to support more tools.
 
 from __future__ import annotations
 
-import csv
-import io
 import math
 import numbers
 import re
@@ -16,6 +14,7 @@ from typing import Optional
 
 import pandas as pd
 
+from blm.ingest.tables import read_table  # noqa: F401  (re-exported for existing imports)
 from blm.models import BrokenBacklink
 
 REQUIRED_FIELDS = ("url_from", "url_to")
@@ -59,82 +58,6 @@ class ColumnMapping:
     mapping: dict[str, str]
     missing: list[str]
     columns: list[str]
-
-
-_ENCODINGS = ("utf-8-sig", "utf-16", "cp1252")
-_SNIFF_BYTES = 64 * 1024
-
-
-def _mostly_utf8(data: bytes) -> Optional[str]:
-    """Decode text that is UTF-8 apart from a few stray bytes.
-
-    Excel on macOS keeps the original UTF-8 text but writes its own generated strings
-    (e.g. "03. März") in MacRoman. cp1252 would "succeed" on such a file and turn every
-    umlaut into mojibake, so prefer UTF-8 with replacement when the damage is small.
-    """
-    text = data.decode("utf-8", errors="replace")
-    bad = text.count("\ufffd")
-    good = sum(1 for ch in text if ord(ch) >= 0x80 and ch != "\ufffd")
-    if good == 0 or bad > max(2, good // 10):
-        return None  # not UTF-8 at all (e.g. plain cp1252), let the other codecs try
-    return text
-
-
-def _decode(data: bytes) -> str:
-    try:
-        return data.decode("utf-8-sig")
-    except UnicodeDecodeError:
-        pass
-    mostly = _mostly_utf8(data)
-    if mostly is not None:
-        return mostly.lstrip("\ufeff")
-    for encoding in _ENCODINGS:
-        # Without a BOM the utf-16 codec "succeeds" on almost any even-length input, so
-        # only try it when a BOM is present.
-        if encoding == "utf-16" and not data.startswith((b"\xff\xfe", b"\xfe\xff")):
-            continue
-        try:
-            return data.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    return data.decode("utf-8", errors="replace")
-
-
-def _sniff_delimiter(text: str) -> str:
-    try:
-        return csv.Sniffer().sniff(text[:_SNIFF_BYTES], delimiters=",;\t|").delimiter
-    except csv.Error:
-        return ","
-
-
-def read_table(source, filename: Optional[str] = None) -> pd.DataFrame:
-    """Read CSV or XLSX. `filename` is used for type detection when `source` is a stream.
-
-    Raises ValueError with a German message if the file cannot be read.
-    """
-    name = (filename or getattr(source, "name", None) or str(source)).lower()
-    try:
-        if name.endswith((".xlsx", ".xlsm", ".xls")):
-            return pd.read_excel(source)
-        if hasattr(source, "read"):
-            data = source.read()
-        else:
-            with open(source, "rb") as fh:
-                data = fh.read()
-        if isinstance(data, str):
-            data = data.encode("utf-8")
-        if not data.strip():
-            raise ValueError("Datei ist leer")
-        text = _decode(data)
-        return pd.read_csv(
-            io.StringIO(text), sep=_sniff_delimiter(text), dtype=str, keep_default_na=False
-        )
-    except ValueError as exc:
-        if str(exc).startswith("Datei konnte nicht gelesen werden"):
-            raise
-        raise ValueError(f"Datei konnte nicht gelesen werden: {exc}") from exc
-    except (OSError, csv.Error, pd.errors.ParserError) as exc:
-        raise ValueError(f"Datei konnte nicht gelesen werden: {exc}") from exc
 
 
 def detect_columns(df: pd.DataFrame) -> ColumnMapping:
