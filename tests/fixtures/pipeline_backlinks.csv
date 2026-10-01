@@ -1,0 +1,4 @@
+url_from,url_to,anchor,snippet_left,snippet_right,title,domain_rating_source,url_rating_source,http_code_target,is_dofollow,is_content
+https://blog.example/kueche,https://konkurrent.de/ratgeber/stahl,Ratgeber zu Stahlküchen,Wir empfehlen den,von Konkurrent.,Beste Küchentipps,72.,35.,404,1,1
+https://forum.example/t/1,https://konkurrent.de/holz,Holzküche pflegen,,,Forum Thread,40.,10.,404,1,1
+https://spam.example/x,https://konkurrent.de/nofollow,hier,,,Spam,90.,1.,404,0,1
