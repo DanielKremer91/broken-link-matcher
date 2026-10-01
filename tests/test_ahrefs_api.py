@@ -117,23 +117,18 @@ def test_single_filter_is_wrapped_in_and():
 
 
 @respx.mock
-def test_min_dr_and_language_appear_in_where():
-    where = fetched_where(**ALL_OFF, min_dr=30, language="de")
-    assert where == {"and": [
-        {"field": "domain_rating_source", "is": ["gte", 30]},
-        {"field": "languages", "list_is": {"any": ["eq", "de"]}},
-    ]}
+def test_min_dr_appears_in_where():
+    assert fetched_where(**ALL_OFF, min_dr=30) == {"and": [{"field": "domain_rating_source", "is": ["gte", 30]}]}
 
 
 @respx.mock
-def test_min_dr_zero_and_blank_language_add_nothing():
-    assert fetched_where(**ALL_OFF, min_dr=0, language="  ") is None
+def test_min_dr_zero_adds_nothing():
+    assert fetched_where(**ALL_OFF, min_dr=0) is None
 
 
-@respx.mock
-def test_language_is_trimmed():
-    where = fetched_where(**ALL_OFF, language=" de ")
-    assert where == {"and": [{"field": "languages", "list_is": {"any": ["eq", "de"]}}]}
+def test_language_filter_is_not_supported():
+    with pytest.raises(TypeError):
+        fetch_broken_backlinks("tok", "konkurrent.de", language="de")
 
 
 @respx.mock
@@ -158,6 +153,6 @@ def test_describe_filters_all_off():
     assert describe_filters(**ALL_OFF) == "keine Filter"
 
 
-def test_describe_filters_with_dr_and_language():
-    assert describe_filters(min_dr=30, language="de") == "Dofollow · Content-Links · ohne Spam · nur 404/410 · DR ≥ 30 · Sprache de"
-    assert describe_filters(**ALL_OFF, min_dr=45.5, language=" EN ") == "DR ≥ 45.5 · Sprache EN"
+def test_describe_filters_with_dr():
+    assert describe_filters(min_dr=30) == "Dofollow · Content-Links · ohne Spam · nur 404/410 · DR ≥ 30"
+    assert describe_filters(**ALL_OFF, min_dr=45.5) == "DR ≥ 45.5"

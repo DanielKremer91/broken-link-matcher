@@ -24,12 +24,8 @@ class AhrefsError(Exception):
     pass
 
 
-def _clean_language(language: Optional[str]) -> str:
-    return (language or "").strip()
-
-
 def _build_where(*, dofollow_only: bool, content_only: bool, exclude_spam: bool, dead_only: bool,
-                 min_dr: float, language: Optional[str]) -> Optional[dict]:
+                 min_dr: float) -> Optional[dict]:
     """Server-side filter expression; None when no condition is active."""
     conditions: list[dict] = []
     if dofollow_only:
@@ -45,8 +41,6 @@ def _build_where(*, dofollow_only: bool, content_only: bool, exclude_spam: bool,
         ]})
     if min_dr > 0:
         conditions.append({"field": "domain_rating_source", "is": ["gte", min_dr]})
-    if _clean_language(language):
-        conditions.append({"field": "languages", "list_is": {"any": ["eq", _clean_language(language)]}})
     return {"and": conditions} if conditions else None
 
 
@@ -57,7 +51,6 @@ def describe_filters(
     exclude_spam: bool = True,
     dead_only: bool = True,
     min_dr: float = 0.0,
-    language: Optional[str] = None,
 ) -> str:
     """One-line German description of the active server-side filters, for the UI."""
     parts = []
@@ -71,8 +64,6 @@ def describe_filters(
         parts.append("nur 404/410")
     if min_dr > 0:
         parts.append(f"DR ≥ {min_dr:g}")
-    if _clean_language(language):
-        parts.append(f"Sprache {_clean_language(language)}")
     return " · ".join(parts) or "keine Filter"
 
 
@@ -87,7 +78,6 @@ def fetch_broken_backlinks(
     exclude_spam: bool = True,
     dead_only: bool = True,
     min_dr: float = 0.0,
-    language: Optional[str] = None,
     client: Optional[httpx.Client] = None,
 ) -> list[BrokenBacklink]:
     if not token:
@@ -106,7 +96,7 @@ def fetch_broken_backlinks(
         "output": "json",
     }
     where = _build_where(dofollow_only=dofollow_only, content_only=content_only, exclude_spam=exclude_spam,
-                         dead_only=dead_only, min_dr=min_dr, language=language)
+                         dead_only=dead_only, min_dr=min_dr)
     if where is not None:
         params["where"] = json.dumps(where)
     own_client = client is None

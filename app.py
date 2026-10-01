@@ -286,18 +286,16 @@ with tab_api:
     api_content = f2.checkbox("Nur Content-Links", value=True, key="api_content",
                               help="Ahrefs liefert nur Links aus dem redaktionellen Inhalt, keine aus Navigation, Footer oder Sidebar.")
     api_exclude_spam = f3.checkbox("Spam-Domains ausschließen", value=True, key="api_exclude_spam",
-                                   help="Lässt Domains weg, die Ahrefs als Spam einstuft. Spart Units und vermeidet wertlose Linkquellen.")
+                                   help="Lässt Domains weg, die Ahrefs als Spam einstuft. Vermeidet wertlose Linkquellen.")
     api_dead_only = f4.checkbox("Nur tote Ziele (404/410)", value=True, key="api_dead_only",
-                                help="Nur Links, deren Ziel-URL aktuell mit 404 oder 410 antwortet. Ohne den Haken kommen auch Weiterleitungen und Fehlerseiten.")
-    f5, f6 = st.columns(2)
-    api_min_dr = f5.number_input("Mindest-DR (API-seitig)", min_value=0, max_value=100, value=0, step=5,
+                                help="Nur Links, deren Ziel-URL aktuell mit 404 oder 410 antwortet. Ohne den Haken kommen auch andere Fehlercodes wie 403 oder 500 mit.")
+    api_min_dr = st.number_input("Mindest-DR (API-seitig)", min_value=0, max_value=100, value=0, step=5,
                                  help="Ahrefs liefert nur linkgebende Domains ab diesem Domain Rating. 0 schaltet den Filter aus.")
-    api_language = f6.text_input("Sprache (ISO-Code, optional)", placeholder="de",
-                                 help="Zweistelliger Sprachcode der linkgebenden Seite, z. B. de oder en. Leer lässt alle Sprachen zu.")
     api_filters = dict(dofollow_only=api_dofollow, content_only=api_content, exclude_spam=api_exclude_spam,
-                       dead_only=api_dead_only, min_dr=float(api_min_dr), language=api_language.strip() or None)
+                       dead_only=api_dead_only, min_dr=float(api_min_dr))
     st.caption("Aktive API-Filter: " + describe_filters(**api_filters))
-    st.caption("Filter werden serverseitig angewendet und sparen API-Units. Pro Zeile kostet der Abruf Units.")
+    st.caption("Die Filter kosten nichts extra. Units fallen pro zurückgegebener Zeile an, weniger Treffer heißen also weniger Units.")
+    st.caption("Die Filter unterhalb der Tabelle (Schritt 2) wirken zusätzlich auf die geladenen Zeilen.")
     if not ahrefs_key:
         st.caption("Ohne Ahrefs-API-Schlüssel steht nur der CSV-Weg zur Verfügung.")
     if st.button("Von Ahrefs abrufen", disabled=not (ahrefs_key and target),
@@ -312,11 +310,11 @@ with tab_api:
 if "raw_backlinks" in S:
     c1, c2, c3, c4, c5 = st.columns(5)
     dofollow_only = c1.checkbox("Nur Dofollow", value=True,
-                                help="Blendet Links mit nofollow, sponsored oder ugc aus. Nur Dofollow-Links geben Linkkraft weiter.")
+                                help="Blendet Links mit nofollow, sponsored oder ugc aus. Nur Dofollow-Links geben Linkkraft weiter. Unbekannte Werte bleiben stehen.")
     content_only = c2.checkbox("Nur Content-Links", value=True,
                                help="Blendet Links aus Navigation, Footer und Sidebar aus. Redaktionelle Links im Fließtext sind meist leichter zu ersetzen.")
     min_dr = c3.slider("Mindest-DR", 0, 100, 0,
-                       help="Blendet linkgebende Domains unter diesem Domain Rating aus, damit nur starke Quellen in der Liste bleiben.")
+                       help="Blendet linkgebende Domains unter diesem Domain Rating aus, damit nur starke Quellen in der Liste bleiben. Unbekannte Werte bleiben stehen.")
     sort_by = c4.selectbox("Sortieren nach", SORT_FIELDS, format_func=SORT_LABELS.get,
                            help="Kennzahl für den Rang der Zeilen. Die Obergrenze schneidet nach dieser Sortierung ab.")
     limit = c5.number_input("Obergrenze", min_value=1, max_value=1000, value=100,
@@ -335,7 +333,7 @@ if "ranked" in S:
     if "recovered_for" in S and S["recovered_for"] != S["ranked"]:
         st.warning("Filter oder Backlinks geändert. Wayback-Abruf erneut starten, damit Ergebnisse zur aktuellen Auswahl passen.")
     if st.button("Inhalte aus der Wayback Machine holen",
-                 help="Holt je toter URL den jüngsten Snapshot mit Status 200 aus archive.org, etwa eine Sekunde pro neuer URL. Ergebnisse werden gecacht."):
+                 help="Holt je toter URL den jüngsten Snapshot mit Status 200 aus archive.org, etwa zwei bis vier Sekunden pro neuer URL, gecachte URLs sind sofort da."):
         ranked = S["ranked"]
         if S.get("recovered_partial_chars") != int(max_chars):
             S["recovered_partial"] = {}  # texts cut at a different length are not reusable
@@ -384,7 +382,7 @@ if "recovered" in S:
     threshold = st.slider("Schwellwert: darunter gilt eine Zeile als Content-Gap", 0.0, 1.0, 0.5, 0.01,
                           help="Beste Ähnlichkeit darunter = Content-Gap. Die Verteilung hängt vom Modell ab, 0.5 ist ein Startwert.")
     match_fallback = st.checkbox("Fallback-Zeilen (ohne Snapshot) ebenfalls matchen", value=True,
-                                 help="Zeilen ohne Wayback-Snapshot werden mit Anker, Kontext und Titel aus Ahrefs gematcht. Ergebnis ist unschärfer, aber oft brauchbar.")
+                                 help="Zeilen ohne Wayback-Snapshot werden mit Anker, Kontext, Titel und URL-Pfad gematcht. Ergebnis ist unschärfer, aber oft brauchbar.")
     blocked = "frog" not in S or not dim_valid
     if blocked:
         st.warning("Erst die Frog-CSV laden und den Dimensionscheck bestehen.")
