@@ -175,3 +175,12 @@ README auf Deutsch mit englischer Kurzfassung: Zweck, Installation mit uv und pi
 
 - Die exakten Spaltennamen des Ahrefs-UI-Exports und des Frog-Embeddings-Exports werden beim Implementieren an echten Exportdateien verifiziert; die Zuordnungstabelle ist bewusst erweiterbar.
 - Die Score-Verteilung unterscheidet sich je Modell; der Standard-Schwellwert 0.5 ist ein Startwert, den die README zur Kalibrierung an eigenen Daten empfiehlt.
+
+## 8. Ergänzung 2026-10-01: Agentischer Weg (Kommandozeile)
+
+Zusätzlich zur Streamlit-App gibt es einen Einstieg ohne Oberfläche, damit Claude Code (oder ein Mensch im Terminal) den Workflow ausführen kann, nachdem die Eingabedateien über den Screaming-Frog-MCP (Embeddings-Export) und den Ahrefs-MCP (Broken-Backlinks-CSV) erzeugt wurden.
+
+- `blm/pipeline.py`: `run_pipeline(config, provider, ...)` führt Import, Ranking, Wayback-Abruf, Embedding, Matching, optional Verifikation und Mail-Entwürfe aus und liefert Ergebnisliste plus Zusammenfassung. Fortschritt über Callback `(stage, done, total)`. Gleiche Regeln wie die App: jüngster 200er-Snapshot, Fallback nur aus Ahrefs-Feldern, 1 s Pause nach jedem Netz-Abruf, Dimensionscheck als Blocker.
+- `cli.py`: Argumente für Dateien, Anbieter, Modell, Filter, Schwellwert, Schalter `--verify` und `--drafts`, Ausgabe `--out` (CSV oder XLSX nach Endung), optional `--drafts-out` (Markdown) und `--json` (maschinenlesbare Zusammenfassung auf stdout). Schlüssel ausschließlich aus Umgebungsvariablen `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OLLAMA_URL`. Fortschritt auf stderr. Exit-Code 0 bei Erfolg, 1 bei Konfigurations- oder Laufzeitfehler, 2 bei falscher Bedienung.
+- `docs/agentic-workflow.md`: Prompt für Claude Code, der Frog-MCP-Export, Ahrefs-MCP-Abruf und `cli.py` verbindet.
+- `app.py` bleibt unverändert; die Ablaufsteuerung existiert bewusst zweimal (mit und ohne Streamlit-Zustand).
