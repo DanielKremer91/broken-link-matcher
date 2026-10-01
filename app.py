@@ -280,7 +280,7 @@ tab_csv, tab_api = st.tabs(["CSV/XLSX-Upload", "Ahrefs-API"])
 with tab_csv:
     bl_file = st.file_uploader(
         "Broken-Backlinks-Export (Ahrefs oder anderes Tool)", type=["csv", "xlsx", "xlsm", "xls", "tsv", "txt"], key="bl_upload",
-        help="Export aus Ahrefs oder einem anderen Tool als CSV, TSV, TXT oder XLSX, Spalten ordnest du danach zu. "
+        help="Export aus Ahrefs oder einem anderen Tool als CSV, TSV, TXT oder XLSX. Spalten werden automatisch erkannt. "
              "Mit Excel gespeicherte CSVs können Zahlen als Datum enthalten.")
     if bl_file is not None and S.get("bl_upload_id") != upload_id(bl_file):
         try:
@@ -291,6 +291,13 @@ with tab_csv:
             S["bl_mapping"] = new_mapping
             S["bl_name"] = bl_file.name
             S["bl_upload_id"] = upload_id(bl_file)
+            S.pop("bl_report", None)
+            if not new_mapping.missing:
+                # all required columns recognised: take the file over right away, no extra click
+                parse_report: dict = {}
+                S["raw_backlinks"] = parse_backlinks(new_df, new_mapping.mapping, report=parse_report)
+                S["bl_report"] = parse_report
+                reset_backlink_state()
         except Exception as exc:  # pandas raises many types for malformed files
             # read_table_info's ValueErrors already carry the German prefix
             st.error(str(exc) if isinstance(exc, ValueError) else f"Datei konnte nicht gelesen werden: {exc}")
@@ -300,11 +307,16 @@ with tab_csv:
         if cm.missing:
             st.warning("Pflichtspalten nicht erkannt. Bitte zuordnen.")
         else:
-            st.success(f"{len(cm.mapping)} Spalten automatisch erkannt ({len(S['bl_df'])} Zeilen).")
+            st.success(f"{len(cm.mapping)} Spalten automatisch erkannt, {len(S.get('raw_backlinks', []))} Backlinks übernommen ({len(S['bl_df'])} Zeilen).")
         if S.get("bl_info") is not None:
             st.caption(describe_table_info(S["bl_info"]))
-        if cm.missing or st.checkbox("Spaltenzuordnung anpassen",
-                                     help="Ordne die Spalten deiner Datei den Feldern des Tools selbst zu, falls die automatische Erkennung falsch liegt."):
+        repaired_auto = (S.get("bl_report") or {}).get("excel_dates_repaired", 0)
+        if repaired_auto > 0:
+            st.warning(f"{repaired_auto} Zahlenwerte sahen wie Excel-Datumsangaben aus (z. B. '04. Jun' für 4.6) "
+                       "und wurden zurückgerechnet. Tipp: CSV nicht mit Excel speichern.")
+        show_mapping = cm.missing or st.checkbox("Spaltenzuordnung anpassen",
+                                     help="Ordne die Spalten deiner Datei den Feldern des Tools selbst zu, falls die automatische Erkennung falsch liegt.")
+        if show_mapping:
             options = ["(keine)"] + cm.columns
             for field in REQUIRED_FIELDS + OPTIONAL_FIELDS:
                 current = mapping.get(field, "(keine)")
@@ -314,18 +326,15 @@ with tab_csv:
                     mapping.pop(field, None)
                 else:
                     mapping[field] = choice
-        if st.button("Backlinks übernehmen", help="Übernimmt die Datei mit der gewählten Spaltenzuordnung als Backlink-Liste und verwirft spätere Schritte."):
-            try:
-                parse_report: dict = {}
-                S["raw_backlinks"] = parse_backlinks(S["bl_df"], mapping, report=parse_report)
-                reset_backlink_state()
-                st.success(f"{len(S['raw_backlinks'])} Backlinks übernommen.")
-                repaired = parse_report.get("excel_dates_repaired", 0)
-                if repaired > 0:
-                    st.warning(f"{repaired} Zahlenwerte sahen wie Excel-Datumsangaben aus (z. B. '04. Jun' für 4.6) "
-                               "und wurden zurückgerechnet. Tipp: CSV nicht mit Excel speichern.")
-            except ValueError as exc:
-                st.error(str(exc))
+            if st.button("Zuordnung übernehmen", help="Übernimmt die Datei mit der gewählten Spaltenzuordnung als Backlink-Liste und verwirft spätere Schritte."):
+                try:
+                    parse_report = {}
+                    S["raw_backlinks"] = parse_backlinks(S["bl_df"], mapping, report=parse_report)
+                    S["bl_report"] = parse_report
+                    reset_backlink_state()
+                    st.success(f"{len(S['raw_backlinks'])} Backlinks übernommen.")
+                except ValueError as exc:
+                    st.error(str(exc))
 with tab_api:
     target = st.text_input("Wettbewerber-Domain", placeholder="konkurrent.de",
                            help="Domain, deren tote Backlink-Ziele du abrufen willst, ohne https://, z. B. konkurrent.de. Subdomains sind eingeschlossen.")

@@ -229,7 +229,6 @@ def test_new_backlink_upload_drops_old_wayback_and_matching_state():
 
     csv = b"Referring page URL,Target URL,Anchor\nhttps://neu.de/p,https://c.de/neu,neu\n"
     at.file_uploader(key="bl_upload").set_value(("neu.csv", csv, "text/csv")).run()
-    button(at, "Backlinks übernehmen").click().run()
 
     assert not at.exception
     assert [b.url_to for b in at.session_state["raw_backlinks"]] == ["https://c.de/neu"]
@@ -413,7 +412,7 @@ def test_recognised_columns_show_success_message():
     csv_path = _P(__file__).resolve().parent.parent / "examples" / "broken-backlinks-ahrefs-com.csv"
     at.file_uploader(key="bl_upload").set_value(("broken-backlinks-ahrefs-com.csv", csv_path.read_bytes(), "text/csv")).run()
     assert not at.exception
-    assert any("9 Spalten automatisch erkannt (15 Zeilen)" in s.value for s in at.success)
+    assert any("9 Spalten automatisch erkannt" in s.value and "(15 Zeilen)" in s.value for s in at.success)
 
 
 # ------------------------------------------------------------------ UI polish: branding, info, help texts
@@ -608,7 +607,6 @@ def test_backlink_upload_shows_table_info_and_excel_date_warning():
     at.file_uploader(key="bl_upload").set_value(("excel.csv", data, "text/csv")).run()
     assert not at.exception
     assert any(c.value == "Gelesen: CSV · Trennzeichen ; · UTF-8 mit Ersatzzeichen · 3 Zeilen" for c in at.caption)
-    button(at, "Backlinks übernehmen").click().run()
     assert [b.domain_rating for b in at.session_state["raw_backlinks"]] == [4.6, 3.3, 72.0]
     assert any(w.value == "4 Zahlenwerte sahen wie Excel-Datumsangaben aus (z. B. '04. Jun' für 4.6) und wurden "
                "zurückgerechnet. Tipp: CSV nicht mit Excel speichern." for w in at.warning)
@@ -618,9 +616,22 @@ def test_no_excel_date_warning_for_clean_file():
     at = AppTest.from_file(APP, default_timeout=30).run()
     csv = b"Referring page URL,Target URL,Domain rating\nhttps://a.de/p,https://c.de/x,4.6\n"
     at.file_uploader(key="bl_upload").set_value(("clean.csv", csv, "text/csv")).run()
-    button(at, "Backlinks übernehmen").click().run()
     assert not at.exception
     assert not any("Excel-Datumsangaben" in w.value for w in at.warning)
+
+
+def test_recognised_backlink_upload_is_applied_without_a_click():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    data = (FIXTURES.parent.parent / "examples" / "broken-backlinks-ahrefs-com.csv").read_bytes()
+    at.file_uploader(key="bl_upload").set_value(("ahrefs.csv", data, "text/csv")).run()
+    assert not at.exception
+    assert len(at.session_state["raw_backlinks"]) == 15
+    assert any("15 Backlinks übernommen" in s.value for s in at.success)
+    assert not any(b.label == "Zuordnung übernehmen" for b in at.button)  # only shown with the mapping form
+    boxes = [c for c in at.checkbox if c.label == "Spaltenzuordnung anpassen"]
+    assert boxes, "mapping checkbox missing"
+    boxes[0].check().run()
+    assert any(b.label == "Zuordnung übernehmen" for b in at.button)
 
 
 def test_frog_mapping_form_keeps_wide_columns_when_only_url_is_mapped():
