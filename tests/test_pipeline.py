@@ -2,7 +2,6 @@ import json
 from pathlib import Path
 
 import httpx
-import numpy as np
 import pytest
 import respx
 
@@ -174,3 +173,86 @@ def test_summary_to_dict_is_json_serialisable(tmp_path):
         res = run_pipeline(cfg(), KeywordProvider(), cache=JsonCache(tmp_path), sleeper=no_sleep)
     text = json.dumps(summary_to_dict(res.summary), ensure_ascii=False)
     assert '"matched": 2' in text
+
+
+HEADER = ("url_from,url_to,anchor,snippet_left,snippet_right,title,domain_rating_source,"
+          "url_rating_source,http_code_target,is_dofollow,is_content\n")
+
+
+def write_backlinks(tmp_path, rows):
+    path = tmp_path / "bl.csv"
+    path.write_text(HEADER + "".join(rows))
+    return path
+
+
+@respx.mock
+def test_chat_request_uses_long_timeout(tmp_path):
+    mock_wayback()
+    route = respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "x"}}]}))
+    run_pipeline(cfg(drafts=True, sender_name="D", own_domain="me.de"), KeywordProvider(),
+                 chat=ChatConfig("openai", "m", "k"), cache=JsonCache(tmp_path), sleeper=no_sleep)
+    assert route.call_count == 2
+    assert route.calls[0].request.extensions["timeout"]["read"] >= 60
+
+
+def test_unknown_sort_by_raises_pipeline_error():
+    with pytest.raises(PipelineError, match="Sortierkriterium"):
+        run_pipeline(cfg(sort_by="nope"), KeywordProvider(), sleeper=no_sleep)
+
+
+@respx.mock
+def test_duplicate_pair_gets_distinct_draft_keys(tmp_path):
+    mock_wayback()
+    respx.post("https://api.openai.com/v1/chat/completions").mock(
+        return_value=httpx.Response(200, json={"choices": [{"message": {"content": "Entwurf"}}]}))
+    path = write_backlinks(tmp_path, [
+        f"https://blog.example/kueche,{STAHL},Stahl eins,,,T,72.,35.,404,1,1\n",
+        f"https://blog.example/kueche,{STAHL},Stahl zwei,,,T,72.,35.,404,1,1\n",
+    ])
+    res = run_pipeline(cfg(backlinks_path=path, drafts=True, sender_name="D", own_domain="me.de"),
+                       KeywordProvider(), chat=ChatConfig("openai", "m", "k"),
+                       cache=JsonCache(tmp_path / "c"), sleeper=no_sleep)
+    base = "https://blog.example/kueche|" + STAHL
+    assert set(res.drafts) == {base, base + "#2"}
+    assert res.summary.drafts == 2
+
+
+@pytest.mark.parametrize("provider", ["openai", "gemini"])
+def test_drafts_require_api_key_for_hosted_providers(provider):
+    with respx.mock(assert_all_called=False) as mock:
+        route = mock.get(CDX_URL).mock(return_value=httpx.Response(200, json=[]))
+        with pytest.raises(PipelineError, match="API-Schlüssel"):
+            run_pipeline(cfg(drafts=True, sender_name="D", own_domain="me.de"), KeywordProvider(),
+                         chat=ChatConfig(provider, "m", None), sleeper=no_sleep)
+        assert route.call_count == 0
+
+
+@respx.mock
+def test_snapshot_is_shared_between_rows_with_same_dead_url(tmp_path):
+    cdx = respx.get(CDX_URL).mock(
+        return_value=httpx.Response(200, json=[["timestamp", "original"], ["20240315120000", STAHL]]))
+    respx.get(snapshot_url("20240315120000", STAHL)).mock(return_value=httpx.Response(200, html=HTML))
+    path = write_backlinks(tmp_path, [
+        f"https://blog.example/a,{STAHL},Anker A,,,,72.,35.,404,1,1\n",
+        f"https://blog.example/b,{STAHL},Anker B,,,,60.,20.,404,1,1\n",
+    ])
+    res = run_pipeline(cfg(backlinks_path=path), KeywordProvider(), cache=JsonCache(tmp_path / "c"),
+                       sleeper=no_sleep)
+    assert cdx.call_count == 1
+    assert [r.recovered.source for r in res.results] == ["wayback", "wayback"]
+
+
+@respx.mock
+def test_fallback_is_per_backlink_when_no_snapshot(tmp_path):
+    respx.get(CDX_URL).mock(return_value=httpx.Response(200, json=[["timestamp", "original"]]))
+    path = write_backlinks(tmp_path, [
+        f"https://blog.example/a,{STAHL},Anker A,,,,72.,35.,404,1,1\n",
+        f"https://blog.example/b,{STAHL},Anker B,,,,60.,20.,404,1,1\n",
+    ])
+    res = run_pipeline(cfg(backlinks_path=path), KeywordProvider(), cache=JsonCache(tmp_path / "c"),
+                       sleeper=no_sleep)
+    texts = {r.backlink.url_from: r.recovered.text for r in res.results}
+    assert texts["https://blog.example/a"].startswith("Anker A")
+    assert texts["https://blog.example/b"].startswith("Anker B")
+    assert all(r.recovered.source == "fallback" for r in res.results)

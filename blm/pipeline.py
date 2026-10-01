@@ -22,7 +22,7 @@ from blm.ingest.frog_csv import FrogImport, load_frog_embeddings
 from blm.matcher import build_results
 from blm.models import BrokenBacklink, MatchResult, RecoveredContent
 from blm.outreach import OutreachError, draft_mail
-from blm.ranking import rank_backlinks
+from blm.ranking import SORT_FIELDS, rank_backlinks
 from blm.verify import verify_results
 from blm.wayback import fallback_content, recover_content, user_agent
 
@@ -168,6 +168,12 @@ def run_pipeline(
     if cfg.drafts and chat is None:
         raise PipelineError("Mail-Entwürfe brauchen eine Chat-Konfiguration (Anbieter und Modell).")
 
+    if (cfg.drafts and chat is not None and chat.provider in ("openai", "gemini")
+            and not (chat.api_key or "").strip()):
+        raise PipelineError("API-Schlüssel für Mail-Entwürfe fehlt.")
+    if cfg.sort_by not in SORT_FIELDS:
+        raise PipelineError(f"Unbekanntes Sortierkriterium: {cfg.sort_by}. Erlaubt: {', '.join(SORT_FIELDS)}")
+
     frog, backlinks = load_inputs(cfg)
     summary = PipelineSummary(own_pages=len(frog.pages), backlinks_total=len(backlinks))
     summary.dimension = _check_dimension(provider, frog)
@@ -180,7 +186,7 @@ def run_pipeline(
     agent = user_agent(cfg.contact)
 
     own_client = client is None
-    client = client or httpx.Client()
+    client = client or httpx.Client(timeout=httpx.Timeout(30.0))
     try:
         recovered = _recover_all(ranked, client, cache, max_chars=cfg.max_chars, agent=agent,
                                  sleeper=sleeper, pause=cfg.pause, progress=progress)
@@ -224,13 +230,16 @@ def run_pipeline(
         if cfg.drafts and chat is not None:
             titles = {p.url: p.title for p in frog.pages}
             candidates = [r for r in results if r.top and not r.is_content_gap]
+            seen: dict[str, int] = {}
             for n, r in enumerate(candidates, start=1):
-                key = f"{r.backlink.url_from}|{r.backlink.url_to}"
+                base = f"{r.backlink.url_from}|{r.backlink.url_to}"
+                seen[base] = seen.get(base, 0) + 1
+                key = base if seen[base] == 1 else f"{base}#{seen[base]}"  # same page may link the dead URL twice
                 try:
                     drafts[key] = draft_mail(
                         r, cfg.sender_name.strip(), cfg.own_domain.strip(),
                         provider=chat.provider, model=chat.model, api_key=chat.api_key,
-                        base_url=chat.base_url, client=client, suggestion_title=titles.get(r.top[0].url, ""),
+                        base_url=chat.base_url, client=None, suggestion_title=titles.get(r.top[0].url, ""),
                     )
                 except OutreachError as exc:
                     msg = f"Mail-Entwurf fehlgeschlagen für {r.backlink.url_from}: {exc}"
