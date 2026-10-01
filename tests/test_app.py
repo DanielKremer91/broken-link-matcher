@@ -414,3 +414,75 @@ def test_recognised_columns_show_success_message():
     at.file_uploader(key="bl_upload").set_value(("broken-backlinks-ahrefs-com.csv", csv_path.read_bytes(), "text/csv")).run()
     assert not at.exception
     assert any("9 Spalten automatisch erkannt (15 Zeilen)" in s.value for s in at.success)
+
+
+# ------------------------------------------------------------------ UI polish: branding, info, help texts
+def test_logo_credit_box_and_page_title_are_rendered():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    assert not at.exception
+    markdown = [m.value for m in at.markdown]
+    assert any("onebeyondsearch.com/img/" in m and "ONE Beyond Search" in m for m in markdown)
+    assert any("Entwickelt von" in m and "SEOKomm 2026" in m for m in markdown)
+    assert any("stDownloadButton" in m for m in markdown)
+    assert at.title[0].value == "Broken Link Matcher"
+    assert not any(c.value.startswith("Broken Link Building mit semantischem Matching") for c in at.caption)
+
+
+def test_info_expander_explains_tool_without_em_dashes():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    title = "ℹ️ Was macht dieses Tool und wie nutze ich es?"
+    info = next(e for e in at.expander if e.label == title)
+    assert info.proto.expanded is False
+    text = " ".join(m.value for m in info.markdown)
+    for needle in ("Voraussetzungen", "Ablauf", "Hinweise", "Wayback", "cli.py", "docs/agentic-workflow.md"):
+        assert needle in text, needle
+    assert "—" not in text
+
+
+def test_contact_input_is_renamed():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    labels = [t.label for t in at.sidebar.text_input]
+    assert "Kontakt im User-Agent (optional)" in labels
+    assert "Kontakt für User-Agent (E-Mail oder URL)" not in labels
+
+
+def all_help_widgets(at: AppTest):
+    for kind in ("button", "checkbox", "download_button", "file_uploader", "number_input", "selectbox", "slider", "text_area", "text_input"):
+        for w in getattr(at, kind):
+            yield kind, w
+
+
+def fully_rendered_app(monkeypatch) -> AppTest:
+    import pandas as pd
+
+    from blm.ingest.backlinks_csv import detect_columns
+
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    at = seeded_app()
+    df = pd.DataFrame({"Referring page URL": ["https://a.de/p"], "Target URL": ["https://c.de/x"], "Anchor": ["x"]})
+    at.session_state["bl_df"] = df
+    at.session_state["bl_mapping"] = detect_columns(df)
+    monkeypatch.setattr("blm.outreach.draft_mail", lambda *a, **k: "Entwurf")
+    at = fill_sender(at.run())
+    return at.button(key="mail_" + hashlib.sha1(b"https://a.de/p|https://c.de/x").hexdigest()[:12]).click().run()
+
+
+def test_every_widget_has_a_concise_german_help_text(monkeypatch):
+    at = fully_rendered_app(monkeypatch)
+    next(c for c in at.checkbox if c.label == "Spaltenzuordnung anpassen").check().run()
+    assert not at.exception
+    seen = set()
+    for kind, w in all_help_widgets(at):
+        label = getattr(w, "label", None) or w.key
+        seen.add(kind)
+        assert w.help and w.help.strip(), f"{kind} {label!r} has no help"
+        assert len(w.help) < 200, f"{kind} {label!r} help too long ({len(w.help)})"
+        assert "—" not in w.help, f"{kind} {label!r} help contains an em-dash"
+    assert {"button", "checkbox", "download_button", "file_uploader", "number_input", "selectbox", "slider", "text_area", "text_input"} <= seen
+
+
+def test_sidebar_widgets_have_help():
+    at = AppTest.from_file(APP, default_timeout=30).run()
+    sidebar = [*at.sidebar.selectbox, *at.sidebar.text_input, *at.sidebar.button]
+    assert len(sidebar) >= 8
+    assert all(w.help for w in sidebar)
