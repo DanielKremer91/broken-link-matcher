@@ -65,7 +65,29 @@ _ENCODINGS = ("utf-8-sig", "utf-16", "cp1252")
 _SNIFF_BYTES = 64 * 1024
 
 
+def _mostly_utf8(data: bytes) -> Optional[str]:
+    """Decode text that is UTF-8 apart from a few stray bytes.
+
+    Excel on macOS keeps the original UTF-8 text but writes its own generated strings
+    (e.g. "03. März") in MacRoman. cp1252 would "succeed" on such a file and turn every
+    umlaut into mojibake, so prefer UTF-8 with replacement when the damage is small.
+    """
+    text = data.decode("utf-8", errors="replace")
+    bad = text.count("\ufffd")
+    good = sum(1 for ch in text if ord(ch) >= 0x80 and ch != "\ufffd")
+    if good == 0 or bad > max(2, good // 10):
+        return None  # not UTF-8 at all (e.g. plain cp1252), let the other codecs try
+    return text
+
+
 def _decode(data: bytes) -> str:
+    try:
+        return data.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        pass
+    mostly = _mostly_utf8(data)
+    if mostly is not None:
+        return mostly.lstrip("\ufeff")
     for encoding in _ENCODINGS:
         # Without a BOM the utf-16 codec "succeeds" on almost any even-length input, so
         # only try it when a BOM is present.
@@ -75,9 +97,6 @@ def _decode(data: bytes) -> str:
             return data.decode(encoding)
         except UnicodeDecodeError:
             continue
-    # Mixed encodings happen in practice: Excel on macOS keeps the original UTF-8 text but
-    # writes its own generated strings (e.g. "03. März") in MacRoman. Keep the readable
-    # majority and mark the few undecodable bytes instead of refusing the whole file.
     return data.decode("utf-8", errors="replace")
 
 
