@@ -125,6 +125,7 @@ def _read_excel(source, name: str) -> pd.DataFrame:
         df = pd.read_excel(source, sheet_name=0, dtype=str)
     except Exception as exc:  # openpyxl/zipfile raise many types for damaged files
         raise ValueError(f"{_ERROR_PREFIX}: {exc}") from exc
+    df.columns = [str(c) for c in df.columns]  # numeric headers would break name lookups
     return df.fillna("")
 
 
