@@ -70,7 +70,7 @@ def check(cfg: dict) -> list[tuple[bool, str]]:
     try:
         desc = build_ahrefs(cfg, "beispiel.de")["description"]
         add(True, f"Ahrefs-Filter gültig ({desc})")
-    except AhrefsError as exc:
+    except (AhrefsError, KeyError, TypeError) as exc:
         add(False, f"Ahrefs-Filter gültig: {exc}")
     if drafts.get("enabled"):
         add(bool(str(drafts.get("sender", "")).strip()), "drafts.sender ist gesetzt")

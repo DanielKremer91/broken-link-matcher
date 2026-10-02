@@ -1,6 +1,6 @@
 # Monatlicher Broken-Link-Monitor
 
-Einmal im Monat läuft der komplette Workflow automatisch: Claude holt die Broken Backlinks deiner Wettbewerber über das Ahrefs-MCP, crawlt deine eigene Seite mit Embeddings über das Screaming-Frog-MCP, matcht beides mit `cli.py` und schickt dir einen Bericht. Der Bericht enthält nur Paare aus linkgebender Seite und toter URL, die seit dem letzten Lauf neu dazugekommen sind.
+Einmal im Monat läuft der komplette Workflow automatisch: Claude holt die Broken Backlinks deiner Wettbewerber über das Ahrefs-MCP, crawlt deine eigene Seite mit Embeddings über das Screaming-Frog-MCP, matcht beides mit `cli.py` und schickt dir einen Bericht. Der Bericht enthält jeden Monat alle offenen Chancen und zeigt, welche seit dem letzten Lauf neu dazugekommen sind.
 
 Die Checkliste zum Abhaken steht in [checkliste.md](checkliste.md).
 
@@ -195,7 +195,7 @@ laeufe/
   2026-11/
     zooroyal.de/
       broken-backlinks.csv         Antwort des Ahrefs-MCP
-      ergebnis.xlsx                alle Zeilen, mit den Spalten "Neu" und "Erstmals gemeldet"
+      ergebnis.xlsx                alle Zeilen, mit den Spalten "Neu" und "Erstmals erfasst"
       ergebnis-entwuerfe.md        Mail-Entwürfe
       bericht.md, bericht.html     Bericht, so wie er verschickt wird
     fehler.md                      nur wenn etwas schiefging

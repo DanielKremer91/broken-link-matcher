@@ -23,6 +23,7 @@ def test_defaults_match_the_documented_mcp_call(tmp_path, capsys):
     for f in ("is_dofollow", "is_content", "is_spam", "http_code_target"):
         assert f in fields
     assert data["cli_args"] == ["--limit", "100", "--min-dr", "0", "--sort", "domain_rating"]
+    assert run(tmp_path, capsys, {"min_dr": 12.5})[1]["cli_args"][3] == "12.5"
     assert data["description"] == "Dofollow · Content-Links · ohne Spam · nur 404/410"
 
 
@@ -51,3 +52,16 @@ def test_unknown_setting_and_bad_values_fail(tmp_path, capsys):
     assert run(tmp_path, capsys, {"mode": "galaxie"})[0] == 1
     assert run(tmp_path, capsys, {"dofollow_only": "ja"})[0] == 1
     assert "include_traffic" in run(tmp_path, capsys, {"order_by": "traffic"})[1]
+    assert run(tmp_path, capsys, {"limit": True})[0] == 1
+    assert run(tmp_path, capsys, {"min_dr": True})[0] == 1
+    assert run(tmp_path, capsys, {"order_by": "nichts"})[0] == 1
+
+
+def test_non_object_ahrefs_block_and_empty_target(tmp_path, capsys):
+    cfg = tmp_path / "c.json"
+    cfg.write_text(json.dumps({"ahrefs": 5}), encoding="utf-8")
+    assert ahrefs_params.main(["--config", str(cfg), "--target", "k.de"]) == 1
+    assert "Objekt" in capsys.readouterr().err
+    cfg.write_text(json.dumps([1]), encoding="utf-8")
+    assert ahrefs_params.main(["--config", str(cfg), "--target", "k.de"]) == 1
+    assert run(tmp_path, capsys, {}, target=" ")[0] == 1

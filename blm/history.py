@@ -86,8 +86,8 @@ def is_new(r: MatchResult, seen: Seen, run_id: str) -> bool:
     entry = seen.get(pair_key(r.backlink))
     if entry is None:
         return True
-    if entry["since"] == run_id:
-        return True  # reported in this run already: a rerun shows these rows again
+    if entry["since"] >= run_id:
+        return True  # reported in this run (rerun) or later (catch-up of an earlier month): new for this run
     return entry["status"] == "gap" and row_status(r) == "match"
 
 

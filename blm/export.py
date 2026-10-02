@@ -35,7 +35,7 @@ def results_to_dataframe(
     first_reported: Optional[list[str]] = None,
 ) -> pd.DataFrame:
     """One row per result; with new_flags a column "Neu" (Ja/Nein) follows "Priorität",
-    with first_reported a column "Erstmals gemeldet" (run id) follows that."""
+    with first_reported a column "Erstmals erfasst" (run id) follows that."""
     records = []
     for idx, r in enumerate(results):
         top = r.top + [None] * (3 - len(r.top))
@@ -60,9 +60,9 @@ def results_to_dataframe(
         if new_flags is not None:
             rec["Neu"] = "Ja" if new_flags[idx] else "Nein"
         if first_reported is not None:
-            rec["Erstmals gemeldet"] = sanitize_cell(first_reported[idx] or "")
+            rec["Erstmals erfasst"] = sanitize_cell(first_reported[idx] or "")
         records.append(rec)
-    extra = (["Neu"] if new_flags is not None else []) + (["Erstmals gemeldet"] if first_reported is not None else [])
+    extra = (["Neu"] if new_flags is not None else []) + (["Erstmals erfasst"] if first_reported is not None else [])
     columns = COLUMNS[:1] + extra + COLUMNS[1:]
     return pd.DataFrame.from_records(records, columns=columns)
 

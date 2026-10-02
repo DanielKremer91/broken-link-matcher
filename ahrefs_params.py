@@ -26,7 +26,11 @@ SORT_FOR_CLI = {"domain_rating_source": "domain_rating", "url_rating_source": "u
 
 
 def settings(cfg: dict) -> dict:
+    if not isinstance(cfg, dict):
+        raise AhrefsError("Die Konfiguration muss ein JSON-Objekt sein.")
     block = cfg.get("ahrefs") or {}
+    if not isinstance(block, dict):
+        raise AhrefsError("ahrefs muss ein Objekt mit Einstellungen sein.")
     unknown = sorted(set(block) - set(DEFAULTS))
     if unknown:
         raise AhrefsError(f"Unbekannte Ahrefs-Einstellungen: {', '.join(unknown)}")
@@ -35,9 +39,9 @@ def settings(cfg: dict) -> dict:
 
 def build(cfg: dict, target: str) -> dict:
     s = settings(cfg)
-    if not isinstance(s["limit"], int) or not 1 <= s["limit"] <= 1000:
+    if isinstance(s["limit"], bool) or not isinstance(s["limit"], int) or not 1 <= s["limit"] <= 1000:
         raise AhrefsError("ahrefs.limit muss eine ganze Zahl zwischen 1 und 1000 sein.")
-    if not isinstance(s["min_dr"], (int, float)) or not 0 <= s["min_dr"] <= 100:
+    if isinstance(s["min_dr"], bool) or not isinstance(s["min_dr"], (int, float)) or not 0 <= s["min_dr"] <= 100:
         raise AhrefsError("ahrefs.min_dr muss zwischen 0 und 100 liegen.")
     for key in ("dofollow_only", "content_only", "exclude_spam", "dead_only", "include_traffic"):
         if not isinstance(s[key], bool):
@@ -46,7 +50,7 @@ def build(cfg: dict, target: str) -> dict:
                        dofollow_only=s["dofollow_only"], content_only=s["content_only"],
                        exclude_spam=s["exclude_spam"], dead_only=s["dead_only"], min_dr=s["min_dr"],
                        mode=s["mode"], aggregation=s["aggregation"], order_by=s["order_by"], output="csv")
-    cli_args = ["--limit", str(s["limit"]), "--min-dr", f"{s['min_dr']:g}", "--sort", SORT_FOR_CLI[s["order_by"]]]
+    cli_args = ["--limit", str(s["limit"]), "--min-dr", str(s["min_dr"]), "--sort", SORT_FOR_CLI[s["order_by"]]]
     if not (s["dofollow_only"] and s["content_only"]):
         cli_args.append("--all-links")  # Ahrefs already filtered; cli.py must not drop the extra rows
     description = describe_filters(dofollow_only=s["dofollow_only"], content_only=s["content_only"],

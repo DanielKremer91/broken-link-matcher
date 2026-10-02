@@ -182,6 +182,14 @@ def test_ndjson_is_read_as_table(tmp_path):
     assert info.kind == "ndjson" and describe_table_info(info) == "Gelesen: NDJSON · 2 Zeilen"
 
 
+def test_ndjson_keeps_unicode_line_separators_inside_strings(tmp_path):
+    from blm.ingest.tables import read_table
+    p = tmp_path / "x.ndjson"
+    p.write_bytes('{"Address":"https://a.de","Title":"a\u2028b"}\r\n'.encode("utf-8"))
+    df = read_table(p)
+    assert len(df) == 1 and df.loc[0, "Title"] == "a\u2028b"
+
+
 def test_broken_ndjson_raises_value_error(tmp_path):
     import pytest
     from blm.ingest.tables import read_table

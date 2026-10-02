@@ -74,9 +74,10 @@ def _text_source(r: MatchResult) -> str:
     if rc.source == "wayback":
         day = format_snapshot(rc.snapshot_timestamp)
         return f"Wayback-Snapshot vom {day}" if day else "Wayback-Snapshot"
+    reason = f" ({_one_line(rc.error)})" if rc.error else ""
     if rc.source == "fallback":
-        return "kein Snapshot, Ersatztext aus den Ahrefs-Angaben"
-    return "kein Text"
+        return f"Ersatztext aus den Ahrefs-Angaben{reason}"
+    return f"kein Text{reason}"
 
 
 def _subject(competitor: str, total: int, new: int, history: bool) -> str:
@@ -107,7 +108,7 @@ def build_report(
     stats = [f"Ausgewertete Backlinks: {summary.backlinks_ranked}"]
     stats.append(
         f"Text der toten Seiten: {summary.snapshots} aus der Wayback Machine, "
-        f"{summary.fallbacks} ohne Snapshot (Ersatztext aus Ahrefs-Angaben), {summary.no_text} ohne Text"
+        f"{summary.fallbacks} mit Ersatztext aus Ahrefs-Angaben (kein nutzbarer Snapshot), {summary.no_text} ohne Text"
     )
     if summary.verified:
         stats.append("Live-Prüfung: " + ", ".join(

@@ -88,6 +88,8 @@ def build_params(
     output: str = "json",
 ) -> dict:
     """Query parameters for site-explorer/broken-backlinks (API and MCP use the same names)."""
+    if not target or not target.strip():
+        raise AhrefsError("Wettbewerber-Domain fehlt.")
     if mode not in MODES:
         raise AhrefsError(f"Unbekannter Modus: {mode} (erlaubt: {', '.join(MODES)})")
     if aggregation not in AGGREGATIONS:

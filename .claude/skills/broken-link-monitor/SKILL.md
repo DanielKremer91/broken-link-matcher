@@ -1,6 +1,6 @@
 ---
 name: broken-link-monitor
-description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wettbewerbern über das Ahrefs-MCP, crawlt die eigene Domain mit Embeddings über das Screaming-Frog-MCP, matcht tote Wettbewerber-URLs mit eigenen Seiten (broken-link-matcher, cli.py), meldet nur neue Chancen seit dem letzten Lauf und verschickt den Bericht per Resend, Mail-Connector oder als Datei. Verwende diesen Skill bei "Broken-Link-Monitor", "monatlicher Broken-Link-Lauf", "/broken-link-monitor" oder wenn eine geplante Aufgabe ihn aufruft.
+description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wettbewerbern über das Ahrefs-MCP, crawlt die eigene Domain mit Embeddings über das Screaming-Frog-MCP, matcht tote Wettbewerber-URLs mit eigenen Seiten (broken-link-matcher, cli.py), listet jeden Monat alle offenen Chancen mit Kennzeichnung der neuen und verschickt den Bericht per Resend, Mail-Connector oder als Datei. Verwende diesen Skill bei "Broken-Link-Monitor", "monatlicher Broken-Link-Lauf", "/broken-link-monitor" oder wenn eine geplante Aufgabe ihn aufruft.
 ---
 
 # Broken-Link-Monitor
@@ -32,7 +32,7 @@ Wenn `frog.crawl` true ist:
 2. Starte den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`. JavaScript-Rendering und das Embedding-Snippet stecken in dieser Konfiguration.
 3. Frage den Fortschritt mit dem Fortschritts-Tool ab, bis Crawl, API-Abrufe und Nachbearbeitung bei 100 Prozent sind. Warte zwischen zwei Abfragen zwei bis fünf Minuten, zum Beispiel mit `sleep 180` in der Shell. Ist Warten in der Shell gesperrt, nutze das verfügbare Warte- oder Monitor-Werkzeug. Nach sechs Stunden ohne Abschluss weiter mit Schritt 6.
 4. Exportiere die Embeddings, je nach `frog.embeddings_source`:
-   - **custom_javascript**: Liste die Datenfelder des SEO-Elements `Custom JavaScript` mit Filter `All`. Nimm das Feld aus `frog.custom_js_field`. Ist es leer, nimm das einzige Feld, dessen Name `embed` enthält (Groß- und Kleinschreibung egal). Gibt es keins oder mehrere, weiter mit Schritt 6 und der Liste der Felder. Exportiere dann mit dem Tool für SEO-Element-URLs: Element `Custom JavaScript`, Filter `All`, Felder `Address` und das gewählte Feld, ohne Zeilenlimit, Datei `broken-link-monitor/<own_domain>-<RUN>.ndjson`.
+   - **custom_javascript** (gilt auch, wenn `frog.embeddings_source` fehlt): Liste die Datenfelder des SEO-Elements `Custom JavaScript` mit Filter `All`. Nimm das Feld aus `frog.custom_js_field`. Steht es nicht in der Liste, weiter mit Schritt 6 und der Liste der Felder. Ist es leer, nimm das einzige Feld, dessen Name `embed` enthält (Groß- und Kleinschreibung egal). Gibt es keins oder mehrere, weiter mit Schritt 6 und der Liste der Felder. Exportiere dann mit dem Tool für SEO-Element-URLs: Element `Custom JavaScript`, Filter `All`, Felder `Address` und das gewählte Feld, ohne Zeilenlimit, Datei `broken-link-monitor/<own_domain>-<RUN>.ndjson`.
    - **ai**: Exportiere mit dem Embedding-Export-Tool nach `broken-link-monitor/<own_domain>-<RUN>.csv`. Dieser Export funktioniert nur mit den eingebauten KI-Embeddings von Frog.
    Der absolute Pfad ist Basisverzeichnis plus Dateipfad. Die Antwort des Export-Tools enthält eine lange Beispielzeile mit Zahlen; lies sie nicht aus, die Datei reicht.
 5. Prüfe den Export: `.venv/bin/python -c "import sys; from blm.ingest.frog_csv import load_frog_embeddings; i = load_frog_embeddings(sys.argv[1]); print(len(i.pages), i.dimension)" <absoluter Pfad>`. Ausgabe sind Seitenzahl und Dimension. Bei einem Fehler oder null Seiten weiter mit Schritt 6 und dem Hinweis: "Der Frog-Export enthält keine Embeddings. Konfiguration prüfen."
@@ -84,7 +84,7 @@ Je erfolgreichem Wettbewerber eine Mail, je nach `mail.method`:
     --subject "<report_subject>" --html <report_html> --text <report> \
     --attach <output> [--attach <drafts_output>]
   ```
-- **connector**: Schicke mit dem verbundenen Mail-Connector (Outlook oder Gmail) an die Empfänger aus `mail.to`. Betreff ist `report_subject`, Text ist der Inhalt von `bericht.md` ohne Änderung. Hänge die Excel-Datei an, wenn der Connector Anhänge kann.
+- **connector**: Schicke mit dem verbundenen Mail-Connector (Outlook oder Gmail) an die Empfänger aus `mail.to`. Betreff ist `report_subject`. Der Mailtext besteht nur aus zwei Sätzen: "Der Bericht liegt im Anhang." und dem Pfad des Laufordners. Hänge `bericht.html` und die Excel-Datei an. Kann der Connector keine Anhänge, nenne stattdessen die Dateipfade. Schreibe den Bericht nicht ab.
 - **file**: Kein Versand.
 
 Scheitert der Versand, notiere die Meldung für Schritt 6. Die Dateien bleiben im Laufordner. Ein erneuter Lauf im selben Monat erzeugt denselben Bericht und versucht den Versand noch einmal.

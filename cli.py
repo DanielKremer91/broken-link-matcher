@@ -207,8 +207,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"Abbruch: {exc}", file=sys.stderr)
         return 1
     new_flags = mark_new(result.results, seen or {}, run_id)
-    # every open opportunity is in the report; known pairs keep the run of their first report
-    updated = record_reported(seen or {}, all_opportunity_rows(result.results), run_id)
+    # every open opportunity is in the report, content gaps are in the Excel file; both are
+    # remembered so "Neu" stays meaningful, known pairs keep the run of their first record
+    recorded = all_opportunity_rows(result.results) + [r for r in result.results
+                                                       if r.top and r.is_content_gap and r.verification != "fixed"]
+    updated = record_reported(seen or {}, recorded, run_id)
     first_reported = [updated.get(pair_key(r.backlink), {}).get("since", "") for r in result.results]
     report = None
     try:

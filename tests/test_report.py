@@ -7,7 +7,8 @@ def row(i, *, gap=False, verification="confirmed", top=True, dr=50.0, source="wa
     bl = BrokenBacklink(url_from=f"https://linkgeber{i}.de/artikel", url_to=f"https://zooroyal.de/tot{i}",
                         anchor=f"Anker {i}", domain_rating=dr)
     rc = RecoveredContent(url_to=bl.url_to, text="t", source=source,
-                          snapshot_timestamp="20160809120000" if source == "wayback" else None)
+                          snapshot_timestamp="20160809120000" if source == "wayback" else None,
+                          error=None if source == "wayback" else "Kein Snapshot mit Status 200")
     r = MatchResult(backlink=bl, recovered=rc)
     if top:
         r.top = [Match(url=f"https://fressnapf.de/magazin/{i}", score=0.81234),
@@ -64,7 +65,7 @@ def test_all_three_suggestions_and_text_source_are_listed():
     for body in (rep.text, rep.html):
         assert "https://fressnapf.de/magazin/1-c" in body and "0,81" in body and "0,65" in body
         assert "Wayback-Snapshot vom 2016-08-09" in body
-        assert "Ersatztext aus den Ahrefs-Angaben" in body
+        assert "Ersatztext aus den Ahrefs-Angaben (Kein Snapshot mit Status 200)" in body
 
 
 def test_content_gaps_are_not_in_the_mail():
@@ -80,7 +81,7 @@ def test_without_history_one_plain_list():
 
 def test_stats_explain_fallbacks():
     rep = build_report([row(1)], summary(), [True], competitor="k.de")
-    assert "4 aus der Wayback Machine, 1 ohne Snapshot (Ersatztext aus Ahrefs-Angaben)" in rep.text
+    assert "4 aus der Wayback Machine, 1 mit Ersatztext aus Ahrefs-Angaben (kein nutzbarer Snapshot)" in rep.text
 
 
 def test_html_escapes_third_party_text():

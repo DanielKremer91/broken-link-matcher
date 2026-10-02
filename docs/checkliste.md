@@ -47,4 +47,4 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 - [ ] Vorschlagsseite öffnen: Ersetzt sie den toten Inhalt wirklich?
 - [ ] Mail-Entwurf lesen und persönlich anpassen, nie ungeprüft verschicken
 - [ ] Zeilen mit Ersatztext statt Wayback-Snapshot besonders kritisch prüfen
-- [ ] Content-Gaps aus der Excel-Datei als Ideen für neue Inhalte notieren
+- [ ] Content-Gaps aus der Excel-Datei als Ideen für neue Inhalte notieren (Filter "Content-Gap" = Ja, "Neu" = Ja)

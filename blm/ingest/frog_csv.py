@@ -73,18 +73,19 @@ MIN_CONTENT_DIMENSION = 32  # shorter number lists are ordinary data, not embedd
 
 
 def _find_vector_by_content(df: pd.DataFrame, skip: set) -> Optional[str]:
-    """Column whose first filled cells all parse as number lists of one length >= 32.
+    """Column whose first filled cells mostly parse as number lists of one length >= 32.
 
     Custom JavaScript extractors carry arbitrary names ("BORA MC Extraction 1").
     """
     for col in df.columns:
         if col in skip:
             continue
-        sample = [v for v in df[col].head(50).tolist() if str(v).strip()][:5]
+        sample = [v for v in df[col].head(200).tolist() if str(v).strip()][:10]
         if not sample:
             continue
-        vecs = [_parse_vector(v) for v in sample]
-        if all(v is not None and v.size >= MIN_CONTENT_DIMENSION for v in vecs) and len({v.size for v in vecs}) == 1:
+        sizes = Counter(v.size for v in map(_parse_vector, sample) if v is not None and v.size >= MIN_CONTENT_DIMENSION)
+        # an error text from the snippet in a few cells must not hide the column
+        if sizes and max(sizes.values()) * 2 > len(sample):
             return str(col)
     return None
 

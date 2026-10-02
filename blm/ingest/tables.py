@@ -134,7 +134,8 @@ def _read_excel(source, name: str) -> pd.DataFrame:
 def _read_ndjson(text: str) -> pd.DataFrame:
     """One JSON object per line (Screaming Frog MCP exports); null and blanks become ""."""
     records = []
-    for no, line in enumerate(text.splitlines(), start=1):
+    for no, line in enumerate(text.split("\n"), start=1):  # not splitlines: U+2028 may sit inside strings
+        line = line.rstrip("\r")
         if not line.strip():
             continue
         try:

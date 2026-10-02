@@ -244,7 +244,7 @@ def test_seen_file_marks_new_rows_and_records_reported(monkeypatch, tmp_path, ca
 
 
 @respx.mock
-def test_rerun_same_month_repeats_report_next_month_is_empty(monkeypatch, tmp_path, capsys, fake_provider):
+def test_rerun_same_month_repeats_report_next_month_has_nothing_new(monkeypatch, tmp_path, capsys, fake_provider):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     mock_wayback()
     seen = tmp_path / "seen.json"
@@ -261,7 +261,7 @@ def test_rerun_same_month_repeats_report_next_month_is_empty(monkeypatch, tmp_pa
     assert later["new_opportunities"] == 0 and later["opportunities"] == first["opportunities"]
     assert later["report_subject"].endswith("davon 0 neu")
     df = pd.read_excel(tmp_path / "ergebnis.xlsx")
-    assert set(df.loc[df["Neu"] == "Nein", "Erstmals gemeldet"].dropna()) == {"2026-10"}
+    assert set(df.loc[df["Neu"] == "Nein", "Erstmals erfasst"].dropna()) == {"2026-10"}
 
 
 @respx.mock

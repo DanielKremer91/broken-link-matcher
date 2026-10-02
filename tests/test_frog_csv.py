@@ -243,6 +243,15 @@ def test_vector_column_found_by_content_when_name_is_generic(tmp_path):
     assert detect_frog_columns(read_table(p)).vector_col == "BORA MC Extraction 1"
 
 
+def test_content_detection_tolerates_a_few_error_cells(tmp_path):
+    vec = ",".join(str(i / 100) for i in range(64))
+    rows = [f'{{"Address":"https://a.de/{i}","Ext 1":"{"rate limit" if i == 0 else vec}"}}' for i in range(5)]
+    p = tmp_path / "x.ndjson"
+    p.write_text("\n".join(rows), encoding="utf-8")
+    imp = load_frog_embeddings(p)
+    assert len(imp.pages) == 4 and imp.skipped == 1
+
+
 def test_short_numeric_columns_are_not_vectors(tmp_path):
     import pytest
     p = tmp_path / "x.csv"

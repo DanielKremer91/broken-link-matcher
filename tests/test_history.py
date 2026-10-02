@@ -74,6 +74,12 @@ def test_match_that_turns_into_gap_is_not_new_and_not_downgraded():
     assert record_reported(seen, [gap], "2026-11")["a.de|k.de/1"]["status"] == "match"
 
 
+def test_catch_up_of_earlier_month_shows_later_rows_as_new():
+    rows = [row("https://a.de", "https://k.de/1")]
+    seen = record_reported({}, rows, "2026-12")
+    assert mark_new(rows, seen, "2026-11") == [True]
+
+
 def test_rows_without_match_are_not_recorded():
     assert record_reported({}, [row("https://a.de", "https://k.de/1", top=False)], "2026-10") == {}
 
