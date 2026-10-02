@@ -29,8 +29,13 @@ def format_snapshot(ts: Optional[str]) -> str:
     return f"{ts[0:4]}-{ts[4:6]}-{ts[6:8]}"
 
 
-def results_to_dataframe(results: list[MatchResult], new_flags: Optional[list[bool]] = None) -> pd.DataFrame:
-    """One row per result; with new_flags a column "Neu" (Ja/Nein) follows "Priorität"."""
+def results_to_dataframe(
+    results: list[MatchResult],
+    new_flags: Optional[list[bool]] = None,
+    first_reported: Optional[list[str]] = None,
+) -> pd.DataFrame:
+    """One row per result; with new_flags a column "Neu" (Ja/Nein) follows "Priorität",
+    with first_reported a column "Erstmals gemeldet" (run id) follows that."""
     records = []
     for idx, r in enumerate(results):
         top = r.top + [None] * (3 - len(r.top))
@@ -54,8 +59,11 @@ def results_to_dataframe(results: list[MatchResult], new_flags: Optional[list[bo
         rec["Fehler"] = sanitize_cell(" | ".join(r.errors))
         if new_flags is not None:
             rec["Neu"] = "Ja" if new_flags[idx] else "Nein"
+        if first_reported is not None:
+            rec["Erstmals gemeldet"] = sanitize_cell(first_reported[idx] or "")
         records.append(rec)
-    columns = COLUMNS if new_flags is None else COLUMNS[:1] + ["Neu"] + COLUMNS[1:]
+    extra = (["Neu"] if new_flags is not None else []) + (["Erstmals gemeldet"] if first_reported is not None else [])
+    columns = COLUMNS[:1] + extra + COLUMNS[1:]
     return pd.DataFrame.from_records(records, columns=columns)
 
 

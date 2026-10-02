@@ -9,13 +9,17 @@ Die Checkliste zum Abhaken steht in [checkliste.md](checkliste.md).
 1. **Eigene Seiten:** Screaming Frog crawlt die Start-URL mit deiner gespeicherten Konfiguration und exportiert die Embeddings.
 2. **Wettbewerber:** Das Ahrefs-MCP liefert pro Wettbewerber bis zu 100 Broken Backlinks, eine Zeile pro linkgebender Domain, sortiert nach Domain Rating.
 3. **Matching:** `cli.py` holt die toten Seiten aus der Wayback Machine, bettet sie ein, sucht die drei ähnlichsten eigenen Seiten und prüft live, ob der Link noch existiert.
-4. **Abgleich mit dem Vormonat:** Eine Verlaufsdatei pro Wettbewerber merkt sich jedes gemeldete Paar aus linkgebender Seite und toter URL, zusammen mit dem Monat der Meldung. In den Bericht kommen nur neue Paare.
+4. **Abgleich mit dem Vormonat:** Eine Verlaufsdatei pro Wettbewerber merkt sich jedes gemeldete Paar aus linkgebender Seite und toter URL, zusammen mit dem Monat der ersten Meldung. Daran erkennt der Bericht, was neu ist.
    - Unterschiede bei `https`, `www` oder Schrägstrich am Ende zählen nicht als neu.
-   - Paare, die nicht im Bericht standen, bleiben offen und kommen beim nächsten Lauf wieder dran. Das betrifft Links, die die Live-Prüfung als erledigt eingestuft hat, und Zeilen ohne Treffer.
-   - Ein Content-Gap, für den es später eine passende eigene Seite gibt, wird noch einmal als Chance gemeldet.
+   - Links, die die Live-Prüfung als erledigt einstuft, fallen aus dem Bericht. Taucht so ein Link später wieder als offen auf, steht er wieder drin.
+   - Ein Content-Gap, für den es später eine passende eigene Seite gibt, erscheint dann als neue Chance.
    - Ahrefs liefert pro linkgebender Domain nur einen Beispiel-Link. Wechselt dieser Beispiel-Link, taucht dieselbe Domain mit einer anderen Seite erneut auf.
-5. **Bericht:** Betreff mit der Zahl neuer Chancen, Tabelle mit Linkgeber, toter URL, Anker, Vorschlag, Score und Live-Status, dazu Content-Gaps. Excel-Datei und Mail-Entwürfe hängen an.
+5. **Bericht:** Jeden Monat die komplette Liste aller offenen Chancen. Oben stehen die neuen, darunter die bereits gemeldeten mit dem Monat ihrer ersten Meldung. Pro Linkgeber: tote URL, Anker, alle drei Vorschläge mit Score, Herkunft des Texts und Live-Status. Betreff zum Beispiel "42 Chancen, davon 5 neu". Content-Gaps stehen nur in der Excel-Datei. Excel und Mail-Entwürfe hängen an.
 6. **Versand:** per Resend, per Mail-Connector (Outlook oder Gmail) oder gar nicht. Dann liegt alles im Laufordner.
+
+### Was "Fallback" bei der Wayback Machine heißt
+
+Für jede tote URL holt das Tool den jüngsten Snapshot mit Status 200 aus der Wayback Machine und zieht daraus den Haupttext. Gibt es keinen Snapshot oder enthält er keinen lesbaren Text, baut das Tool einen Ersatztext. Er besteht nur aus dem, was Ahrefs schon liefert: Titel der linkgebenden Seite, Ankertext, Text links und rechts vom Link und den Wörtern aus dem URL-Pfad. Erfunden wird nichts. Das Matching auf dieser Grundlage ist unschärfer, deshalb zeigt der Bericht pro Zeile, woher der Text stammt.
 
 ## Voraussetzungen
 
@@ -42,16 +46,26 @@ cd broken-link-matcher && uv venv && uv pip install -r requirements.txt
 
 ### 2. Screaming-Frog-Konfiguration mit Embeddings
 
-Das Frog-MCP kann Embeddings nicht selbst einschalten. Es startet den Crawl mit einer gespeicherten Konfigurationsdatei. Diese legst du einmal in der Frog-Oberfläche an:
+Das Frog-MCP kann Embeddings nicht selbst einschalten. Es startet den Crawl mit einer gespeicherten Konfigurationsdatei. Darin steckt alles: Crawl-Umfang, Rendering und das Embedding-Setup. Es gibt zwei Wege, die Embeddings zu erzeugen:
 
-1. **KI-Anbieter verbinden:** Konfiguration, API-Zugang, KI, OpenAI. Schlüssel eintragen und verbinden.
-2. **Embedding-Prompt anlegen:** Im selben Fenster unter Prompt-Konfiguration einen Eintrag aus der Bibliothek hinzufügen, der Embeddings aus dem Seiteninhalt erzeugt. Modell zum Beispiel `text-embedding-3-small`.
+| Weg | Einstellung im Monitor | Hinweis |
+|---|---|---|
+| Custom JavaScript (Snippet ruft die OpenAI-API auf) | `frog.embeddings_source`: `custom_javascript` | braucht JavaScript-Rendering; der Schlüssel steht im Snippet und damit in der Konfigurationsdatei |
+| Eingebaute KI-Anbindung von Frog | `frog.embeddings_source`: `ai` | Schlüssel wird in Frog hinterlegt |
+
+So legst du die Datei an:
+
+1. **Embeddings einrichten,** entweder als Custom-JavaScript-Snippet (Konfiguration, Benutzerdefiniert, Custom JavaScript) oder über die KI-Anbindung (Konfiguration, API-Zugang, KI).
+2. **Rendering:** Beim Custom-JavaScript-Weg unter Konfiguration, Spider, Rendering auf JavaScript stellen. Ohne Rendering läuft das Snippet nicht.
 3. **Umfang festlegen:** Nur HTML-Seiten, bei Bedarf auf relevante Verzeichnisse beschränken, Parameter-URLs ausschließen.
-4. **Speichern:** Datei, Konfiguration, Speichern unter. Lege die Datei in das Basisverzeichnis des Frog-MCP, zum Beispiel `~/seo_spider_mcp_server/broken-link-monitor.seospiderconfig`.
+4. **Einmal testen:** Ein paar Seiten crawlen und prüfen, ob die Embedding-Spalte gefüllt ist.
+5. **Speichern:** Datei, Konfiguration, Speichern unter. Lege die Datei in das Basisverzeichnis des Frog-MCP, bei dir `~/seo_spider_mcp_server/`. Auf dieses Verzeichnis hat das MCP sicher Zugriff.
 
-Das Modell im Frog muss exakt zu `embedding.model` in der Monitor-Konfiguration passen. Sonst bricht der Dimensionscheck ab.
+Heißt die Custom-JavaScript-Spalte nicht nach dem Muster "Embeddings ...", trage ihren Namen in `frog.custom_js_field` ein, zum Beispiel `Embeddings Fressnapf 1`.
 
-Gib die Konfigurationsdatei nicht weiter. Je nach Frog-Version können darin Zugangsdaten stecken.
+Das Modell im Snippet oder in der KI-Anbindung muss exakt zu `embedding.model` in der Monitor-Konfiguration passen. Sonst bricht der Dimensionscheck ab.
+
+Gib die Konfigurationsdatei nie weiter und lege sie nie ins Repo. Beim Custom-JavaScript-Weg steht dein API-Schlüssel darin.
 
 ### 3. Schlüssel in `.env`
 
@@ -85,9 +99,11 @@ cp .claude/skills/broken-link-monitor/config.example.json monitor.config.json
 | `start_url` | Start-URL des Crawls, zum Beispiel dein Ratgeber-Verzeichnis |
 | `frog.crawl` | `true` crawlt jeden Monat neu, `false` nimmt `frog.embeddings_file` |
 | `frog.config_file` | die gespeicherte Frog-Konfiguration aus Schritt 2 |
+| `frog.embeddings_source` | `custom_javascript` oder `ai`, siehe Schritt 2 |
+| `frog.custom_js_field` | optional: Name der Custom-JavaScript-Spalte mit den Embeddings |
 | `competitors` | Liste der Wettbewerber-Domains ohne Protokoll |
 | `embedding` | Anbieter und Modell, identisch zum Frog |
-| `ahrefs.limit`, `ahrefs.min_dr` | Zeilen pro Wettbewerber und Mindest-Domain-Rating |
+| `ahrefs` | Filter für den Ahrefs-Abruf, siehe unten |
 | `verify` | Live-Prüfung, ob Ziel noch tot und Link noch vorhanden |
 | `drafts` | Mail-Entwürfe an Linkgeber erzeugen, nur als Entwurf |
 | `contact` | optional: Mail oder URL im User-Agent für Wayback und Live-Prüfung |
@@ -95,6 +111,31 @@ cp .claude/skills/broken-link-monitor/config.example.json monitor.config.json
 | `output_dir` | Ordner für Laufergebnisse und Verlaufsdateien |
 
 `monitor.config.json` steht in `.gitignore`.
+
+#### Ahrefs-Filter
+
+| Feld | Standard | Bedeutung |
+|---|---|---|
+| `limit` | 100 | Zeilen pro Wettbewerber, 1 bis 1000 |
+| `min_dr` | 0 | Mindest-Domain-Rating der linkgebenden Domain |
+| `dofollow_only` | true | nur Dofollow-Links |
+| `content_only` | true | nur Links aus dem Inhaltsbereich, keine Navigation oder Footer |
+| `exclude_spam` | true | Links, die Ahrefs als Spam einstuft, auslassen |
+| `dead_only` | true | nur Ziele mit Status 404 oder 410 |
+| `mode` | subdomains | `subdomains`, `domain`, `prefix` oder `exact` |
+| `aggregation` | 1_per_domain | `1_per_domain` (eine Zeile pro Domain), `similar` oder `all` |
+| `order_by` | domain_rating_source | Sortierung: `domain_rating_source`, `url_rating_source` oder `traffic` |
+| `include_traffic` | false | organischen Traffic der linkgebenden Seite mitholen, kostet 10 Units extra pro Zeile |
+
+`ahrefs_params.py` macht daraus die exakten Parameter für das Ahrefs-MCP. So siehst du vorab, was abgefragt wird:
+
+```bash
+.venv/bin/python ahrefs_params.py --target zooroyal.de
+```
+
+#### Mehrere Wettbewerber
+
+Trage einfach mehrere Domains in `competitors` ein. Der Crawl der eigenen Seite läuft einmal, Ahrefs-Abruf, Matching, Verlauf und Mail gibt es pro Wettbewerber.
 
 ### 6. Einrichtung prüfen
 
@@ -141,7 +182,7 @@ Der Skill findet das Repo über `repo_path` in `monitor.config.json`. Fehlt das 
 
 | Posten | Größenordnung |
 |---|---|
-| Ahrefs | etwa 11 Units pro Zeile, also rund 1.100 Units pro Wettbewerber bei 100 Zeilen |
+| Ahrefs | etwa 12 Units pro Zeile mit den Standardfiltern, also rund 1.200 Units pro Wettbewerber bei 100 Zeilen |
 | Embeddings im Frog | abhängig von der Seitenzahl, bei `text-embedding-3-small` wenige Cent pro tausend Seiten |
 | Embeddings und Mail-Entwürfe im Tool | wenige Cent pro Lauf |
 | Resend | im kostenlosen Kontingent enthalten |
@@ -154,7 +195,7 @@ laeufe/
   2026-11/
     zooroyal.de/
       broken-backlinks.csv         Antwort des Ahrefs-MCP
-      ergebnis.xlsx                alle Zeilen, Spalte "Neu" markiert neue
+      ergebnis.xlsx                alle Zeilen, mit den Spalten "Neu" und "Erstmals gemeldet"
       ergebnis-entwuerfe.md        Mail-Entwürfe
       bericht.md, bericht.html     Bericht, so wie er verschickt wird
     fehler.md                      nur wenn etwas schiefging
@@ -166,7 +207,8 @@ laeufe/
 
 | Meldung | Ursache und Lösung |
 |---|---|
-| Frog-Export ohne Embedding-Spalten | Die Frog-Konfiguration enthält keinen Embedding-Prompt. Schritt 2 wiederholen und neu speichern. |
+| Frog-Export ohne Embeddings | Die Konfiguration enthält kein Embedding-Setup, beim Custom-JavaScript-Weg fehlt das JavaScript-Rendering, oder `frog.embeddings_source` passt nicht zum Weg. |
+| Mehrere oder keine Embedding-Spalten | `frog.custom_js_field` auf den genauen Spaltennamen setzen. |
 | Dimension passt nicht | Modell im Frog und `embedding.model` unterscheiden sich. |
 | `OPENAI_API_KEY ist nicht gesetzt` | `.env` fehlt oder ist leer. |
 | Resend lehnt ab, Domain nicht verifiziert | DNS-Einträge in Resend prüfen, `RESEND_FROM` muss auf der verifizierten Domain liegen. |

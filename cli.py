@@ -27,11 +27,11 @@ from blm.cache import JsonCache
 from blm.embeddings import DEFAULT_EMBED_MODELS, PROVIDERS, EmbeddingError, make_provider
 from blm.envfile import load_env_file
 from blm.export import results_to_dataframe, to_csv_bytes, to_xlsx_bytes
-from blm.history import HistoryError, current_run_id, load_seen, mark_new, record_reported, save_seen
+from blm.history import HistoryError, current_run_id, load_seen, mark_new, pair_key, record_reported, save_seen
 from blm.outreach import DEFAULT_CHAT_MODELS
 from blm.pipeline import ChatConfig, PipelineConfig, PipelineError, PipelineResult, run_pipeline, summary_to_dict
 from blm.ranking import SORT_FIELDS
-from blm.report import build_report, gap_rows, opportunity_rows
+from blm.report import all_opportunity_rows, build_report, gap_rows, opportunity_rows
 
 default_sleeper = time.sleep
 ENV_KEYS = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}
@@ -99,7 +99,7 @@ def guess_competitor(result: PipelineResult) -> str:
 
 
 def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[Path],
-                 new_flags: Optional[list[bool]] = None) -> None:
+                 new_flags: Optional[list[bool]] = None, first_reported: Optional[list[str]] = None) -> None:
     if drafts_path is not None:
         lines = ["# Mail-Entwürfe", ""]
         for key, text in result.drafts.items():
@@ -108,7 +108,7 @@ def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[P
             lines += [f"## {url_from}", "", f"Tote URL: {url_to}", "", text, ""]
         drafts_path.parent.mkdir(parents=True, exist_ok=True)
         drafts_path.write_text("\n".join(lines), encoding="utf-8")  # drafts first: they cost money
-    df = results_to_dataframe(result.results, new_flags)
+    df = results_to_dataframe(result.results, new_flags, first_reported)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.suffix.lower() == ".xlsx":
         out_path.write_bytes(to_xlsx_bytes(df))
@@ -207,21 +207,24 @@ def main(argv: Optional[list[str]] = None) -> int:
         print(f"Abbruch: {exc}", file=sys.stderr)
         return 1
     new_flags = mark_new(result.results, seen or {}, run_id)
-    reported = opportunity_rows(result.results, new_flags) + gap_rows(result.results, new_flags)
+    # every open opportunity is in the report; known pairs keep the run of their first report
+    updated = record_reported(seen or {}, all_opportunity_rows(result.results), run_id)
+    first_reported = [updated.get(pair_key(r.backlink), {}).get("since", "") for r in result.results]
     report = None
     try:
-        write_output(result, args.out, drafts_out, new_flags if seen is not None else None)
+        write_output(result, args.out, drafts_out, new_flags if seen is not None else None,
+                     first_reported if seen is not None else None)
         if args.report:
             attachments = [args.out.name] + ([drafts_out.name] if drafts_out else [])
             report = build_report(result.results, result.summary, new_flags,
                                   competitor=args.competitor or guess_competitor(result), attachments=attachments,
-                                  history=seen is not None)
+                                  first_reported=first_reported, history=seen is not None)
             args.report.write_text(report.text, encoding="utf-8")
             report_html.write_text(report.html, encoding="utf-8")
         if seen is not None:
-            # Only rows that appear in the report are remembered, tagged with this run id. Fixed and
-            # unmatched rows stay open for the next run; a rerun with the same id rebuilds the same report.
-            save_seen(args.seen_file, record_reported(seen, reported, run_id))
+            # Only rows that appear in the report are remembered, tagged with the run of their first report.
+            # Fixed, gap and unmatched rows stay open; a rerun with the same id rebuilds the same report.
+            save_seen(args.seen_file, updated)
     except OSError as exc:
         print(f"Abbruch: Ergebnisdatei konnte nicht geschrieben werden: {exc}", file=sys.stderr)
         return 1
@@ -234,6 +237,7 @@ def main(argv: Optional[list[str]] = None) -> int:
         payload["run_id"] = run_id
         if seen is not None:
             payload["new_rows"] = sum(new_flags)
+        payload["opportunities"] = len(all_opportunity_rows(result.results))
         payload["new_opportunities"] = len(opportunity_rows(result.results, new_flags))
         payload["new_content_gaps"] = len(gap_rows(result.results, new_flags))
         if report:
@@ -245,9 +249,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         for line in summary_lines(result.summary):
             print(line)
         if seen is not None:
-            print(f"Neu seit letztem Lauf: {sum(new_flags)} Zeilen, "
-                  f"{len(opportunity_rows(result.results, new_flags))} Chancen, "
-                  f"{len(gap_rows(result.results, new_flags))} Content-Gaps")
+            print(f"Offene Chancen: {len(all_opportunity_rows(result.results))}, "
+                  f"davon neu: {len(opportunity_rows(result.results, new_flags))}")
         print(f"Ergebnis: {args.out}")
         if report:
             print(f"Bericht: {args.report} und {report_html}")

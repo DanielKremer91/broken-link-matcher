@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -17,6 +18,7 @@ _ENCODINGS = ("utf-8-sig", "utf-16", "cp1252")
 _SNIFF_BYTES = 64 * 1024
 _DELIMITERS = ",;\t|"
 _EXCEL_EXTENSIONS = (".xlsx", ".xlsm", ".xls")
+_NDJSON_EXTENSIONS = (".ndjson", ".jsonl")
 _ERROR_PREFIX = "Datei konnte nicht gelesen werden"
 
 ENC_UTF8 = "utf-8"
@@ -32,7 +34,7 @@ _ENCODING_LABELS = {"utf-8-sig": ENC_UTF8, "utf-16": ENC_UTF16, "cp1252": ENC_CP
 class TableInfo:
     delimiter: Optional[str]
     encoding: str  # one of the ENC_* labels
-    kind: str  # "csv" or "xlsx"
+    kind: str  # "csv", "xlsx" or "ndjson"
     rows: int
     columns: list[str] = field(default_factory=list)
 
@@ -129,6 +131,24 @@ def _read_excel(source, name: str) -> pd.DataFrame:
     return df.fillna("")
 
 
+def _read_ndjson(text: str) -> pd.DataFrame:
+    """One JSON object per line (Screaming Frog MCP exports); null and blanks become ""."""
+    records = []
+    for no, line in enumerate(text.splitlines(), start=1):
+        if not line.strip():
+            continue
+        try:
+            obj = json.loads(line)
+        except ValueError as exc:
+            raise ValueError(f"{_ERROR_PREFIX}: Zeile {no} ist kein gültiges JSON ({exc})") from exc
+        if not isinstance(obj, dict):
+            raise ValueError(f"{_ERROR_PREFIX}: Zeile {no} ist kein JSON-Objekt")
+        records.append({str(k): "" if v is None else (v if isinstance(v, str) else json.dumps(v)) for k, v in obj.items()})
+    if not records:
+        raise ValueError(f"{_ERROR_PREFIX}: Datei ist leer")
+    return pd.DataFrame.from_records(records).fillna("")
+
+
 def read_table_info(source, filename: Optional[str] = None) -> tuple[pd.DataFrame, TableInfo]:
     """Read CSV/TSV/TXT or XLSX/XLSM/XLS and describe how it was read.
 
@@ -152,6 +172,10 @@ def read_table_info(source, filename: Optional[str] = None) -> tuple[pd.DataFram
         if not data.strip():
             raise ValueError("Datei ist leer")
         text, encoding = _decode_with_label(data)
+        if name.endswith(_NDJSON_EXTENSIONS):
+            df = _read_ndjson(text)
+            return df, TableInfo(delimiter=None, encoding=encoding, kind="ndjson", rows=len(df),
+                                 columns=[str(c) for c in df.columns])
         delimiter = _sniff_delimiter(text)
         df = pd.read_csv(io.StringIO(text), sep=delimiter, dtype=str, keep_default_na=False)
     except ValueError as exc:
@@ -183,6 +207,8 @@ def describe_table_info(info: TableInfo) -> str:
     rows = f"{info.rows} {'Zeile' if info.rows == 1 else 'Zeilen'}"
     if info.kind == "xlsx":
         return f"Gelesen: XLSX · {rows}"
+    if info.kind == "ndjson":
+        return f"Gelesen: NDJSON · {rows}"
     delimiter = _DELIMITER_NAMES.get(info.delimiter or "", info.delimiter or "?")
     encoding = _ENCODING_NAMES.get(info.encoding, info.encoding)
     return f"Gelesen: CSV · Trennzeichen {delimiter} · {encoding} · {rows}"

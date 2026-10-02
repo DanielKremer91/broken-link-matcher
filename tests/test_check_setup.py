@@ -132,3 +132,11 @@ def test_missing_config_file_says_not_found(tmp_path, capsys):
 def test_bad_ahrefs_limit_fails(setup, capsys):
     write, _ = setup
     assert run(write(ahrefs={"limit": 0, "min_dr": 0}), capsys)[0] == 1
+    rc, out = run(write(ahrefs={"limit": 100, "sprache": "de"}), capsys)
+    assert rc == 1 and "Unbekannte Ahrefs-Einstellungen" in out
+
+
+def test_embeddings_source_must_be_known(setup, capsys):
+    write, _ = setup
+    rc, out = run(write(frog={"crawl": False, "embeddings_file": "/x", "embeddings_source": "magie"}), capsys)
+    assert rc == 1 and "embeddings_source" in out

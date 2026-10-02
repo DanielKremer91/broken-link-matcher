@@ -10,7 +10,9 @@ import sys
 from pathlib import Path
 from typing import Optional
 
+from ahrefs_params import build as build_ahrefs
 from blm.envfile import load_env_file
+from blm.ingest.ahrefs_api import AhrefsError
 
 PROVIDER_KEYS = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY", "ollama": None}
 MAIL_METHODS = ("resend", "connector", "file")
@@ -38,6 +40,9 @@ def check(cfg: dict) -> list[tuple[bool, str]]:
     add(str(cfg.get("start_url", "")).startswith(("http://", "https://")), "start_url beginnt mit http(s)://")
 
     frog = cfg.get("frog") or {}
+    source = frog.get("embeddings_source", "custom_javascript")
+    add(source in ("custom_javascript", "ai"),
+        f"frog.embeddings_source ist custom_javascript oder ai (ist: {source})")
     if frog.get("crawl", True):
         path = Path(str(frog.get("config_file", ""))).expanduser()
         add(bool(frog.get("config_file")) and path.is_file(), f"Frog-Konfiguration vorhanden ({path})")
@@ -62,11 +67,11 @@ def check(cfg: dict) -> list[tuple[bool, str]]:
         add(bool(os.environ.get(var, "").strip()), f"{var} ist gesetzt (Umgebung oder .env)")
 
     drafts = cfg.get("drafts") or {}
-    ahrefs = cfg.get("ahrefs") or {}
-    limit = ahrefs.get("limit", 100)
-    add(isinstance(limit, int) and 1 <= limit <= 1000, f"ahrefs.limit liegt zwischen 1 und 1000 (ist: {limit})")
-    min_dr = ahrefs.get("min_dr", 0)
-    add(isinstance(min_dr, (int, float)) and 0 <= min_dr <= 100, f"ahrefs.min_dr liegt zwischen 0 und 100 (ist: {min_dr})")
+    try:
+        desc = build_ahrefs(cfg, "beispiel.de")["description"]
+        add(True, f"Ahrefs-Filter gültig ({desc})")
+    except AhrefsError as exc:
+        add(False, f"Ahrefs-Filter gültig: {exc}")
     if drafts.get("enabled"):
         add(bool(str(drafts.get("sender", "")).strip()), "drafts.sender ist gesetzt")
 

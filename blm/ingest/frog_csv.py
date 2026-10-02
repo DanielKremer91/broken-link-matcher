@@ -69,6 +69,26 @@ def _find_fuzzy_vector_column(columns: dict[str, str], url_col: Optional[str]) -
     return None
 
 
+MIN_CONTENT_DIMENSION = 32  # shorter number lists are ordinary data, not embeddings
+
+
+def _find_vector_by_content(df: pd.DataFrame, skip: set) -> Optional[str]:
+    """Column whose first filled cells all parse as number lists of one length >= 32.
+
+    Custom JavaScript extractors carry arbitrary names ("BORA MC Extraction 1").
+    """
+    for col in df.columns:
+        if col in skip:
+            continue
+        sample = [v for v in df[col].head(50).tolist() if str(v).strip()][:5]
+        if not sample:
+            continue
+        vecs = [_parse_vector(v) for v in sample]
+        if all(v is not None and v.size >= MIN_CONTENT_DIMENSION for v in vecs) and len({v.size for v in vecs}) == 1:
+            return str(col)
+    return None
+
+
 def detect_frog_columns(df: pd.DataFrame) -> FrogColumns:
     """Guess URL, title and vector columns. Wide ``embedding_N`` columns take precedence."""
     names = [str(c) for c in df.columns]
@@ -80,7 +100,8 @@ def detect_frog_columns(df: pd.DataFrame) -> FrogColumns:
     )
     vector_col = None
     if not wide_cols:
-        vector_col = _find_column(lowered, VECTOR_CANDIDATES) or _find_fuzzy_vector_column(lowered, url_col)
+        vector_col = (_find_column(lowered, VECTOR_CANDIDATES) or _find_fuzzy_vector_column(lowered, url_col)
+                      or _find_vector_by_content(df, {url_col}))
     return FrogColumns(
         url_col=url_col,
         vector_col=vector_col,

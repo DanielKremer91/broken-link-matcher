@@ -99,11 +99,12 @@ Mit `--drafts` landen die Mail-Entwürfe standardmäßig in `<Name von --out>-en
 
 ## Monatlicher Monitor (Claude-Skill)
 
-Der Skill `broken-link-monitor` in `.claude/skills/` macht aus dem agentischen Weg einen monatlichen Lauf: Frog-Crawl mit Embeddings und Ahrefs-Abfrage über die MCPs, Matching mit `cli.py`, Abgleich mit dem Vormonat und Bericht per Resend, Mail-Connector oder als Datei. In den Bericht kommen nur Linkgeber, die seit dem letzten Lauf neu sind.
+Der Skill `broken-link-monitor` in `.claude/skills/` macht aus dem agentischen Weg einen monatlichen Lauf: Frog-Crawl mit Embeddings und Ahrefs-Abfrage über die MCPs, Matching mit `cli.py`, Abgleich mit dem Vormonat und Bericht per Resend, Mail-Connector oder als Datei. Der Bericht listet jeden Monat alle offenen Chancen, neue zuerst, bereits gemeldete mit dem Monat ihrer ersten Meldung.
 
 - Anleitung: [docs/monatlicher-workflow.md](docs/monatlicher-workflow.md)
 - Checkliste zum Abhaken: [docs/checkliste.md](docs/checkliste.md)
 - Einrichtung prüfen: `.venv/bin/python check_setup.py`
+- Ahrefs-Parameter ansehen: `.venv/bin/python ahrefs_params.py --target konkurrent.de`
 
 ## Tests
 

@@ -5,14 +5,40 @@
   "frog": {
     "crawl": true,
     "config_file": "/Users/DEIN-NAME/seo_spider_mcp_server/broken-link-monitor.seospiderconfig",
+    "embeddings_source": "custom_javascript",
+    "custom_js_field": "",
     "embeddings_file": ""
   },
-  "competitors": ["konkurrent.de"],
-  "embedding": { "provider": "openai", "model": "text-embedding-3-small" },
-  "ahrefs": { "limit": 100, "min_dr": 0 },
+  "competitors": [
+    "konkurrent.de"
+  ],
+  "embedding": {
+    "provider": "openai",
+    "model": "text-embedding-3-small"
+  },
+  "ahrefs": {
+    "limit": 100,
+    "min_dr": 0,
+    "dofollow_only": true,
+    "content_only": true,
+    "exclude_spam": true,
+    "dead_only": true,
+    "mode": "subdomains",
+    "aggregation": "1_per_domain",
+    "include_traffic": false,
+    "order_by": "domain_rating_source"
+  },
   "verify": true,
-  "drafts": { "enabled": true, "sender": "Vorname Nachname" },
+  "drafts": {
+    "enabled": true,
+    "sender": "Vorname Nachname"
+  },
   "contact": "",
-  "mail": { "method": "resend", "to": ["du@meine-domain.de"] },
+  "mail": {
+    "method": "resend",
+    "to": [
+      "du@meine-domain.de"
+    ]
+  },
   "output_dir": "laeufe"
 }

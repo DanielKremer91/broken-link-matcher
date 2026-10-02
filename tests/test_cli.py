@@ -258,7 +258,10 @@ def test_rerun_same_month_repeats_report_next_month_is_empty(monkeypatch, tmp_pa
     assert again["report_subject"] == first["report_subject"]
     assert cli.main(args + ["--run-id", "2026-11"]) == 0
     later = json.loads(capsys.readouterr().out)
-    assert later["new_opportunities"] == 0 and "keine neuen Chancen" in later["report_subject"]
+    assert later["new_opportunities"] == 0 and later["opportunities"] == first["opportunities"]
+    assert later["report_subject"].endswith("davon 0 neu")
+    df = pd.read_excel(tmp_path / "ergebnis.xlsx")
+    assert set(df.loc[df["Neu"] == "Nein", "Erstmals gemeldet"].dropna()) == {"2026-10"}
 
 
 @respx.mock

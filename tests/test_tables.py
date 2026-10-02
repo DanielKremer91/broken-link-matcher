@@ -169,3 +169,23 @@ def test_read_table_drops_info_and_backlinks_module_reexports_it():
 )
 def test_describe_table_info(info, expected):
     assert describe_table_info(info) == expected
+
+
+def test_ndjson_is_read_as_table(tmp_path):
+    from blm.ingest.tables import describe_table_info, read_table_info
+    p = tmp_path / "frog.ndjson"
+    p.write_text('{"Address":"https://a.de/x","Ext 1":"0.1,0.2"}\n\n{"Address":"https://a.de/y","Ext 1":null}\n',
+                 encoding="utf-8")
+    df, info = read_table_info(p)
+    assert list(df.columns) == ["Address", "Ext 1"] and len(df) == 2
+    assert df.loc[1, "Ext 1"] == ""
+    assert info.kind == "ndjson" and describe_table_info(info) == "Gelesen: NDJSON · 2 Zeilen"
+
+
+def test_broken_ndjson_raises_value_error(tmp_path):
+    import pytest
+    from blm.ingest.tables import read_table
+    p = tmp_path / "x.jsonl"
+    p.write_text('{"a": 1}\n{kaputt\n', encoding="utf-8")
+    with pytest.raises(ValueError, match="Datei konnte nicht gelesen werden"):
+        read_table(p)

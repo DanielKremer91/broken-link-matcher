@@ -545,7 +545,7 @@ def test_uploaders_accept_csv_variants_and_excel_and_mention_excel_caveat():
     at = AppTest.from_file(APP, default_timeout=30).run()
     frog = at.file_uploader(key="frog_upload")
     backlinks = at.file_uploader(key="bl_upload")
-    assert frog.proto.type == [".csv", ".xlsx", ".xlsm", ".tsv", ".txt"]
+    assert frog.proto.type == [".csv", ".xlsx", ".xlsm", ".tsv", ".txt", ".ndjson", ".jsonl"]
     assert backlinks.proto.type == [".csv", ".xlsx", ".xlsm", ".xls", ".tsv", ".txt"]
     for widget in (frog, backlinks):
         assert_good_help(widget)

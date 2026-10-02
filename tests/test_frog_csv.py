@@ -228,3 +228,24 @@ def test_wide_columns_with_decimal_commas(tmp_path):
     imp = load_frog_embeddings(f)
     assert imp.dimension == 2 and imp.skipped == 0
     assert imp.pages[0].vector.tolist() == pytest.approx([0.1, 0.25])
+
+
+def test_vector_column_found_by_content_when_name_is_generic(tmp_path):
+    vec = ",".join(str(i / 100) for i in range(64))
+    p = tmp_path / "customjs.ndjson"
+    p.write_text(
+        f'{{"Address":"https://a.de/1","Content Type":"text/html","BORA MC Extraction 1":"{vec}"}}\n'
+        f'{{"Address":"https://a.de/2","Content Type":"text/html","BORA MC Extraction 1":"{vec}"}}\n',
+        encoding="utf-8")
+    imp = load_frog_embeddings(p)
+    assert imp.dimension == 64 and len(imp.pages) == 2
+    from blm.ingest.tables import read_table
+    assert detect_frog_columns(read_table(p)).vector_col == "BORA MC Extraction 1"
+
+
+def test_short_numeric_columns_are_not_vectors(tmp_path):
+    import pytest
+    p = tmp_path / "x.csv"
+    p.write_text("Address,Status Code,Werte\nhttps://a.de,200,\"1,2,3\"\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="Keine Embedding-Spalten"):
+        load_frog_embeddings(p)

@@ -334,9 +334,9 @@ next_step_box = st.container()
 # ----------------------------------------------------------------- 1. own domain
 st.header("1. Eigene Domain (Screaming-Frog-Embeddings)")
 frog_file = st.file_uploader(
-    "Embeddings-Export aus dem Screaming Frog (CSV oder XLSX)", type=["csv", "xlsx", "xlsm", "tsv", "txt"], key="frog_upload",
-    help="Bulk Export → Embeddings als CSV, TSV, TXT oder XLSX (url plus embedding_N oder Address plus Embed-Spalte). "
-         "Nicht mit Excel als CSV speichern, Excel kürzt lange Vektoren.")
+    "Embeddings-Export aus dem Screaming Frog (CSV, XLSX oder NDJSON)", type=["csv", "xlsx", "xlsm", "tsv", "txt", "ndjson", "jsonl"], key="frog_upload",
+    help="Embeddings als CSV, TSV, TXT, XLSX oder NDJSON (MCP). Erkannt: url plus embedding_N oder Address plus "
+         "Vektor-Spalte. Nicht mit Excel als CSV speichern, Excel kürzt lange Vektoren.")
 with st.expander("Welches Modell habe ich im Frog?"):
     st.markdown(FROG_MODEL_HINT)
 

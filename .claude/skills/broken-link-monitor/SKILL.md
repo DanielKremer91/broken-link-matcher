@@ -29,20 +29,23 @@ Ein zweiter Lauf im selben Monat ist unkritisch. Er meldet dieselben Paare noch 
 Wenn `frog.crawl` true ist:
 
 1. Hol das Basisverzeichnis des Frog-MCP mit dem Tool, das das erlaubte Verzeichnis auflistet. Lege darin den Ordner `broken-link-monitor` an, falls er fehlt (Tool zum Anlegen von Verzeichnissen).
-2. Starte den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`.
-3. Frage den Fortschritt mit dem Fortschritts-Tool ab, bis 100 Prozent erreicht sind. Warte zwischen zwei Abfragen zwei bis fünf Minuten, zum Beispiel mit `sleep 120` in der Shell. Ist Warten in der Shell gesperrt, nutze das verfügbare Warte- oder Monitor-Werkzeug. Nach drei Stunden ohne Abschluss weiter mit Schritt 6.
-4. Exportiere die Embeddings mit dem Export-Tool nach `broken-link-monitor/<own_domain>-<RUN>.csv` (relativ zum Basisverzeichnis). Der absolute Pfad ist Basisverzeichnis plus dieser Pfad.
-5. Lies nur die erste Zeile der CSV. Sie muss `url` und Spalten `embedding_0`, `embedding_1` und so weiter enthalten. Fehlen sie, weiter mit Schritt 6 und dem Hinweis: "Die Frog-Konfiguration enthält keine Embeddings."
+2. Starte den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`. JavaScript-Rendering und das Embedding-Snippet stecken in dieser Konfiguration.
+3. Frage den Fortschritt mit dem Fortschritts-Tool ab, bis Crawl, API-Abrufe und Nachbearbeitung bei 100 Prozent sind. Warte zwischen zwei Abfragen zwei bis fünf Minuten, zum Beispiel mit `sleep 180` in der Shell. Ist Warten in der Shell gesperrt, nutze das verfügbare Warte- oder Monitor-Werkzeug. Nach sechs Stunden ohne Abschluss weiter mit Schritt 6.
+4. Exportiere die Embeddings, je nach `frog.embeddings_source`:
+   - **custom_javascript**: Liste die Datenfelder des SEO-Elements `Custom JavaScript` mit Filter `All`. Nimm das Feld aus `frog.custom_js_field`. Ist es leer, nimm das einzige Feld, dessen Name `embed` enthält (Groß- und Kleinschreibung egal). Gibt es keins oder mehrere, weiter mit Schritt 6 und der Liste der Felder. Exportiere dann mit dem Tool für SEO-Element-URLs: Element `Custom JavaScript`, Filter `All`, Felder `Address` und das gewählte Feld, ohne Zeilenlimit, Datei `broken-link-monitor/<own_domain>-<RUN>.ndjson`.
+   - **ai**: Exportiere mit dem Embedding-Export-Tool nach `broken-link-monitor/<own_domain>-<RUN>.csv`. Dieser Export funktioniert nur mit den eingebauten KI-Embeddings von Frog.
+   Der absolute Pfad ist Basisverzeichnis plus Dateipfad. Die Antwort des Export-Tools enthält eine lange Beispielzeile mit Zahlen; lies sie nicht aus, die Datei reicht.
+5. Prüfe den Export: `.venv/bin/python -c "import sys; from blm.ingest.frog_csv import load_frog_embeddings; i = load_frog_embeddings(sys.argv[1]); print(len(i.pages), i.dimension)" <absoluter Pfad>`. Ausgabe sind Seitenzahl und Dimension. Bei einem Fehler oder null Seiten weiter mit Schritt 6 und dem Hinweis: "Der Frog-Export enthält keine Embeddings. Konfiguration prüfen."
 
-Wenn `frog.crawl` false ist, nimm `frog.embeddings_file` als fertigen Export.
+Wenn `frog.crawl` false ist, nimm `frog.embeddings_file` als fertigen Export und prüfe ihn genauso.
 
 ## Schritt 2: Broken Backlinks pro Wettbewerber (Ahrefs-MCP)
 
 Für jeden Eintrag `W` in `competitors`:
 
-1. Lies einmal die Doku des Endpunkts mit dem Ahrefs-Tool `doc`.
-2. Rufe `site-explorer-broken-backlinks` auf: target `W`, mode `subdomains`, aggregation `1_per_domain`, where `is_dofollow = true` und `is_content = true`, bei `ahrefs.min_dr` größer 0 zusätzlich `domain_rating_source >= ahrefs.min_dr`, order_by `domain_rating_source:desc`, limit `ahrefs.limit`, output `csv`, select `url_from,url_to,anchor,snippet_left,snippet_right,title,domain_rating_source,url_rating_source,http_code_target,is_dofollow,is_content`.
-3. Speichere die Antwort unverändert als `<laufordner>/W/broken-backlinks.csv`.
+1. Erzeuge die Parameter: `.venv/bin/python ahrefs_params.py --config <pfad zur config> --target W`. Die Ausgabe ist JSON mit `mcp` (Parameter für das MCP), `cli_args` (Filter für `cli.py`) und `description`.
+2. Rufe `site-explorer-broken-backlinks` mit genau den Werten aus `mcp` auf. Übernimm `where` unverändert als Text.
+3. Speichere die CSV-Antwort unverändert als `<laufordner>/W/broken-backlinks.csv`. Hinweise des MCP zur Darstellung gehören nicht in die Datei.
 4. Kontrolle: `.venv/bin/python -c "import sys; from blm.ingest.backlinks_csv import read_table, detect_columns; df = read_table(sys.argv[1]); col = detect_columns(df).mapping['url_to']; print(len(df), df[col].astype(str).str.lower().str.contains(sys.argv[2].lower(), regex=False).all())" <datei> W`. Die erste Zahl muss zur Zeilenzahl der MCP-Antwort passen und der zweite Wert muss `True` sein. Sonst die Datei neu schreiben, beim zweiten Fehlschlag weiter mit Schritt 6 für diesen Wettbewerber.
 
 ## Schritt 3: Matching (cli.py)
@@ -54,7 +57,7 @@ Für jeden Wettbewerber `W`:
   --frog <absoluter Pfad aus Schritt 1> \
   --backlinks <laufordner>/W/broken-backlinks.csv \
   --provider <embedding.provider> --model <embedding.model> \
-  --limit <ahrefs.limit> --min-dr <ahrefs.min_dr> \
+  <cli_args aus Schritt 2> \
   --out <laufordner>/W/ergebnis.xlsx \
   --seen-file <output_dir>/verlauf-W.json --run-id <RUN> \
   --report <laufordner>/W/bericht.md --competitor W \
@@ -67,7 +70,7 @@ Zusätze:
 - `--drafts --sender "<drafts.sender>" --domain <own_domain>`, wenn `drafts.enabled` true ist.
 - `--contact "<contact>"`, wenn `contact` nicht leer ist.
 
-Exit-Code 0: Lies die JSON-Ausgabe. Du brauchst `report_subject`, `report`, `report_html`, `output`, `drafts_output` (falls vorhanden), `new_opportunities` und `new_content_gaps`.
+Exit-Code 0: Lies die JSON-Ausgabe. Du brauchst `report_subject`, `report`, `report_html`, `output`, `drafts_output` (falls vorhanden), `opportunities` und `new_opportunities`.
 
 Exit-Code ungleich 0: Notiere Wettbewerber und stderr-Meldung für Schritt 6 und mach mit dem nächsten Wettbewerber weiter.
 
@@ -96,4 +99,4 @@ Sammle alle Fehler dieses Laufs (Einrichtung, Crawl, Ahrefs, `cli.py`, Versand) 
 
 ## Schritt 7: Abschluss
 
-Antworte mit einer kurzen Zusammenfassung: pro Wettbewerber neue Chancen und Content-Gaps aus der JSON-Ausgabe, Versandstatus, Fehler und Pfad zum Laufordner.
+Antworte mit einer kurzen Zusammenfassung: pro Wettbewerber offene und neue Chancen aus der JSON-Ausgabe, Versandstatus, Fehler und Pfad zum Laufordner.

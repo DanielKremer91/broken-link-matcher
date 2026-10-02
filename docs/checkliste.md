@@ -13,14 +13,18 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 ## Einrichtung
 
 - [ ] Repo geklont und `uv venv && uv pip install -r requirements.txt` ausgeführt
-- [ ] Frog: KI-Anbieter verbunden und Embedding-Prompt angelegt
+- [ ] Frog: Embeddings eingerichtet, per Custom JavaScript oder KI-Anbindung
+- [ ] Frog: bei Custom JavaScript das Rendering auf JavaScript gestellt
+- [ ] Frog: ein Testcrawl zeigt gefüllte Embedding-Spalten
 - [ ] Frog: Modell notiert, zum Beispiel `text-embedding-3-small`
-- [ ] Frog: Konfiguration im MCP-Basisverzeichnis gespeichert
+- [ ] Frog: Konfiguration im MCP-Basisverzeichnis gespeichert, nie weitergegeben
 - [ ] `.env` aus `.env.example` angelegt, Schlüssel eingetragen, `chmod 600 .env`
 - [ ] Resend: Domain verifiziert, Schlüssel und Absender in `.env`
 - [ ] `monitor.config.json` aus der Vorlage angelegt und ausgefüllt
 - [ ] Gleiches Embedding-Modell in Frog und `monitor.config.json`
+- [ ] `frog.embeddings_source` passt zum Weg: `custom_javascript` oder `ai`
 - [ ] Wettbewerber als Domain ohne `https://` eingetragen
+- [ ] Ahrefs-Filter eingestellt und mit `ahrefs_params.py` angesehen
 - [ ] `.venv/bin/python check_setup.py` zeigt nur Haken
 
 ## Erster Lauf
@@ -42,4 +46,5 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 - [ ] Nur Zeilen mit Live-Prüfung "bestätigt" anschreiben
 - [ ] Vorschlagsseite öffnen: Ersetzt sie den toten Inhalt wirklich?
 - [ ] Mail-Entwurf lesen und persönlich anpassen, nie ungeprüft verschicken
-- [ ] Content-Gaps als Ideen für neue Inhalte notieren
+- [ ] Zeilen mit Ersatztext statt Wayback-Snapshot besonders kritisch prüfen
+- [ ] Content-Gaps aus der Excel-Datei als Ideen für neue Inhalte notieren

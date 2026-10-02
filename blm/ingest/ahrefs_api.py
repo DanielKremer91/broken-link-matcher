@@ -67,6 +67,52 @@ def describe_filters(
     return " · ".join(parts) or "keine Filter"
 
 
+MODES = ("subdomains", "domain", "prefix", "exact")
+AGGREGATIONS = ("1_per_domain", "similar", "all")
+ORDER_FIELDS = ("domain_rating_source", "url_rating_source", "traffic")
+
+
+def build_params(
+    target: str,
+    *,
+    limit: int = 100,
+    include_traffic: bool = False,
+    dofollow_only: bool = True,
+    content_only: bool = True,
+    exclude_spam: bool = True,
+    dead_only: bool = True,
+    min_dr: float = 0.0,
+    mode: str = "subdomains",
+    aggregation: str = "1_per_domain",
+    order_by: str = "domain_rating_source",
+    output: str = "json",
+) -> dict:
+    """Query parameters for site-explorer/broken-backlinks (API and MCP use the same names)."""
+    if mode not in MODES:
+        raise AhrefsError(f"Unbekannter Modus: {mode} (erlaubt: {', '.join(MODES)})")
+    if aggregation not in AGGREGATIONS:
+        raise AhrefsError(f"Unbekannte Aggregation: {aggregation} (erlaubt: {', '.join(AGGREGATIONS)})")
+    if order_by not in ORDER_FIELDS:
+        raise AhrefsError(f"Unbekannte Sortierung: {order_by} (erlaubt: {', '.join(ORDER_FIELDS)})")
+    if order_by == "traffic" and not include_traffic:
+        raise AhrefsError("Sortierung nach traffic braucht include_traffic.")
+    select = BASE_SELECT + (["traffic"] if include_traffic else [])
+    params = {
+        "target": target.strip(),
+        "mode": mode,
+        "aggregation": aggregation,
+        "order_by": f"{order_by}:desc",
+        "select": ",".join(select),
+        "limit": int(limit),
+        "output": output,
+    }
+    where = _build_where(dofollow_only=dofollow_only, content_only=content_only, exclude_spam=exclude_spam,
+                         dead_only=dead_only, min_dr=min_dr)
+    if where is not None:
+        params["where"] = json.dumps(where)
+    return params
+
+
 def fetch_broken_backlinks(
     token: str,
     target: str,
@@ -84,21 +130,9 @@ def fetch_broken_backlinks(
         raise AhrefsError("Ahrefs-API-Schlüssel fehlt.")
     if not target or not target.strip():
         raise AhrefsError("Wettbewerber-Domain fehlt.")
-    target = target.strip()
-    select = BASE_SELECT + (["traffic"] if include_traffic else [])
-    params = {
-        "target": target,
-        "mode": "subdomains",
-        "aggregation": "1_per_domain",
-        "order_by": "domain_rating_source:desc",
-        "select": ",".join(select),
-        "limit": str(limit),
-        "output": "json",
-    }
-    where = _build_where(dofollow_only=dofollow_only, content_only=content_only, exclude_spam=exclude_spam,
-                         dead_only=dead_only, min_dr=min_dr)
-    if where is not None:
-        params["where"] = json.dumps(where)
+    params = build_params(target, limit=limit, include_traffic=include_traffic, dofollow_only=dofollow_only,
+                          content_only=content_only, exclude_spam=exclude_spam, dead_only=dead_only, min_dr=min_dr)
+    params["limit"] = str(params["limit"])
     own_client = client is None
     client = client or httpx.Client(timeout=60.0)
     try:
