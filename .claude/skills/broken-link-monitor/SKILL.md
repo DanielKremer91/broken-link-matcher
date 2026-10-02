@@ -1,11 +1,16 @@
 ---
 name: broken-link-monitor
-description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wettbewerbern über das Ahrefs-MCP, crawlt die eigene Domain mit Embeddings über das Screaming-Frog-MCP, matcht tote Wettbewerber-URLs mit eigenen Seiten (broken-link-matcher, cli.py), listet jeden Monat alle offenen Chancen mit Kennzeichnung der neuen und verschickt den Bericht per Resend, Mail-Connector oder als Datei. Verwende diesen Skill bei "Broken-Link-Monitor", "monatlicher Broken-Link-Lauf", "/broken-link-monitor" oder wenn eine geplante Aufgabe ihn aufruft.
+description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wettbewerbern über das Ahrefs-MCP, crawlt die eigene Domain mit Embeddings über das Screaming-Frog-MCP, matcht tote Wettbewerber-URLs mit eigenen Seiten (broken-link-matcher, cli.py), listet jeden Monat alle offenen Chancen mit Kennzeichnung der neuen und verschickt den Bericht per Resend, Mail-Connector oder als Datei. Verwende diesen Skill bei "Broken-Link-Monitor", "Broken Link Monitor einrichten", "monatlicher Broken-Link-Lauf", "/broken-link-monitor" oder wenn eine geplante Aufgabe ihn aufruft. Richtet den Monitor beim ersten Mal Schritt für Schritt mit der Person ein.
 ---
 
 # Broken-Link-Monitor
 
-Dieser Skill läuft oft unbeaufsichtigt als geplante Aufgabe. Stelle keine Rückfragen. Wenn etwas fehlt oder scheitert, folge Schritt 6.
+## Modus wählen
+
+- **Einrichtung:** Die Person möchte den Monitor einrichten ("einrichten", "zum ersten Mal", "aufsetzen"), oder sie startet den Skill im Gespräch und es gibt noch keine `monitor.config.json`. Dann folge `EINRICHTUNG.md` in diesem Skill-Ordner. Rückfragen sind dort ausdrücklich erwünscht.
+- **Lauf:** Alles andere, insbesondere geplante Aufgaben. Ein geplanter Lauf beginnt mit "Geplanter Lauf ohne Rückfragen". Im Lauf stellst du keine Rückfragen. Wenn etwas fehlt oder scheitert, folge Schritt 6.
+
+Die Schritte unten beschreiben den Lauf.
 
 ## Feste Regeln
 
@@ -17,7 +22,7 @@ Dieser Skill läuft oft unbeaufsichtigt als geplante Aufgabe. Stelle keine Rück
 
 ## Schritt 0: Konfiguration und Lauf-Kennung
 
-1. Suche `monitor.config.json` in dieser Reihenfolge: im Ordner, den die aufrufende Aufgabe nennt, im aktuellen Arbeitsordner, in `~/broken-link-matcher/`. Findest du keine, beende den Lauf mit einer kurzen Meldung in Schritt 7. Ohne Konfiguration gibt es keinen Empfänger.
+1. Suche `monitor.config.json` in dieser Reihenfolge: im Ordner, den die aufrufende Aufgabe nennt, im aktuellen Arbeitsordner, in `~/broken-link-matcher/`. Findest du keine, beende einen geplanten Lauf mit einer kurzen Meldung in Schritt 7: Ohne Konfiguration gibt es keinen Empfänger. Im Gespräch wechselst du stattdessen in die Einrichtung.
 2. `repo_path` ist der Ordner mit `cli.py`. Führe alle Befehle in diesem Ordner aus. Fehlt das Repo, klone es mit `git clone https://github.com/DanielKremer91/broken-link-matcher <repo_path>` und richte die Umgebung ein: `uv venv && uv pip install -r requirements.txt` (braucht `uv`).
 3. Lauf-Kennung `RUN` ist der aktuelle Monat im Format `JJJJ-MM`. Nennt die aufrufende Aufgabe ausdrücklich eine Lauf-Kennung, zum Beispiel zum Nachholen eines Vormonats, nimm diese. Laufordner ist `<output_dir>/<RUN>/`.
 4. Prüfe die Einrichtung: `.venv/bin/python check_setup.py --config <pfad zur config>`. Bei Exit-Code ungleich 0 weiter mit Schritt 6, die Ausgabe ist die Fehlermeldung.

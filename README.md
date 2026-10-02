@@ -4,6 +4,18 @@ Broken Link Building mit semantischem Matching. Das Tool nimmt die Broken Backli
 
 Vorgestellt auf der SEOKomm 2026.
 
+## Schnellstart: monatlicher Monitor mit Claude
+
+Öffne die Claude-Desktop-App, Bereich Code, in einem beliebigen Ordner und schreib:
+
+```
+Richte mir den Broken Link Monitor ein. Klone dazu https://github.com/DanielKremer91/broken-link-matcher und folge der Anleitung für Claude in der README.
+```
+
+Claude klont das Repo, stellt dir ein paar Fragen und führt dich Schritt für Schritt durch die Einrichtung bis zum ersten Lauf. Was du dafür brauchst, steht in der [Checkliste](docs/checkliste.md).
+
+> **Anleitung für Claude:** Soll der Broken Link Monitor eingerichtet werden, folge `.claude/skills/broken-link-monitor/EINRICHTUNG.md` in diesem Repo. Für einen Lauf gilt `.claude/skills/broken-link-monitor/SKILL.md`.
+
 ## Ablauf
 
 Die App ist in fünf Abschnitte gegliedert, die du von oben nach unten durchgehst:

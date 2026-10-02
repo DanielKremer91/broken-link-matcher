@@ -1,5 +1,13 @@
 # Monatlicher Broken-Link-Monitor
 
+**Schnellstart:** Claude-Desktop-App öffnen, Bereich Code, und diesen Satz eingeben:
+
+```
+Richte mir den Broken Link Monitor ein. Klone dazu https://github.com/DanielKremer91/broken-link-matcher und folge der Anleitung für Claude in der README.
+```
+
+Claude führt dann durch alle Punkte unten.
+
 Einmal im Monat läuft der komplette Workflow automatisch: Claude holt die Broken Backlinks deiner Wettbewerber über das Ahrefs-MCP, crawlt deine eigene Seite mit Embeddings über das Screaming-Frog-MCP, matcht beides mit `cli.py` und schickt dir einen Bericht. Der Bericht enthält jeden Monat alle offenen Chancen und zeigt, welche seit dem letzten Lauf neu dazugekommen sind.
 
 Die Checkliste zum Abhaken steht in [checkliste.md](checkliste.md).

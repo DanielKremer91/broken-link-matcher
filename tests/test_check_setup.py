@@ -140,3 +140,13 @@ def test_embeddings_source_must_be_known(setup, capsys):
     write, _ = setup
     rc, out = run(write(frog={"crawl": False, "embeddings_file": "/x", "embeddings_source": "magie"}), capsys)
     assert rc == 1 and "embeddings_source" in out
+
+
+def test_every_failed_item_explains_the_fix(setup, capsys):
+    write, repo = setup
+    (repo / ".env").unlink()
+    rc, out = run(write(customer="", competitors=["https://k.de"]), capsys)
+    lines = out.splitlines()
+    failed = [i for i, line in enumerate(lines) if line.startswith("✗")]
+    assert failed and all(lines[i + 1].startswith("  Lösung: ") for i in failed)
+    assert "cp .env.example .env" in out and "nie in den Chat" in out

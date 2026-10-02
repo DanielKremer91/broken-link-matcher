@@ -1,5 +1,13 @@
 # Checkliste: Broken-Link-Monitor einrichten
 
+**Schnellstart:** Claude-Desktop-App öffnen, Bereich Code, und diesen Satz eingeben:
+
+```
+Richte mir den Broken Link Monitor ein. Klone dazu https://github.com/DanielKremer91/broken-link-matcher und folge der Anleitung für Claude in der README.
+```
+
+Claude führt dann durch alle Punkte unten.
+
 Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlicher-workflow.md).
 
 ## Zugänge
