@@ -150,3 +150,35 @@ def test_every_failed_item_explains_the_fix(setup, capsys):
     failed = [i for i, line in enumerate(lines) if line.startswith("✗")]
     assert failed and all(lines[i + 1].startswith("  Lösung: ") for i in failed)
     assert "cp .env.example .env" in out and "nie in den Chat" in out
+
+
+def test_inventory_works_without_config_and_hides_values(tmp_path, monkeypatch, capsys):
+    for var in check_setup.KEY_NAMES:
+        monkeypatch.setenv(var, "")
+        monkeypatch.delenv(var)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / ".env").write_text("OPENAI_API_KEY=sk-geheim\nRESEND_FROM=\n", encoding="utf-8")
+    monkeypatch.setattr(check_setup, "__file__", str(repo / "check_setup.py"))
+    monkeypatch.setattr(check_setup, "DEFAULT_FROG_CONFIG", tmp_path / "fehlt.seospiderconfig")
+    rc = check_setup.main(["--inventory", "--config", str(repo / "monitor.config.json")])
+    out = capsys.readouterr().out
+    assert rc == 0 and "sk-geheim" not in out
+    assert "✓ vorhanden: Schlüsseldatei .env" in out
+    assert "✓ vorhanden: OPENAI_API_KEY eingetragen (bei OpenAI-Embeddings)" in out
+    assert "○ fehlt: RESEND_FROM eingetragen (nur bei Versand über Resend)" in out
+    assert "○ fehlt: Konfiguration monitor.config.json" in out
+    assert "○ fehlt: Virtuelle Umgebung .venv" in out
+
+
+def test_inventory_uses_frog_path_from_config(tmp_path, monkeypatch, capsys):
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    frog = tmp_path / "x.seospiderconfig"
+    frog.write_text("x")
+    cfg = repo / "monitor.config.json"
+    cfg.write_text(json.dumps({"frog": {"config_file": str(frog)}}), encoding="utf-8")
+    monkeypatch.setattr(check_setup, "__file__", str(repo / "check_setup.py"))
+    check_setup.main(["--inventory", "--config", str(cfg)])
+    out = capsys.readouterr().out
+    assert f"✓ vorhanden: Frog-Konfiguration {frog}" in out and "✓ vorhanden: Konfiguration" in out

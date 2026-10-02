@@ -118,10 +118,53 @@ def check(cfg: dict) -> list[tuple[bool, str, str]]:
     return results
 
 
+DEFAULT_FROG_CONFIG = Path("~/seo_spider_mcp_server/broken-link-monitor.seospiderconfig")
+KEY_NAMES = ("OPENAI_API_KEY", "GEMINI_API_KEY", "RESEND_API_KEY", "RESEND_FROM")
+KEY_NOTES = {"OPENAI_API_KEY": " (bei OpenAI-Embeddings)", "GEMINI_API_KEY": " (nur bei Gemini-Embeddings)",
+             "RESEND_API_KEY": " (nur bei Versand über Resend)", "RESEND_FROM": " (nur bei Versand über Resend)"}
+
+
+def inventory(repo: Path, config: Path) -> list[tuple[bool, str]]:
+    """What already exists, for the guided setup. Works without a config; never prints values."""
+    items: list[tuple[bool, str]] = []
+    items.append(((repo / ".venv" / "bin" / "python").exists(), "Virtuelle Umgebung .venv"))
+    env = repo / ".env"
+    items.append((env.is_file(), "Schlüsseldatei .env"))
+    cfg: dict = {}
+    if config.is_file():
+        try:
+            loaded = json.loads(config.read_text(encoding="utf-8"))
+            cfg = loaded if isinstance(loaded, dict) else {}
+            items.append((bool(cfg), f"Konfiguration {config.name}"))
+        except (OSError, ValueError):
+            items.append((False, f"Konfiguration {config.name} (vorhanden, aber kein gültiges JSON)"))
+    else:
+        items.append((False, f"Konfiguration {config.name}"))
+    if env.is_file():
+        try:
+            load_env_file(env)
+        except (OSError, UnicodeDecodeError):
+            items.append((False, ".env lesbar"))
+    for name in KEY_NAMES:
+        items.append((bool(os.environ.get(name, "").strip()), f"{name} eingetragen{KEY_NOTES[name]}"))
+    frog_path = Path(str((cfg.get("frog") or {}).get("config_file") or DEFAULT_FROG_CONFIG)).expanduser()
+    items.append((frog_path.is_file(), f"Frog-Konfiguration {frog_path}"))
+    out_dir = repo / str(cfg.get("output_dir") or "laeufe")
+    histories = sorted(out_dir.glob("verlauf-*.json")) if out_dir.is_dir() else []
+    items.append((bool(histories), "Frühere Läufe (Verlaufsdateien)"))
+    return items
+
+
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="check_setup.py", description="Einrichtung des Broken-Link-Monitors prüfen.")
     p.add_argument("--config", type=Path, default=Path(__file__).parent / "monitor.config.json")
+    p.add_argument("--inventory", action="store_true",
+                   help="Bestandsaufnahme für die Einrichtung: was ist schon da, was fehlt (auch ohne Konfiguration)")
     args = p.parse_args(argv)
+    if args.inventory:
+        for ok, text in inventory(Path(__file__).parent, args.config):
+            print(("✓ vorhanden: " if ok else "○ fehlt: ") + text)
+        return 0
     if not args.config.is_file():
         print(f"✗ Konfiguration {args.config} nicht gefunden. Vorlage: .claude/skills/broken-link-monitor/config.example.json")
         return 1
