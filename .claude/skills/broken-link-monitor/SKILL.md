@@ -60,7 +60,7 @@ Für jeden Wettbewerber `W`:
   <cli_args aus Schritt 2> \
   --out <laufordner>/W/ergebnis.xlsx \
   --seen-file <output_dir>/verlauf-W.json --run-id <RUN> \
-  --report <laufordner>/W/bericht.md --competitor W \
+  --report <laufordner>/W/bericht.md --competitor W --customer "<customer>" \
   --json --quiet
 ```
 

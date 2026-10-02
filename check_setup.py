@@ -35,6 +35,7 @@ def check(cfg: dict) -> list[tuple[bool, str]]:
         except (OSError, UnicodeDecodeError):
             add(False, ".env ist lesbar (UTF-8)")
 
+    add(bool(str(cfg.get("customer") or "").strip()), "customer (Kundenname für den Betreff) ist gesetzt")
     add(bool(cfg.get("own_domain")), "own_domain ist gesetzt")
     add(bool(str(cfg.get("output_dir") or "").strip()), "output_dir ist gesetzt")
     add(str(cfg.get("start_url", "")).startswith(("http://", "https://")), "start_url beginnt mit http(s)://")

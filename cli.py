@@ -69,6 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run-id", help="Kennung des Laufs, Standard aktueller Monat JJJJ-MM; ein zweiter Lauf mit gleicher Kennung liefert denselben Bericht")
     p.add_argument("--report", type=Path, help="Bericht als .md oder .txt, dazu eine .html-Datei daneben")
     p.add_argument("--competitor", help="Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten URLs)")
+    p.add_argument("--customer", default="", help="Kundenname für Betreff und Text des Berichts, z. B. Fressnapf")
     p.add_argument("--env-file", type=Path, help="Datei mit KEY=Wert-Zeilen für Schlüssel (Standard: .env im Repo)")
     p.add_argument("--json", action="store_true", help="Zusammenfassung als JSON auf stdout")
     p.add_argument("--quiet", action="store_true", help="keinen Fortschritt auf stderr")
@@ -221,6 +222,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             attachments = [args.out.name] + ([drafts_out.name] if drafts_out else [])
             report = build_report(result.results, result.summary, new_flags,
                                   competitor=args.competitor or guess_competitor(result), attachments=attachments,
+                                  customer=args.customer.strip(), run_id=run_id,
                                   first_reported=first_reported, history=seen is not None)
             args.report.write_text(report.text, encoding="utf-8")
             report_html.write_text(report.html, encoding="utf-8")

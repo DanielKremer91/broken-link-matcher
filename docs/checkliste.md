@@ -20,7 +20,7 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 - [ ] Frog: Konfiguration im MCP-Basisverzeichnis gespeichert, nie weitergegeben
 - [ ] `.env` aus `.env.example` angelegt, Schlüssel eingetragen, `chmod 600 .env`
 - [ ] Resend: Domain verifiziert, Schlüssel und Absender in `.env`
-- [ ] `monitor.config.json` aus der Vorlage angelegt und ausgefüllt
+- [ ] `monitor.config.json` aus der Vorlage angelegt und ausgefüllt, inklusive Kundenname in `customer`
 - [ ] Gleiches Embedding-Modell in Frog und `monitor.config.json`
 - [ ] `frog.embeddings_source` passt zum Weg: `custom_javascript` oder `ai`
 - [ ] Wettbewerber als Domain ohne `https://` eingetragen

@@ -17,7 +17,7 @@ def setup(tmp_path, monkeypatch):
     frog_cfg = tmp_path / "frog.seospiderconfig"
     frog_cfg.write_text("x")
     cfg = {
-        "repo_path": str(repo), "own_domain": "fressnapf.de", "start_url": "https://www.fressnapf.de/magazin/",
+        "repo_path": str(repo), "customer": "Fressnapf", "own_domain": "fressnapf.de", "start_url": "https://www.fressnapf.de/magazin/",
         "frog": {"crawl": True, "config_file": str(frog_cfg), "embeddings_file": ""},
         "competitors": ["zooroyal.de"], "embedding": {"provider": "openai", "model": "text-embedding-3-small"},
         "ahrefs": {"limit": 100, "min_dr": 0}, "verify": True,

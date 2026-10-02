@@ -14,7 +14,7 @@ Die Checkliste zum Abhaken steht in [checkliste.md](checkliste.md).
    - Links, die die Live-Prüfung als erledigt einstuft, fallen aus dem Bericht. Taucht so ein Link später wieder als offen auf, steht er wieder drin.
    - Ein Content-Gap, für den es später eine passende eigene Seite gibt, erscheint dann als neue Chance.
    - Ahrefs liefert pro linkgebender Domain nur einen Beispiel-Link. Wechselt dieser Beispiel-Link, taucht dieselbe Domain mit einer anderen Seite erneut auf.
-5. **Bericht:** Jeden Monat die komplette Liste aller offenen Chancen. Oben stehen die neuen, darunter die bereits gemeldeten mit dem Monat ihrer ersten Meldung. Pro Linkgeber: tote URL, Anker, alle drei Vorschläge mit Score, Herkunft des Texts und Live-Status. Betreff zum Beispiel "42 Chancen, davon 5 neu". Content-Gaps stehen nur in der Excel-Datei. Excel und Mail-Entwürfe hängen an.
+5. **Bericht:** Eine kundenfreundliche Mail mit dem Betreff "Broken Link Chancen" und dem Kundennamen, zum Beispiel "Broken Link Chancen Fressnapf". Sie erklärt in einfachen Worten, worum es geht, und listet jeden Monat alle offenen Chancen: oben die neuen, darunter die weiterhin offenen mit dem Monat ihrer ersten Meldung. Pro Chance stehen verlinkende Website, Stärke, nicht mehr erreichbare Seite mit Linktext, passende eigene Seite mit zwei Alternativen, Passgenauigkeit, Grundlage und Status. Am Ende erklärt die Mail jede Angabe. Content-Gaps stehen nur in der Excel-Datei. Excel und Textvorschläge für die Ansprache hängen an.
 6. **Versand:** per Resend, per Mail-Connector (Outlook oder Gmail) oder gar nicht. Dann liegt alles im Laufordner.
 
 ### Was "Fallback" bei der Wayback Machine heißt
@@ -95,6 +95,7 @@ cp .claude/skills/broken-link-monitor/config.example.json monitor.config.json
 | Feld | Bedeutung |
 |---|---|
 | `repo_path` | absoluter Pfad zu diesem Repo |
+| `customer` | Kundenname für Betreff und Text der Mail, zum Beispiel `Fressnapf` |
 | `own_domain` | deine Domain, erscheint in den Mail-Entwürfen |
 | `start_url` | Start-URL des Crawls, zum Beispiel dein Ratgeber-Verzeichnis |
 | `frog.crawl` | `true` crawlt jeden Monat neu, `false` nimmt `frog.embeddings_file` |

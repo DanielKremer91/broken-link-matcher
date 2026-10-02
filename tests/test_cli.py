@@ -259,7 +259,7 @@ def test_rerun_same_month_repeats_report_next_month_has_nothing_new(monkeypatch,
     assert cli.main(args + ["--run-id", "2026-11"]) == 0
     later = json.loads(capsys.readouterr().out)
     assert later["new_opportunities"] == 0 and later["opportunities"] == first["opportunities"]
-    assert later["report_subject"].endswith("davon 0 neu")
+    assert "davon 0 neu" in (tmp_path / "bericht.md").read_text(encoding="utf-8")
     df = pd.read_excel(tmp_path / "ergebnis.xlsx")
     assert set(df.loc[df["Neu"] == "Nein", "Erstmals erfasst"].dropna()) == {"2026-10"}
 
@@ -287,20 +287,23 @@ def test_report_files_written_with_competitor_from_urls(monkeypatch, tmp_path, c
     assert cli.main(base_args(tmp_path) + ["--report", str(report), "--json"]) == 0
     data = json.loads(capsys.readouterr().out)
     assert data["report"] == str(report) and data["report_html"] == str(tmp_path / "bericht.html")
-    assert data["report_subject"].startswith("Broken Link Monitor konkurrent.de:")
+    assert data["report_subject"] == "Broken Link Chancen"
+    assert "Wettbewerber: konkurrent.de" in report.read_text(encoding="utf-8")
     assert "blog.example" in report.read_text(encoding="utf-8")
     assert (tmp_path / "bericht.html").read_text(encoding="utf-8").startswith("<!doctype html>")
     # without --seen-file there is no history: no "Neu" column, no "neu" wording, no new_rows
     assert "Neu" not in pd.read_excel(tmp_path / "ergebnis.xlsx").columns
-    assert "neue" not in data["report_subject"] and "new_rows" not in data
+    assert "Neu seit dem letzten Bericht" not in report.read_text(encoding="utf-8") and "new_rows" not in data
 
 
 @respx.mock
 def test_competitor_label_can_be_set(monkeypatch, tmp_path, capsys, fake_provider):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     mock_wayback()
-    assert cli.main(base_args(tmp_path) + ["--report", str(tmp_path / "b.md"), "--competitor", "zooroyal.de", "--json"]) == 0
-    assert "zooroyal.de" in json.loads(capsys.readouterr().out)["report_subject"]
+    assert cli.main(base_args(tmp_path) + ["--report", str(tmp_path / "b.md"), "--competitor", "zooroyal.de",
+                                           "--customer", "Fressnapf", "--json"]) == 0
+    assert json.loads(capsys.readouterr().out)["report_subject"] == "Broken Link Chancen Fressnapf"
+    assert "Wettbewerber: zooroyal.de" in (tmp_path / "b.md").read_text(encoding="utf-8")
 
 
 def test_corrupt_seen_file_exits_1_before_provider(monkeypatch, tmp_path, capsys):

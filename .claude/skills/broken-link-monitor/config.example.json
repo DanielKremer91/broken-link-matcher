@@ -1,5 +1,6 @@
 {
   "repo_path": "/Users/DEIN-NAME/broken-link-matcher",
+  "customer": "Kundenname",
   "own_domain": "meine-domain.de",
   "start_url": "https://www.meine-domain.de/ratgeber/",
   "frog": {
