@@ -3,7 +3,11 @@
 
 Runs the same workflow as the Streamlit app without a browser, so Claude Code
 or a shell script can drive it. Keys come from environment variables only:
-OPENAI_API_KEY, GEMINI_API_KEY, OLLAMA_URL (default http://localhost:11434).
+OPENAI_API_KEY, GEMINI_API_KEY, OLLAMA_URL (default http://localhost:11434),
+optionally filled from a local .env file that never overrides the shell.
+
+For the monthly monitor: --seen-file remembers reported pairs, --report writes
+a short text and HTML report of the new opportunities.
 """
 
 from __future__ import annotations
@@ -14,25 +18,31 @@ import os
 import re
 import sys
 import time
+from collections import Counter
 from pathlib import Path
+from urllib.parse import urlparse
 from typing import Optional
 
 from blm.cache import JsonCache
 from blm.embeddings import DEFAULT_EMBED_MODELS, PROVIDERS, EmbeddingError, make_provider
+from blm.envfile import load_env_file
 from blm.export import results_to_dataframe, to_csv_bytes, to_xlsx_bytes
+from blm.history import HistoryError, load_seen, mark_new, pair_key, save_seen
 from blm.outreach import DEFAULT_CHAT_MODELS
 from blm.pipeline import ChatConfig, PipelineConfig, PipelineError, PipelineResult, run_pipeline, summary_to_dict
 from blm.ranking import SORT_FIELDS
+from blm.report import build_report, opportunity_rows
 
 default_sleeper = time.sleep
 ENV_KEYS = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}
+DEFAULT_ENV_FILE = Path(__file__).parent / ".env"
 
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="cli.py",
         description="Broken Link Matcher: tote Wettbewerber-URLs mit eigenen Seiten matchen (ohne Oberfläche).",
-        epilog="Schlüssel nur über Umgebungsvariablen: OPENAI_API_KEY, GEMINI_API_KEY, OLLAMA_URL.",
+        epilog="Schlüssel nur über Umgebungsvariablen oder .env: OPENAI_API_KEY, GEMINI_API_KEY, OLLAMA_URL.",
     )
     p.add_argument("--frog", required=True, type=Path, help="Screaming-Frog-Embeddings-Export (CSV/TSV/TXT/XLSX)")
     p.add_argument("--backlinks", required=True, type=Path, help="Broken-Backlinks-Export (CSV/TSV/TXT/XLSX)")
@@ -55,6 +65,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--chat-model", help="Chat-Modell für Entwürfe (Standard je Anbieter)")
     p.add_argument("--drafts-out", type=Path, help="Markdown-Datei für die Mail-Entwürfe (Standard: <Name von --out>-entwuerfe.md neben --out)")
     p.add_argument("--cache-dir", type=Path, default=Path(__file__).parent / ".cache")
+    p.add_argument("--seen-file", type=Path, help="Verlaufsdatei (JSON): markiert neue Zeilen und merkt sich alle gemeldeten")
+    p.add_argument("--report", type=Path, help="Bericht als .md oder .txt, dazu eine .html-Datei daneben")
+    p.add_argument("--competitor", help="Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten URLs)")
+    p.add_argument("--env-file", type=Path, help="Datei mit KEY=Wert-Zeilen für Schlüssel (Standard: .env im Repo)")
     p.add_argument("--json", action="store_true", help="Zusammenfassung als JSON auf stdout")
     p.add_argument("--quiet", action="store_true", help="keinen Fortschritt auf stderr")
     return p
@@ -71,7 +85,20 @@ def resolve_credentials(provider: str) -> tuple[Optional[str], Optional[str]]:
     return key, None
 
 
-def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[Path]) -> None:
+def guess_competitor(result: PipelineResult) -> str:
+    hosts = Counter()
+    for r in result.results:
+        try:
+            host = urlparse(r.backlink.url_to).netloc.lower()
+        except ValueError:
+            continue
+        if host:
+            hosts[host[4:] if host.startswith("www.") else host] += 1
+    return hosts.most_common(1)[0][0] if hosts else "Wettbewerber"
+
+
+def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[Path],
+                 new_flags: Optional[list[bool]] = None) -> None:
     if drafts_path is not None:
         lines = ["# Mail-Entwürfe", ""]
         for key, text in result.drafts.items():
@@ -80,7 +107,7 @@ def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[P
             lines += [f"## {url_from}", "", f"Tote URL: {url_to}", "", text, ""]
         drafts_path.parent.mkdir(parents=True, exist_ok=True)
         drafts_path.write_text("\n".join(lines), encoding="utf-8")  # drafts first: they cost money
-    df = results_to_dataframe(result.results)
+    df = results_to_dataframe(result.results, new_flags)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.suffix.lower() == ".xlsx":
         out_path.write_bytes(to_xlsx_bytes(df))
@@ -123,6 +150,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         parser.error("--max-chars muss mindestens 1000 sein")
     if not 0 <= args.min_dr <= 100:
         parser.error("--min-dr muss zwischen 0 und 100 liegen")
+    if args.report and args.report.suffix.lower() not in (".md", ".txt"):
+        parser.error("--report muss auf .md oder .txt enden")
     if args.drafts and (not args.sender.strip() or not args.domain.strip()):
         print("Mail-Entwürfe brauchen --sender und --domain.", file=sys.stderr)
         return 1
@@ -130,13 +159,27 @@ def main(argv: Optional[list[str]] = None) -> int:
     drafts_out: Optional[Path] = None
     if args.drafts:
         drafts_out = args.drafts_out or args.out.with_name(f"{args.out.stem}-entwuerfe.md")
-    targets = [args.out] + ([drafts_out] if drafts_out else [])
+    report_html = args.report.with_suffix(".html") if args.report else None
+    targets = [args.out] + ([drafts_out] if drafts_out else []) + ([args.report] if args.report else [])
     try:
         for t in targets:
             t.parent.mkdir(parents=True, exist_ok=True)
     except OSError as exc:
         print(f"Abbruch: Ausgabeordner kann nicht angelegt werden: {exc}", file=sys.stderr)
         return 1
+
+    try:
+        load_env_file(args.env_file or DEFAULT_ENV_FILE)
+    except (OSError, UnicodeDecodeError) as exc:
+        print(f"Abbruch: Schlüsseldatei nicht lesbar: {exc}", file=sys.stderr)
+        return 1
+    seen: Optional[set[str]] = None
+    if args.seen_file:
+        try:
+            seen = load_seen(args.seen_file)
+        except HistoryError as exc:
+            print(f"Abbruch: {exc}", file=sys.stderr)
+            return 1
 
     def progress(stage: str, done: int, total: int) -> None:
         if not args.quiet:
@@ -161,8 +204,19 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (PipelineError, EmbeddingError) as exc:
         print(f"Abbruch: {exc}", file=sys.stderr)
         return 1
+    new_flags = mark_new(result.results, seen or set())
+    report = None
     try:
-        write_output(result, args.out, drafts_out)
+        write_output(result, args.out, drafts_out, new_flags if seen is not None else None)
+        if args.report:
+            attachments = [args.out.name] + ([drafts_out.name] if drafts_out else [])
+            report = build_report(result.results, result.summary, new_flags,
+                                  competitor=args.competitor or guess_competitor(result), attachments=attachments)
+            args.report.write_text(report.text, encoding="utf-8")
+            report_html.write_text(report.html, encoding="utf-8")
+        if seen is not None:  # only after every output exists: a failed run must not swallow pairs
+            # unmatched rows (no text, embedding error) stay unseen and are retried next run
+            save_seen(args.seen_file, seen | {pair_key(r.backlink) for r in result.results if r.top})
     except OSError as exc:
         print(f"Abbruch: Ergebnisdatei konnte nicht geschrieben werden: {exc}", file=sys.stderr)
         return 1
@@ -172,11 +226,22 @@ def main(argv: Optional[list[str]] = None) -> int:
         payload["output"] = str(args.out)
         if drafts_out:
             payload["drafts_output"] = str(drafts_out)
+        payload["new_rows"] = sum(new_flags)
+        payload["new_opportunities"] = len(opportunity_rows(result.results, new_flags))
+        if report:
+            payload.update(report=str(args.report), report_html=str(report_html), report_subject=report.subject)
+        if args.seen_file:
+            payload["seen_file"] = str(args.seen_file)
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
         for line in summary_lines(result.summary):
             print(line)
+        if seen is not None:
+            print(f"Neu seit letztem Lauf: {sum(new_flags)} Zeilen, "
+                  f"{len(opportunity_rows(result.results, new_flags))} Chancen")
         print(f"Ergebnis: {args.out}")
+        if report:
+            print(f"Bericht: {args.report} und {report_html}")
     return 0
 
 

@@ -97,6 +97,14 @@ export OPENAI_API_KEY=...   # Schlüssel nur über die Umgebung, nie als Argumen
 
 Mit `--drafts` landen die Mail-Entwürfe standardmäßig in `<Name von --out>-entwuerfe.md` neben der Ergebnisdatei (änderbar mit `--drafts-out`). Exit-Code 0 bei Erfolg, 1 bei Laufzeitfehlern, 2 bei ungültigen Argumenten. App und CLI teilen sich den Cache-Ordner `.cache/`. Prompt, Voraussetzungen und die vollständige Optionsliste stehen in [docs/agentic-workflow.md](docs/agentic-workflow.md).
 
+## Monatlicher Monitor (Claude-Skill)
+
+Der Skill `broken-link-monitor` in `.claude/skills/` macht aus dem agentischen Weg einen monatlichen Lauf: Frog-Crawl mit Embeddings und Ahrefs-Abfrage über die MCPs, Matching mit `cli.py`, Abgleich mit dem Vormonat und Bericht per Resend, Mail-Connector oder als Datei. In den Bericht kommen nur Linkgeber, die seit dem letzten Lauf neu sind.
+
+- Anleitung: [docs/monatlicher-workflow.md](docs/monatlicher-workflow.md)
+- Checkliste zum Abhaken: [docs/checkliste.md](docs/checkliste.md)
+- Einrichtung prüfen: `.venv/bin/python check_setup.py`
+
 ## Tests
 
 ```bash

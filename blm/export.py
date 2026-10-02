@@ -29,9 +29,10 @@ def format_snapshot(ts: Optional[str]) -> str:
     return f"{ts[0:4]}-{ts[4:6]}-{ts[6:8]}"
 
 
-def results_to_dataframe(results: list[MatchResult]) -> pd.DataFrame:
+def results_to_dataframe(results: list[MatchResult], new_flags: Optional[list[bool]] = None) -> pd.DataFrame:
+    """One row per result; with new_flags a column "Neu" (Ja/Nein) follows "Priorität"."""
     records = []
-    for r in results:
+    for idx, r in enumerate(results):
         top = r.top + [None] * (3 - len(r.top))
         rec = {
             "Priorität": r.priority,
@@ -51,8 +52,11 @@ def results_to_dataframe(results: list[MatchResult]) -> pd.DataFrame:
         rec["Content-Gap"] = "Ja" if r.is_content_gap else "Nein"
         rec["Verifikation"] = sanitize_cell(r.verification)
         rec["Fehler"] = sanitize_cell(" | ".join(r.errors))
+        if new_flags is not None:
+            rec["Neu"] = "Ja" if new_flags[idx] else "Nein"
         records.append(rec)
-    return pd.DataFrame.from_records(records, columns=COLUMNS)
+    columns = COLUMNS if new_flags is None else COLUMNS[:1] + ["Neu"] + COLUMNS[1:]
+    return pd.DataFrame.from_records(records, columns=columns)
 
 
 def to_csv_bytes(df: pd.DataFrame) -> bytes:

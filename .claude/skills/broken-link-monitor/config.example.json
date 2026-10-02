@@ -1,0 +1,18 @@
+{
+  "repo_path": "/Users/DEIN-NAME/broken-link-matcher",
+  "own_domain": "meine-domain.de",
+  "start_url": "https://www.meine-domain.de/ratgeber/",
+  "frog": {
+    "crawl": true,
+    "config_file": "/Users/DEIN-NAME/seo_spider_mcp_server/broken-link-monitor.seospiderconfig",
+    "embeddings_file": ""
+  },
+  "competitors": ["konkurrent.de"],
+  "embedding": { "provider": "openai", "model": "text-embedding-3-small" },
+  "ahrefs": { "limit": 100, "min_dr": 0 },
+  "verify": true,
+  "drafts": { "enabled": true, "sender": "Vorname Nachname" },
+  "contact": "",
+  "mail": { "method": "resend", "to": ["du@meine-domain.de"] },
+  "output_dir": "laeufe"
+}

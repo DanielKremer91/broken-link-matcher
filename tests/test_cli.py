@@ -13,6 +13,12 @@ from tests.test_pipeline import KeywordProvider, mock_wayback
 FIX = Path(__file__).parent / "fixtures"
 
 
+@pytest.fixture(autouse=True)
+def no_repo_env_file(monkeypatch, tmp_path):
+    # a real .env in the repo must never leak into tests
+    monkeypatch.setattr(cli, "DEFAULT_ENV_FILE", tmp_path / "keine.env")
+
+
 @pytest.fixture
 def fake_provider(monkeypatch):
     prov = KeywordProvider()
@@ -215,3 +221,103 @@ def test_summary_lines_mention_excel_date_repairs_only_when_present():
     assert not any("Excel" in line for line in cli.summary_lines(PipelineSummary()))
     lines = cli.summary_lines(PipelineSummary(excel_dates_repaired=19))
     assert "Hinweis: 19 Excel-Datumswerte zurückgerechnet" in lines
+
+
+# ------------------------------------------------------------------ monthly monitor
+
+@respx.mock
+def test_seen_file_marks_new_rows_and_is_updated(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    seen = tmp_path / "verlauf" / "seen.json"
+    seen.parent.mkdir()
+    seen.write_text(json.dumps({"keys": ["https://blog.example/kueche|https://konkurrent.de/ratgeber/stahl"]}),
+                    encoding="utf-8")
+    assert cli.main(base_args(tmp_path) + ["--seen-file", str(seen), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["new_rows"] == 1
+    df = pd.read_excel(tmp_path / "ergebnis.xlsx")
+    assert list(df["Neu"]) == ["Nein", "Ja"]
+    keys = set(json.loads(seen.read_text(encoding="utf-8"))["keys"])
+    assert "https://forum.example/t/1|https://konkurrent.de/holz" in keys and len(keys) == 2
+
+
+@respx.mock
+def test_second_run_reports_nothing_new(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    seen = tmp_path / "seen.json"
+    args = base_args(tmp_path) + ["--seen-file", str(seen), "--report", str(tmp_path / "bericht.md"), "--json"]
+    assert cli.main(args) == 0
+    first = json.loads(capsys.readouterr().out)
+    assert first["new_opportunities"] >= 1
+    assert cli.main(args) == 0
+    second = json.loads(capsys.readouterr().out)
+    assert second["new_rows"] == 0 and second["new_opportunities"] == 0
+    assert "keine neuen Chancen" in second["report_subject"]
+
+
+@respx.mock
+def test_report_files_written_with_competitor_from_urls(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    report = tmp_path / "bericht.md"
+    assert cli.main(base_args(tmp_path) + ["--report", str(report), "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["report"] == str(report) and data["report_html"] == str(tmp_path / "bericht.html")
+    assert data["report_subject"].startswith("Broken Link Monitor konkurrent.de:")
+    assert "blog.example" in report.read_text(encoding="utf-8")
+    assert (tmp_path / "bericht.html").read_text(encoding="utf-8").startswith("<!doctype html>")
+    # without --seen-file every row counts as new and the Excel has no "Neu" column
+    assert "Neu" not in pd.read_excel(tmp_path / "ergebnis.xlsx").columns
+
+
+@respx.mock
+def test_competitor_label_can_be_set(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    assert cli.main(base_args(tmp_path) + ["--report", str(tmp_path / "b.md"), "--competitor", "zooroyal.de", "--json"]) == 0
+    assert "zooroyal.de" in json.loads(capsys.readouterr().out)["report_subject"]
+
+
+def test_corrupt_seen_file_exits_1_before_provider(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    seen = tmp_path / "seen.json"
+    seen.write_text("{kaputt", encoding="utf-8")
+    monkeypatch.setattr(cli, "make_provider", lambda *a, **k: pytest.fail("provider must not be built"))
+    assert cli.main(base_args(tmp_path) + ["--seen-file", str(seen)]) == 1
+    assert "Verlaufsdatei" in capsys.readouterr().err
+
+
+def test_report_needs_md_or_txt_suffix(tmp_path):
+    with pytest.raises(SystemExit) as exc:
+        cli.main(base_args(tmp_path) + ["--report", str(tmp_path / "bericht.html")])
+    assert exc.value.code == 2
+
+
+@respx.mock
+def test_key_from_env_file(monkeypatch, tmp_path, fake_provider):
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    mock_wayback()
+    env = tmp_path / ".env"
+    env.write_text("OPENAI_API_KEY=sk-aus-datei\n", encoding="utf-8")
+    assert cli.main(base_args(tmp_path) + ["--env-file", str(env)]) == 0
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+
+
+@respx.mock
+def test_unmatched_rows_are_not_remembered(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    seen = tmp_path / "seen.json"
+    # --no-fallback leaves the row without snapshot unmatched
+    assert cli.main(base_args(tmp_path) + ["--seen-file", str(seen), "--no-fallback"]) == 0
+    keys = set(json.loads(seen.read_text(encoding="utf-8"))["keys"])
+    assert keys == {"https://blog.example/kueche|https://konkurrent.de/ratgeber/stahl"}
+
+
+def test_unreadable_env_file_exits_1(monkeypatch, tmp_path, capsys):
+    env = tmp_path / ".env"
+    env.write_bytes(b"OPENAI_API_KEY=\xff\xfe")
+    assert cli.main(base_args(tmp_path) + ["--env-file", str(env)]) == 1
+    assert "Schlüsseldatei" in capsys.readouterr().err

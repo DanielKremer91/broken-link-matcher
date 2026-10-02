@@ -50,8 +50,9 @@ usage: cli.py [-h] --frog FROG --backlinks BACKLINKS [--provider {openai,gemini,
               [--sort {domain_rating,url_rating,page_traffic}] [--all-links]
               [--threshold THRESHOLD] [--no-fallback] [--max-chars MAX_CHARS] [--pause PAUSE]
               [--contact CONTACT] [--verify] [--drafts] [--sender SENDER] [--domain DOMAIN]
-              [--chat-model CHAT_MODEL] [--drafts-out DRAFTS_OUT] [--cache-dir CACHE_DIR] [--json]
-              [--quiet]
+              [--chat-model CHAT_MODEL] [--drafts-out DRAFTS_OUT] [--cache-dir CACHE_DIR]
+              [--seen-file SEEN_FILE] [--report REPORT] [--competitor COMPETITOR]
+              [--env-file ENV_FILE] [--json] [--quiet]
 
 Broken Link Matcher: tote Wettbewerber-URLs mit eigenen Seiten matchen (ohne Oberfläche).
 
@@ -84,10 +85,17 @@ options:
                         Markdown-Datei für die Mail-Entwürfe (Standard: <Name von
                         --out>-entwuerfe.md neben --out)
   --cache-dir CACHE_DIR
+  --seen-file SEEN_FILE
+                        Verlaufsdatei (JSON): markiert neue Zeilen und merkt sich alle gemeldeten
+  --report REPORT       Bericht als .md oder .txt, dazu eine .html-Datei daneben
+  --competitor COMPETITOR
+                        Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten
+                        URLs)
+  --env-file ENV_FILE   Datei mit KEY=Wert-Zeilen für Schlüssel (Standard: .env im Repo)
   --json                Zusammenfassung als JSON auf stdout
   --quiet               keinen Fortschritt auf stderr
 
-Schlüssel nur über Umgebungsvariablen: OPENAI_API_KEY, GEMINI_API_KEY, OLLAMA_URL.
+Schlüssel nur über Umgebungsvariablen oder .env: OPENAI_API_KEY, GEMINI_API_KEY, OLLAMA_URL.
 ```
 
 ### Exit-Codes
@@ -102,4 +110,8 @@ Fehlermeldungen stehen auf stderr, die Zusammenfassung (Text oder mit `--json` a
 
 ### Schlüssel
 
-Schlüssel gehören nie auf die Kommandozeile. Es gibt dafür bewusst keine Option, denn Argumente landen in der Shell-History und in der Prozessliste. `cli.py` liest ausschließlich `OPENAI_API_KEY`, `GEMINI_API_KEY` und `OLLAMA_URL` (Standard `http://localhost:11434`) aus der Umgebung und gibt sie nie aus.
+Schlüssel gehören nie auf die Kommandozeile. Es gibt dafür bewusst keine Option, denn Argumente landen in der Shell-History und in der Prozessliste. `cli.py` liest ausschließlich `OPENAI_API_KEY`, `GEMINI_API_KEY` und `OLLAMA_URL` (Standard `http://localhost:11434`) aus der Umgebung und gibt sie nie aus. Fehlen sie in der Shell, nimmt `cli.py` sie aus `.env` im Repo (oder aus der Datei hinter `--env-file`). Werte aus der Shell haben Vorrang.
+
+### Monatlicher Lauf
+
+`--seen-file` merkt sich alle gemeldeten Paare aus Linkgeber und toter URL. Die Ergebnisdatei bekommt dann eine Spalte "Neu". `--report bericht.md` schreibt einen kurzen Bericht der neuen Chancen und daneben `bericht.html` für den Mailversand. Mit `--json` stehen zusätzlich `new_rows`, `new_opportunities`, `report`, `report_html` und `report_subject` in der Ausgabe. Den kompletten monatlichen Ablauf beschreibt [monatlicher-workflow.md](monatlicher-workflow.md).
