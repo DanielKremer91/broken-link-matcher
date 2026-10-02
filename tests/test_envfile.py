@@ -27,3 +27,15 @@ def test_single_quotes_and_empty_values(tmp_path, monkeypatch):
     import os
     assert os.environ["BLM_TEST_C"] == "x y"
     assert "BLM_TEST_D" not in os.environ
+
+
+def test_inline_comments_are_stripped(tmp_path, monkeypatch):
+    import os
+    for v in ("BLM_TEST_E", "BLM_TEST_F", "BLM_TEST_G"):
+        monkeypatch.delenv(v, raising=False)
+    env = tmp_path / ".env"
+    env.write_text('BLM_TEST_E=sk-abc # privat\nBLM_TEST_F="a # b" # kommentar\nBLM_TEST_G=x#y\n', encoding="utf-8")
+    load_env_file(env)
+    assert os.environ["BLM_TEST_E"] == "sk-abc"
+    assert os.environ["BLM_TEST_F"] == "a # b"
+    assert os.environ["BLM_TEST_G"] == "x#y"

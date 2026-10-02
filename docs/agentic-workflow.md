@@ -51,8 +51,8 @@ usage: cli.py [-h] --frog FROG --backlinks BACKLINKS [--provider {openai,gemini,
               [--threshold THRESHOLD] [--no-fallback] [--max-chars MAX_CHARS] [--pause PAUSE]
               [--contact CONTACT] [--verify] [--drafts] [--sender SENDER] [--domain DOMAIN]
               [--chat-model CHAT_MODEL] [--drafts-out DRAFTS_OUT] [--cache-dir CACHE_DIR]
-              [--seen-file SEEN_FILE] [--report REPORT] [--competitor COMPETITOR]
-              [--env-file ENV_FILE] [--json] [--quiet]
+              [--seen-file SEEN_FILE] [--run-id RUN_ID] [--report REPORT]
+              [--competitor COMPETITOR] [--env-file ENV_FILE] [--json] [--quiet]
 
 Broken Link Matcher: tote Wettbewerber-URLs mit eigenen Seiten matchen (ohne Oberfläche).
 
@@ -86,7 +86,10 @@ options:
                         --out>-entwuerfe.md neben --out)
   --cache-dir CACHE_DIR
   --seen-file SEEN_FILE
-                        Verlaufsdatei (JSON): markiert neue Zeilen und merkt sich alle gemeldeten
+                        Verlaufsdatei (JSON): markiert neue Zeilen und merkt sich die im Bericht
+                        gemeldeten
+  --run-id RUN_ID       Kennung des Laufs, Standard aktueller Monat JJJJ-MM; ein zweiter Lauf mit
+                        gleicher Kennung liefert denselben Bericht
   --report REPORT       Bericht als .md oder .txt, dazu eine .html-Datei daneben
   --competitor COMPETITOR
                         Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten
@@ -103,8 +106,8 @@ Schlüssel nur über Umgebungsvariablen oder .env: OPENAI_API_KEY, GEMINI_API_KE
 | Code | Bedeutung |
 |---|---|
 | 0 | Lauf erfolgreich, Ergebnisdatei geschrieben |
-| 1 | Laufzeitfehler: fehlender Schlüssel, Ausgabepfad ist ein Verzeichnis oder nicht beschreibbar, nicht lesbare oder unpassende Eingabedatei, Dimensionskonflikt, Anbieter nicht erreichbar, fehlende `--sender`/`--domain` bei `--drafts` |
-| 2 | Ungültige Argumente (argparse), zum Beispiel unbekannte Option, negative `--pause`, `--limit` unter 1, `--max-chars` unter 1000, `--min-dr` außerhalb 0 bis 100 oder `--out` ohne Endung `.xlsx` oder `.csv` |
+| 1 | Laufzeitfehler: fehlender Schlüssel, nicht lesbare `.env`, Ausgabepfad ist ein Verzeichnis oder nicht beschreibbar, nicht lesbare oder unpassende Eingabedatei, nicht lesbare Verlaufsdatei, Dimensionskonflikt, Anbieter nicht erreichbar, fehlende `--sender`/`--domain` bei `--drafts` |
+| 2 | Ungültige Argumente (argparse), zum Beispiel unbekannte Option, negative `--pause`, `--limit` unter 1, `--max-chars` unter 1000, `--min-dr` außerhalb 0 bis 100, `--out` ohne Endung `.xlsx` oder `.csv` oder `--report` ohne Endung `.md` oder `.txt` |
 
 Fehlermeldungen stehen auf stderr, die Zusammenfassung (Text oder mit `--json` als JSON) auf stdout. Der Fortschritt läuft auf stderr und lässt sich mit `--quiet` abschalten.
 
@@ -114,4 +117,4 @@ Schlüssel gehören nie auf die Kommandozeile. Es gibt dafür bewusst keine Opti
 
 ### Monatlicher Lauf
 
-`--seen-file` merkt sich alle gemeldeten Paare aus Linkgeber und toter URL. Die Ergebnisdatei bekommt dann eine Spalte "Neu". `--report bericht.md` schreibt einen kurzen Bericht der neuen Chancen und daneben `bericht.html` für den Mailversand. Mit `--json` stehen zusätzlich `new_rows`, `new_opportunities`, `report`, `report_html` und `report_subject` in der Ausgabe. Den kompletten monatlichen Ablauf beschreibt [monatlicher-workflow.md](monatlicher-workflow.md).
+`--seen-file` merkt sich die im Bericht gemeldeten Paare aus linkgebender Seite und toter URL, jeweils mit der Lauf-Kennung aus `--run-id` (Standard: aktueller Monat). Ein zweiter Lauf mit derselben Kennung liefert denselben Bericht. Die Ergebnisdatei bekommt eine Spalte "Neu". `--report bericht.md` schreibt einen kurzen Bericht der neuen Chancen und daneben `bericht.html` für den Mailversand. Mit `--json` stehen zusätzlich `run_id`, `new_rows` (nur mit Verlaufsdatei), `new_opportunities`, `new_content_gaps`, `report`, `report_html` und `report_subject` in der Ausgabe. Den kompletten monatlichen Ablauf beschreibt [monatlicher-workflow.md](monatlicher-workflow.md).

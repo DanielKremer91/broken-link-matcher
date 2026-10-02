@@ -226,35 +226,54 @@ def test_summary_lines_mention_excel_date_repairs_only_when_present():
 # ------------------------------------------------------------------ monthly monitor
 
 @respx.mock
-def test_seen_file_marks_new_rows_and_is_updated(monkeypatch, tmp_path, capsys, fake_provider):
+def test_seen_file_marks_new_rows_and_records_reported(monkeypatch, tmp_path, capsys, fake_provider):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     mock_wayback()
     seen = tmp_path / "verlauf" / "seen.json"
     seen.parent.mkdir()
-    seen.write_text(json.dumps({"keys": ["https://blog.example/kueche|https://konkurrent.de/ratgeber/stahl"]}),
-                    encoding="utf-8")
-    assert cli.main(base_args(tmp_path) + ["--seen-file", str(seen), "--json"]) == 0
+    seen.write_text(json.dumps({"keys": {"blog.example/kueche|konkurrent.de/ratgeber/stahl":
+                                         {"status": "match", "since": "2026-09"}}}), encoding="utf-8")
+    assert cli.main(base_args(tmp_path) + ["--seen-file", str(seen), "--run-id", "2026-10", "--json"]) == 0
     data = json.loads(capsys.readouterr().out)
-    assert data["new_rows"] == 1
+    assert data["new_rows"] == 1 and data["run_id"] == "2026-10"
     df = pd.read_excel(tmp_path / "ergebnis.xlsx")
     assert list(df["Neu"]) == ["Nein", "Ja"]
-    keys = set(json.loads(seen.read_text(encoding="utf-8"))["keys"])
-    assert "https://forum.example/t/1|https://konkurrent.de/holz" in keys and len(keys) == 2
+    keys = json.loads(seen.read_text(encoding="utf-8"))["keys"]
+    assert keys["forum.example/t/1|konkurrent.de/holz"]["since"] == "2026-10"
+    assert keys["blog.example/kueche|konkurrent.de/ratgeber/stahl"]["since"] == "2026-09"
 
 
 @respx.mock
-def test_second_run_reports_nothing_new(monkeypatch, tmp_path, capsys, fake_provider):
+def test_rerun_same_month_repeats_report_next_month_is_empty(monkeypatch, tmp_path, capsys, fake_provider):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     mock_wayback()
     seen = tmp_path / "seen.json"
     args = base_args(tmp_path) + ["--seen-file", str(seen), "--report", str(tmp_path / "bericht.md"), "--json"]
-    assert cli.main(args) == 0
+    assert cli.main(args + ["--run-id", "2026-10"]) == 0
     first = json.loads(capsys.readouterr().out)
     assert first["new_opportunities"] >= 1
-    assert cli.main(args) == 0
-    second = json.loads(capsys.readouterr().out)
-    assert second["new_rows"] == 0 and second["new_opportunities"] == 0
-    assert "keine neuen Chancen" in second["report_subject"]
+    assert cli.main(args + ["--run-id", "2026-10"]) == 0
+    again = json.loads(capsys.readouterr().out)
+    assert again["new_opportunities"] == first["new_opportunities"]
+    assert again["report_subject"] == first["report_subject"]
+    assert cli.main(args + ["--run-id", "2026-11"]) == 0
+    later = json.loads(capsys.readouterr().out)
+    assert later["new_opportunities"] == 0 and "keine neuen Chancen" in later["report_subject"]
+
+
+@respx.mock
+def test_fixed_rows_are_not_recorded(monkeypatch, tmp_path, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    import blm.pipeline as pipeline_mod
+
+    def all_fixed(results, client, **kw):
+        for r in results:
+            r.verification = "fixed"
+    monkeypatch.setattr(pipeline_mod, "verify_results", all_fixed)
+    seen = tmp_path / "seen.json"
+    assert cli.main(base_args(tmp_path) + ["--seen-file", str(seen), "--verify"]) == 0
+    assert json.loads(seen.read_text(encoding="utf-8"))["keys"] == {}
 
 
 @respx.mock
@@ -268,8 +287,9 @@ def test_report_files_written_with_competitor_from_urls(monkeypatch, tmp_path, c
     assert data["report_subject"].startswith("Broken Link Monitor konkurrent.de:")
     assert "blog.example" in report.read_text(encoding="utf-8")
     assert (tmp_path / "bericht.html").read_text(encoding="utf-8").startswith("<!doctype html>")
-    # without --seen-file every row counts as new and the Excel has no "Neu" column
+    # without --seen-file there is no history: no "Neu" column, no "neu" wording, no new_rows
     assert "Neu" not in pd.read_excel(tmp_path / "ergebnis.xlsx").columns
+    assert "neue" not in data["report_subject"] and "new_rows" not in data
 
 
 @respx.mock
@@ -313,7 +333,7 @@ def test_unmatched_rows_are_not_remembered(monkeypatch, tmp_path, capsys, fake_p
     # --no-fallback leaves the row without snapshot unmatched
     assert cli.main(base_args(tmp_path) + ["--seen-file", str(seen), "--no-fallback"]) == 0
     keys = set(json.loads(seen.read_text(encoding="utf-8"))["keys"])
-    assert keys == {"https://blog.example/kueche|https://konkurrent.de/ratgeber/stahl"}
+    assert set(keys) == {"blog.example/kueche|konkurrent.de/ratgeber/stahl"}
 
 
 def test_unreadable_env_file_exits_1(monkeypatch, tmp_path, capsys):

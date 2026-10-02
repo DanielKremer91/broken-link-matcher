@@ -27,11 +27,11 @@ from blm.cache import JsonCache
 from blm.embeddings import DEFAULT_EMBED_MODELS, PROVIDERS, EmbeddingError, make_provider
 from blm.envfile import load_env_file
 from blm.export import results_to_dataframe, to_csv_bytes, to_xlsx_bytes
-from blm.history import HistoryError, load_seen, mark_new, pair_key, save_seen
+from blm.history import HistoryError, current_run_id, load_seen, mark_new, record_reported, save_seen
 from blm.outreach import DEFAULT_CHAT_MODELS
 from blm.pipeline import ChatConfig, PipelineConfig, PipelineError, PipelineResult, run_pipeline, summary_to_dict
 from blm.ranking import SORT_FIELDS
-from blm.report import build_report, opportunity_rows
+from blm.report import build_report, gap_rows, opportunity_rows
 
 default_sleeper = time.sleep
 ENV_KEYS = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}
@@ -65,7 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--chat-model", help="Chat-Modell für Entwürfe (Standard je Anbieter)")
     p.add_argument("--drafts-out", type=Path, help="Markdown-Datei für die Mail-Entwürfe (Standard: <Name von --out>-entwuerfe.md neben --out)")
     p.add_argument("--cache-dir", type=Path, default=Path(__file__).parent / ".cache")
-    p.add_argument("--seen-file", type=Path, help="Verlaufsdatei (JSON): markiert neue Zeilen und merkt sich alle gemeldeten")
+    p.add_argument("--seen-file", type=Path, help="Verlaufsdatei (JSON): markiert neue Zeilen und merkt sich die im Bericht gemeldeten")
+    p.add_argument("--run-id", help="Kennung des Laufs, Standard aktueller Monat JJJJ-MM; ein zweiter Lauf mit gleicher Kennung liefert denselben Bericht")
     p.add_argument("--report", type=Path, help="Bericht als .md oder .txt, dazu eine .html-Datei daneben")
     p.add_argument("--competitor", help="Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten URLs)")
     p.add_argument("--env-file", type=Path, help="Datei mit KEY=Wert-Zeilen für Schlüssel (Standard: .env im Repo)")
@@ -173,7 +174,8 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (OSError, UnicodeDecodeError) as exc:
         print(f"Abbruch: Schlüsseldatei nicht lesbar: {exc}", file=sys.stderr)
         return 1
-    seen: Optional[set[str]] = None
+    run_id = (args.run_id or current_run_id()).strip()
+    seen: Optional[dict] = None
     if args.seen_file:
         try:
             seen = load_seen(args.seen_file)
@@ -204,19 +206,22 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (PipelineError, EmbeddingError) as exc:
         print(f"Abbruch: {exc}", file=sys.stderr)
         return 1
-    new_flags = mark_new(result.results, seen or set())
+    new_flags = mark_new(result.results, seen or {}, run_id)
+    reported = opportunity_rows(result.results, new_flags) + gap_rows(result.results, new_flags)
     report = None
     try:
         write_output(result, args.out, drafts_out, new_flags if seen is not None else None)
         if args.report:
             attachments = [args.out.name] + ([drafts_out.name] if drafts_out else [])
             report = build_report(result.results, result.summary, new_flags,
-                                  competitor=args.competitor or guess_competitor(result), attachments=attachments)
+                                  competitor=args.competitor or guess_competitor(result), attachments=attachments,
+                                  history=seen is not None)
             args.report.write_text(report.text, encoding="utf-8")
             report_html.write_text(report.html, encoding="utf-8")
-        if seen is not None:  # only after every output exists: a failed run must not swallow pairs
-            # unmatched rows (no text, embedding error) stay unseen and are retried next run
-            save_seen(args.seen_file, seen | {pair_key(r.backlink) for r in result.results if r.top})
+        if seen is not None:
+            # Only rows that appear in the report are remembered, tagged with this run id. Fixed and
+            # unmatched rows stay open for the next run; a rerun with the same id rebuilds the same report.
+            save_seen(args.seen_file, record_reported(seen, reported, run_id))
     except OSError as exc:
         print(f"Abbruch: Ergebnisdatei konnte nicht geschrieben werden: {exc}", file=sys.stderr)
         return 1
@@ -226,8 +231,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         payload["output"] = str(args.out)
         if drafts_out:
             payload["drafts_output"] = str(drafts_out)
-        payload["new_rows"] = sum(new_flags)
+        payload["run_id"] = run_id
+        if seen is not None:
+            payload["new_rows"] = sum(new_flags)
         payload["new_opportunities"] = len(opportunity_rows(result.results, new_flags))
+        payload["new_content_gaps"] = len(gap_rows(result.results, new_flags))
         if report:
             payload.update(report=str(args.report), report_html=str(report_html), report_subject=report.subject)
         if args.seen_file:
@@ -238,7 +246,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             print(line)
         if seen is not None:
             print(f"Neu seit letztem Lauf: {sum(new_flags)} Zeilen, "
-                  f"{len(opportunity_rows(result.results, new_flags))} Chancen")
+                  f"{len(opportunity_rows(result.results, new_flags))} Chancen, "
+                  f"{len(gap_rows(result.results, new_flags))} Content-Gaps")
         print(f"Ergebnis: {args.out}")
         if report:
             print(f"Bericht: {args.report} und {report_html}")

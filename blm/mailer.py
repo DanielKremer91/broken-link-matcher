@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import time
 from pathlib import Path
 from typing import Callable, Optional
@@ -11,7 +12,7 @@ import httpx
 
 RESEND_URL = "https://api.resend.com/emails"
 RETRY_PAUSES = (2, 4)
-MAX_ATTACHMENT_BYTES = 30 * 1024 * 1024  # Resend allows 40 MB per mail after base64 encoding
+MAX_ATTACHMENT_BYTES = 28 * 1024 * 1024  # raw bytes; Resend allows 40 MB per mail after base64 encoding
 
 
 class MailError(Exception):
@@ -55,18 +56,24 @@ def send_resend(
     client: Optional[httpx.Client] = None,
     sleeper: Callable[[float], None] = time.sleep,
 ) -> str:
-    """Send one mail; returns the Resend message id."""
+    """Send one mail; returns the Resend message id.
+
+    Retries carry the same Idempotency-Key, so a timeout after Resend accepted
+    the mail does not produce a second copy.
+    """
     payload = {"from": sender, "to": list(to), "subject": subject, "html": html, "text": text}
     files = _attachments(attachments)
     if files:
         payload["attachments"] = files
+    digest = hashlib.sha256(repr((sender, sorted(to), subject, html, text, [f["content"] for f in files])).encode())
+    headers = {"Authorization": f"Bearer {api_key}", "Idempotency-Key": f"blm-{digest.hexdigest()[:48]}"}
     own_client = client is None
     client = client or httpx.Client(timeout=60.0)
     last = "unbekannt"
     try:
         for attempt in range(len(RETRY_PAUSES) + 1):
             try:
-                resp = client.post(RESEND_URL, json=payload, headers={"Authorization": f"Bearer {api_key}"})
+                resp = client.post(RESEND_URL, json=payload, headers=headers)
             except httpx.HTTPError as exc:
                 last = f"Netzwerkfehler: {type(exc).__name__}"
             else:

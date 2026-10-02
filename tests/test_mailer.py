@@ -45,6 +45,8 @@ def test_retries_on_429_then_succeeds():
     with httpx.Client() as client:
         assert send_resend("k", "a@b.de", ["c@d.de"], "S", "h", "t", [], client=client, sleeper=no_sleep) == "ok"
     assert route.call_count == 2
+    keys = {c.request.headers["Idempotency-Key"] for c in route.calls}
+    assert len(keys) == 1 and next(iter(keys)).startswith("blm-")
 
 
 @respx.mock

@@ -1,6 +1,6 @@
 # Monatlicher Broken-Link-Monitor
 
-Einmal im Monat läuft der komplette Workflow automatisch: Claude holt die Broken Backlinks deiner Wettbewerber über das Ahrefs-MCP, crawlt deine eigene Seite mit Embeddings über das Screaming-Frog-MCP, matcht beides mit `cli.py` und schickt dir einen Bericht. Der Bericht enthält nur Linkgeber, die seit dem letzten Lauf neu dazugekommen sind.
+Einmal im Monat läuft der komplette Workflow automatisch: Claude holt die Broken Backlinks deiner Wettbewerber über das Ahrefs-MCP, crawlt deine eigene Seite mit Embeddings über das Screaming-Frog-MCP, matcht beides mit `cli.py` und schickt dir einen Bericht. Der Bericht enthält nur Paare aus linkgebender Seite und toter URL, die seit dem letzten Lauf neu dazugekommen sind.
 
 Die Checkliste zum Abhaken steht in [checkliste.md](checkliste.md).
 
@@ -9,7 +9,11 @@ Die Checkliste zum Abhaken steht in [checkliste.md](checkliste.md).
 1. **Eigene Seiten:** Screaming Frog crawlt die Start-URL mit deiner gespeicherten Konfiguration und exportiert die Embeddings.
 2. **Wettbewerber:** Das Ahrefs-MCP liefert pro Wettbewerber bis zu 100 Broken Backlinks, eine Zeile pro linkgebender Domain, sortiert nach Domain Rating.
 3. **Matching:** `cli.py` holt die toten Seiten aus der Wayback Machine, bettet sie ein, sucht die drei ähnlichsten eigenen Seiten und prüft live, ob der Link noch existiert.
-4. **Abgleich mit dem Vormonat:** Eine Verlaufsdatei pro Wettbewerber merkt sich alle bereits gemeldeten Linkgeber. In den Bericht kommen nur neue. Zeilen, die wegen eines Fehlers nicht gematcht wurden, gelten nicht als gemeldet und kommen beim nächsten Lauf erneut dran.
+4. **Abgleich mit dem Vormonat:** Eine Verlaufsdatei pro Wettbewerber merkt sich jedes gemeldete Paar aus linkgebender Seite und toter URL, zusammen mit dem Monat der Meldung. In den Bericht kommen nur neue Paare.
+   - Unterschiede bei `https`, `www` oder Schrägstrich am Ende zählen nicht als neu.
+   - Paare, die nicht im Bericht standen, bleiben offen und kommen beim nächsten Lauf wieder dran. Das betrifft Links, die die Live-Prüfung als erledigt eingestuft hat, und Zeilen ohne Treffer.
+   - Ein Content-Gap, für den es später eine passende eigene Seite gibt, wird noch einmal als Chance gemeldet.
+   - Ahrefs liefert pro linkgebender Domain nur einen Beispiel-Link. Wechselt dieser Beispiel-Link, taucht dieselbe Domain mit einer anderen Seite erneut auf.
 5. **Bericht:** Betreff mit der Zahl neuer Chancen, Tabelle mit Linkgeber, toter URL, Anker, Vorschlag, Score und Live-Status, dazu Content-Gaps. Excel-Datei und Mail-Entwürfe hängen an.
 6. **Versand:** per Resend, per Mail-Connector (Outlook oder Gmail) oder gar nicht. Dann liegt alles im Laufordner.
 
@@ -55,7 +59,7 @@ Gib die Konfigurationsdatei nicht weiter. Je nach Frog-Version können darin Zug
 cp .env.example .env && chmod 600 .env
 ```
 
-Trage danach in `.env` deinen OpenAI-Schlüssel ein, bei Resend auch `RESEND_API_KEY` und `RESEND_FROM`. Die Datei steht in `.gitignore`. Schlüssel gehören nie in den Chat, nie auf die Kommandozeile und nie in die Monitor-Konfiguration.
+Trage danach in `.env` deinen OpenAI-Schlüssel ein, bei Resend auch `RESEND_API_KEY` und `RESEND_FROM`. Kommentare hinter einem Wert sind erlaubt, wenn vor dem `#` ein Leerzeichen steht. Die Datei steht in `.gitignore`. Schlüssel gehören nie in den Chat, nie auf die Kommandozeile und nie in die Monitor-Konfiguration.
 
 ### 4. Resend einrichten (optional)
 
@@ -110,6 +114,8 @@ Das Skript zeigt pro Punkt einen Haken oder ein Kreuz und nennt nie Schlüsselwe
 
 Beim ersten Lauf fragt Claude nach Berechtigungen für die MCP-Tools und für Shell-Befehle. Erlaube sie, damit der automatische Lauf später ohne Rückfrage durchkommt. Prüfe danach Bericht, Excel und Mail.
 
+Weitere Läufe im selben Monat sind unkritisch. Sie liefern denselben Bericht noch einmal, weil sich die Verlaufsdatei den Monat jeder Meldung merkt. Das hilft auch, wenn ein Versand gescheitert ist: Lauf wiederholen, Bericht kommt erneut.
+
 ### 8. Monatlich automatisch
 
 Bitte Claude in der Desktop-App:
@@ -144,14 +150,17 @@ Der Skill findet das Repo über `repo_path` in `monitor.config.json`. Fehlt das 
 
 ```
 laeufe/
-  verlauf-zooroyal.de.json         bereits gemeldete Linkgeber, nie löschen
+  verlauf-zooroyal.de.json         bereits gemeldete Paare mit Monat, nie löschen
   2026-11/
     zooroyal.de/
       broken-backlinks.csv         Antwort des Ahrefs-MCP
       ergebnis.xlsx                alle Zeilen, Spalte "Neu" markiert neue
       ergebnis-entwuerfe.md        Mail-Entwürfe
       bericht.md, bericht.html     Bericht, so wie er verschickt wird
+    fehler.md                      nur wenn etwas schiefging
 ```
+
+`laeufe/` steht in `.gitignore`. Ein `git clean -fdx` oder ein frischer Klon löscht deshalb auch die Verlaufsdateien. Sichere sie, wenn du das Repo neu aufsetzt. Ohne Verlauf gilt beim nächsten Lauf wieder alles als neu.
 
 ## Fehlerbehebung
 
@@ -163,3 +172,4 @@ laeufe/
 | Resend lehnt ab, Domain nicht verifiziert | DNS-Einträge in Resend prüfen, `RESEND_FROM` muss auf der verifizierten Domain liegen. |
 | Verlaufsdatei nicht lesbar | Datei wurde von Hand beschädigt. Aus einem Backup zurückholen oder löschen; dann gilt beim nächsten Lauf wieder alles als neu. |
 | Lauf ist nicht gestartet | Die Desktop-App war geschlossen. Er läuft beim nächsten Öffnen. |
+| Bericht kam nicht an | `fehler.md` im Laufordner lesen. Nach der Behebung den Lauf im selben Monat wiederholen, der Bericht kommt dann vollständig. |

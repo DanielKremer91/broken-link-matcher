@@ -102,3 +102,33 @@ def test_missing_repo_fails(setup, capsys):
     write, _ = setup
     rc, out = run(write(repo_path="/gibt/es/nicht"), capsys)
     assert rc == 1 and "repo_path" in out
+
+
+@pytest.mark.parametrize("comp", ["Zooroyal.de", "zooroyal.de/", "zooroyal"])
+def test_competitor_must_be_plain_lowercase_domain(setup, capsys, comp):
+    write, _ = setup
+    rc, out = run(write(competitors=[comp]), capsys)
+    assert rc == 1
+
+
+def test_empty_or_relative_repo_path_fails(setup, capsys):
+    write, _ = setup
+    assert run(write(repo_path=""), capsys)[0] == 1
+    assert run(write(repo_path="repo"), capsys)[0] == 1
+
+
+def test_placeholder_sender_fails(setup, capsys):
+    write, repo = setup
+    (repo / ".env").write_text("OPENAI_API_KEY=sk\nRESEND_API_KEY=re\nRESEND_FROM=Monitor <monitor@deine-domain.de>\n")
+    rc, out = run(write(), capsys)
+    assert rc == 1 and "RESEND_FROM" in out
+
+
+def test_missing_config_file_says_not_found(tmp_path, capsys):
+    rc, out = run(tmp_path / "fehlt.json", capsys)
+    assert rc == 1 and "nicht gefunden" in out
+
+
+def test_bad_ahrefs_limit_fails(setup, capsys):
+    write, _ = setup
+    assert run(write(ahrefs={"limit": 0, "min_dr": 0}), capsys)[0] == 1

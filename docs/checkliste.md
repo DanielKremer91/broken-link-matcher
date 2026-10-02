@@ -33,8 +33,9 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 ## Automatisierung
 
 - [ ] Geplante Aufgabe angelegt, zum Beispiel am 1. des Monats um 7 Uhr
-- [ ] Einmal "Jetzt ausführen" getestet
+- [ ] Einmal "Jetzt ausführen" getestet (ein zweiter Lauf im selben Monat liefert denselben Bericht)
 - [ ] Desktop-App bleibt geöffnet, Mac zur Laufzeit wach
+- [ ] Ordner `laeufe/` mit den Verlaufsdateien ist im Backup
 
 ## Vor jedem Outreach
 

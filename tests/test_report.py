@@ -79,3 +79,29 @@ def test_errors_and_attachment_hint_appear():
     rep = build_report([row(1)], s, [True], competitor="k.de", attachments=["ergebnis.xlsx", "entwuerfe.md"])
     assert "Wayback-Fehler bei 2 URLs" in rep.text
     assert "ergebnis.xlsx" in rep.text and "entwuerfe.md" in rep.html
+
+
+def test_without_history_wording_drops_neu():
+    rep = build_report([row(1), row(2)], summary(), [True, True], competitor="k.de", history=False)
+    assert rep.subject == "Broken Link Monitor k.de: 2 Chancen"
+    assert "neu seit dem letzten Lauf" not in rep.text
+    rep = build_report([], summary(), [], competitor="k.de", history=False)
+    assert rep.subject.endswith("keine Chancen")
+
+
+def test_unknown_dr_and_multiline_anchor():
+    r = row(1, dr=None)
+    r.backlink.anchor = "Zeile eins\n\tZeile zwei"
+    rep = build_report([r], summary(), [True], competitor="k.de")
+    assert "DR unbekannt" in rep.text
+    assert "(Anker: Zeile eins Zeile zwei)" in rep.text
+
+
+def test_content_gaps_are_capped_with_rest_note():
+    rows = [row(i, gap=True) for i in range(1, 6)]
+    rep = build_report(rows, summary(), [True] * 5, competitor="k.de", top_n=2)
+    assert "tot2" in rep.text and "tot3" not in rep.text and "3 weitere" in rep.text
+
+
+def test_html_declares_utf8():
+    assert '<meta charset="utf-8">' in build_report([row(1)], summary(), [True], competitor="k.de").html

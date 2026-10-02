@@ -22,8 +22,10 @@ def load_env_file(path: Path) -> list[str]:
         if not m:
             continue
         name, value = m.group(1), m.group(2)
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in ("'", '"'):
-            value = value[1:-1]
+        if value[:1] in ("'", '"') and value.find(value[0], 1) > 0:
+            value = value[1:value.find(value[0], 1)]  # quoted: anything after the closing quote is ignored
+        else:
+            value = re.split(r"\s+#", value, maxsplit=1)[0].strip()  # unquoted: " # comment" is not part of it
         if not value or os.environ.get(name):
             continue
         os.environ[name] = value
