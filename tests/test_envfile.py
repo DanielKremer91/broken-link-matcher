@@ -39,3 +39,12 @@ def test_inline_comments_are_stripped(tmp_path, monkeypatch):
     assert os.environ["BLM_TEST_E"] == "sk-abc"
     assert os.environ["BLM_TEST_F"] == "a # b"
     assert os.environ["BLM_TEST_G"] == "x#y"
+
+
+def test_empty_value_with_comment_stays_unset(tmp_path, monkeypatch):
+    import os
+    monkeypatch.delenv("BLM_TEST_H", raising=False)
+    env = tmp_path / ".env"
+    env.write_text("BLM_TEST_H=   # später eintragen\n", encoding="utf-8")
+    assert load_env_file(env) == []
+    assert "BLM_TEST_H" not in os.environ

@@ -105,3 +105,10 @@ def test_content_gaps_are_capped_with_rest_note():
 
 def test_html_declares_utf8():
     assert '<meta charset="utf-8">' in build_report([row(1)], summary(), [True], competitor="k.de").html
+
+
+def test_http_and_https_variants_of_one_pair_are_listed_once():
+    a, b = row(1), row(2)
+    b.backlink.url_from = a.backlink.url_from.replace("https://", "http://")
+    b.backlink.url_to = a.backlink.url_to
+    assert len(opportunity_rows([a, b], [True, True])) == 1

@@ -86,10 +86,9 @@ def is_new(r: MatchResult, seen: Seen, run_id: str) -> bool:
     entry = seen.get(pair_key(r.backlink))
     if entry is None:
         return True
-    status = row_status(r)
-    if entry["since"] == run_id and (status is None or entry["status"] == status):
-        return True  # reported in this run already: a rerun shows the same rows
-    return entry["status"] == "gap" and status == "match"
+    if entry["since"] == run_id:
+        return True  # reported in this run already: a rerun shows these rows again
+    return entry["status"] == "gap" and row_status(r) == "match"
 
 
 def mark_new(results: list[MatchResult], seen: Seen, run_id: str) -> list[bool]:

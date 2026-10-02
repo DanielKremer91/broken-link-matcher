@@ -114,7 +114,7 @@ Das Skript zeigt pro Punkt einen Haken oder ein Kreuz und nennt nie Schlüsselwe
 
 Beim ersten Lauf fragt Claude nach Berechtigungen für die MCP-Tools und für Shell-Befehle. Erlaube sie, damit der automatische Lauf später ohne Rückfrage durchkommt. Prüfe danach Bericht, Excel und Mail.
 
-Weitere Läufe im selben Monat sind unkritisch. Sie liefern denselben Bericht noch einmal, weil sich die Verlaufsdatei den Monat jeder Meldung merkt. Das hilft auch, wenn ein Versand gescheitert ist: Lauf wiederholen, Bericht kommt erneut.
+Weitere Läufe im selben Monat sind unkritisch. Sie melden dieselben Paare noch einmal, weil sich die Verlaufsdatei den Monat jeder Meldung merkt. Das hilft auch, wenn ein Versand gescheitert ist: Lauf wiederholen, Bericht kommt erneut.
 
 ### 8. Monatlich automatisch
 
@@ -172,4 +172,4 @@ laeufe/
 | Resend lehnt ab, Domain nicht verifiziert | DNS-Einträge in Resend prüfen, `RESEND_FROM` muss auf der verifizierten Domain liegen. |
 | Verlaufsdatei nicht lesbar | Datei wurde von Hand beschädigt. Aus einem Backup zurückholen oder löschen; dann gilt beim nächsten Lauf wieder alles als neu. |
 | Lauf ist nicht gestartet | Die Desktop-App war geschlossen. Er läuft beim nächsten Öffnen. |
-| Bericht kam nicht an | `fehler.md` im Laufordner lesen. Nach der Behebung den Lauf im selben Monat wiederholen, der Bericht kommt dann vollständig. |
+| Bericht kam nicht an | `fehler.md` im Laufordner lesen. Nach der Behebung den Lauf wiederholen. Im selben Monat genügt `/broken-link-monitor`. Ist der Monat schon vorbei, nenne die Lauf-Kennung: `/broken-link-monitor mit Lauf-Kennung 2026-11`. |

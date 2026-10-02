@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import base64
-import hashlib
 import time
+import uuid
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -58,15 +58,15 @@ def send_resend(
 ) -> str:
     """Send one mail; returns the Resend message id.
 
-    Retries carry the same Idempotency-Key, so a timeout after Resend accepted
-    the mail does not produce a second copy.
+    Retries within this call carry the same Idempotency-Key, so a timeout after
+    Resend accepted the mail does not produce a second copy. A new call is a new
+    mail, so a deliberate resend is never swallowed.
     """
     payload = {"from": sender, "to": list(to), "subject": subject, "html": html, "text": text}
     files = _attachments(attachments)
     if files:
         payload["attachments"] = files
-    digest = hashlib.sha256(repr((sender, sorted(to), subject, html, text, [f["content"] for f in files])).encode())
-    headers = {"Authorization": f"Bearer {api_key}", "Idempotency-Key": f"blm-{digest.hexdigest()[:48]}"}
+    headers = {"Authorization": f"Bearer {api_key}", "Idempotency-Key": f"blm-{uuid.uuid4().hex}"}
     own_client = client is None
     client = client or httpx.Client(timeout=60.0)
     last = "unbekannt"

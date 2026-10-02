@@ -19,10 +19,10 @@ Dieser Skill läuft oft unbeaufsichtigt als geplante Aufgabe. Stelle keine Rück
 
 1. Suche `monitor.config.json` in dieser Reihenfolge: im Ordner, den die aufrufende Aufgabe nennt, im aktuellen Arbeitsordner, in `~/broken-link-matcher/`. Findest du keine, beende den Lauf mit einer kurzen Meldung in Schritt 7. Ohne Konfiguration gibt es keinen Empfänger.
 2. `repo_path` ist der Ordner mit `cli.py`. Führe alle Befehle in diesem Ordner aus. Fehlt das Repo, klone es mit `git clone https://github.com/DanielKremer91/broken-link-matcher <repo_path>` und richte die Umgebung ein: `uv venv && uv pip install -r requirements.txt` (braucht `uv`).
-3. Lauf-Kennung `RUN` ist der aktuelle Monat im Format `JJJJ-MM`. Laufordner ist `<output_dir>/<RUN>/`.
+3. Lauf-Kennung `RUN` ist der aktuelle Monat im Format `JJJJ-MM`. Nennt die aufrufende Aufgabe ausdrücklich eine Lauf-Kennung, zum Beispiel zum Nachholen eines Vormonats, nimm diese. Laufordner ist `<output_dir>/<RUN>/`.
 4. Prüfe die Einrichtung: `.venv/bin/python check_setup.py --config <pfad zur config>`. Bei Exit-Code ungleich 0 weiter mit Schritt 6, die Ausgabe ist die Fehlermeldung.
 
-Ein zweiter Lauf im selben Monat ist unkritisch. Er überschreibt die Dateien des Laufordners mit demselben Ergebnis.
+Ein zweiter Lauf im selben Monat ist unkritisch. Er meldet dieselben Paare noch einmal und überschreibt die Dateien des Laufordners.
 
 ## Schritt 1: Eigene Seiten mit Embeddings (Screaming-Frog-MCP)
 
@@ -43,7 +43,7 @@ Für jeden Eintrag `W` in `competitors`:
 1. Lies einmal die Doku des Endpunkts mit dem Ahrefs-Tool `doc`.
 2. Rufe `site-explorer-broken-backlinks` auf: target `W`, mode `subdomains`, aggregation `1_per_domain`, where `is_dofollow = true` und `is_content = true`, bei `ahrefs.min_dr` größer 0 zusätzlich `domain_rating_source >= ahrefs.min_dr`, order_by `domain_rating_source:desc`, limit `ahrefs.limit`, output `csv`, select `url_from,url_to,anchor,snippet_left,snippet_right,title,domain_rating_source,url_rating_source,http_code_target,is_dofollow,is_content`.
 3. Speichere die Antwort unverändert als `<laufordner>/W/broken-backlinks.csv`.
-4. Kontrolle: Zähle die Datenzeilen der Datei mit `.venv/bin/python -c "from blm.ingest.tables import read_table; import sys; df = read_table(sys.argv[1]); print(len(df), df['url_to'].str.contains(sys.argv[2], regex=False).all())" <datei> W`. Die Zahl muss zur MCP-Antwort passen und der zweite Wert muss `True` sein. Sonst die Datei neu schreiben, beim zweiten Fehlschlag weiter mit Schritt 6 für diesen Wettbewerber.
+4. Kontrolle: `.venv/bin/python -c "import sys; from blm.ingest.backlinks_csv import read_table, detect_columns; df = read_table(sys.argv[1]); col = detect_columns(df).mapping['url_to']; print(len(df), df[col].astype(str).str.lower().str.contains(sys.argv[2].lower(), regex=False).all())" <datei> W`. Die erste Zahl muss zur Zeilenzahl der MCP-Antwort passen und der zweite Wert muss `True` sein. Sonst die Datei neu schreiben, beim zweiten Fehlschlag weiter mit Schritt 6 für diesen Wettbewerber.
 
 ## Schritt 3: Matching (cli.py)
 

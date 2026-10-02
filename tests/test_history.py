@@ -76,3 +76,8 @@ def test_match_that_turns_into_gap_is_not_new_and_not_downgraded():
 
 def test_rows_without_match_are_not_recorded():
     assert record_reported({}, [row("https://a.de", "https://k.de/1", top=False)], "2026-10") == {}
+
+
+def test_rerun_keeps_row_even_if_status_flipped():
+    seen = record_reported({}, [row("https://a.de", "https://k.de/1")], "2026-10")
+    assert mark_new([row("https://a.de", "https://k.de/1", gap=True)], seen, "2026-10") == [True]

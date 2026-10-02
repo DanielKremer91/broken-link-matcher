@@ -128,3 +128,13 @@ def test_script_missing_body_file_exits_1(monkeypatch, tmp_path, capsys):
     rc = send_report.main(["--to", "d@obs.com", "--subject", "S", "--html", str(tmp_path / "fehlt.html"),
                            "--env-file", str(tmp_path / "keine.env")])
     assert rc == 1
+
+
+
+@respx.mock
+def test_separate_calls_use_different_idempotency_keys():
+    route = respx.post(RESEND_URL).mock(return_value=httpx.Response(200, json={"id": "x"}))
+    with httpx.Client() as client:
+        for _ in range(2):
+            send_resend("k", "a@b.de", ["c@d.de"], "S", "h", "t", [], client=client, sleeper=no_sleep)
+    assert len({c.request.headers["Idempotency-Key"] for c in route.calls}) == 2

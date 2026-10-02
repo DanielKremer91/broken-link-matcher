@@ -6,6 +6,7 @@ import html
 from dataclasses import dataclass
 from typing import Optional
 
+from blm.history import pair_key
 from blm.models import MatchResult
 from blm.pipeline import PipelineSummary
 
@@ -19,14 +20,26 @@ class Report:
     html: str
 
 
+def _unique(rows: list[MatchResult]) -> list[MatchResult]:
+    """First row per normalised pair: http/https or www variants of one link appear once."""
+    seen, out = set(), []
+    for r in rows:
+        key = pair_key(r.backlink)
+        if key not in seen:
+            seen.add(key)
+            out.append(r)
+    return out
+
+
 def opportunity_rows(results: list[MatchResult], new_flags: list[bool]) -> list[MatchResult]:
     """New rows with a suggestion that are no content gap and not already fixed, in priority order."""
-    return [r for r, new in zip(results, new_flags)
-            if new and r.top and not r.is_content_gap and r.verification != "fixed"]
+    return _unique([r for r, new in zip(results, new_flags)
+                    if new and r.top and not r.is_content_gap and r.verification != "fixed"])
 
 
 def gap_rows(results: list[MatchResult], new_flags: list[bool]) -> list[MatchResult]:
-    return [r for r, new in zip(results, new_flags) if new and r.is_content_gap and r.verification != "fixed"]
+    return _unique([r for r, new in zip(results, new_flags)
+                    if new and r.top and r.is_content_gap and r.verification != "fixed"])
 
 
 def _score(value: float) -> str:
