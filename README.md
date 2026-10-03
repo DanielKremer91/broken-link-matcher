@@ -117,6 +117,7 @@ Der Skill `broken-link-monitor` in `.claude/skills/` macht aus dem agentischen W
 - Checkliste zum Abhaken: [docs/checkliste.md](docs/checkliste.md)
 - Einrichtung prüfen: `.venv/bin/python check_setup.py`
 - Ahrefs-Parameter ansehen: `.venv/bin/python ahrefs_params.py --target konkurrent.de`
+- Vorlage für das Frog-Snippet (Hauptinhalt plus Embedding): [frog/main-content-embedding.js](frog/main-content-embedding.js)
 
 ## Tests
 

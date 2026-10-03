@@ -94,10 +94,18 @@ Gibt es noch kein Embedding-Setup, stell die beiden Wege kurz vor und lass die P
 - **Eingebaute KI-Anbindung:** einfacher einzurichten, kein JavaScript-Rendering nötig, der Schlüssel wird in Frog hinterlegt. Gut für den Einstieg.
 - **Custom-JavaScript-Snippet:** flexibler, braucht aber JavaScript-Rendering, und der Schlüssel steht im Snippet und damit in der Konfigurationsdatei.
 
-Trag die Wahl als `frog.embeddings_source` (`ai` oder `custom_javascript`) und das Modell als `embedding.model` in `monitor.config.json` ein. Führe dann je nach Wahl:
+Trag die Wahl als `frog.embeddings_source` (`ai` oder `custom_javascript`) und das Modell als `embedding.model` in `monitor.config.json` ein.
 
-- **Custom JavaScript:** Konfiguration, Benutzerdefiniert, Custom JavaScript, Snippet hinzufügen. Die Snippet-Bibliothek von Frog bietet Vorlagen, darunter für OpenAI-Embeddings. Den eigenen OpenAI-Schlüssel trägt die Person im Snippet ein, dasselbe Modell wie in der Konfiguration. Dann unter Konfiguration, Spider, Rendering auf JavaScript stellen. Das Snippet läuft nur mit JavaScript-Rendering.
-- **KI-Anbindung:** Konfiguration, API-Zugang, KI, Anbieter verbinden und einen Embedding-Prompt für den Seiteninhalt anlegen.
+**Wichtig in beiden Fällen: nur der Hauptinhalt.** Erkläre: Das Embedding soll nur den eigentlichen Inhalt einer Seite beschreiben. Kommen Navigation, Footer, Cookie-Banner oder Teaserlisten mit hinein, sehen sich alle Seiten ähnlicher, als sie sind, und die Vorschläge werden schlechter. Jede Website ist anders gebaut, deshalb lohnt sich ein kurzer Blick.
+
+Hilf dabei so: Hol dir mit `curl -sL` das HTML von zwei, drei Seiten unterhalb der Start-URL und schau, ob es `main` oder `article` gibt und ob Navigation und Footer als `nav` und `footer` ausgezeichnet sind. Schlag daraus konkrete Selektoren vor, zum Beispiel `.article-body` für den Inhalt oder `.teaser-list, .author-box` für Ausschlüsse.
+
+**Gleiches Modell:** Das Modell in Frog muss exakt dem Modell in `monitor.config.json` entsprechen. Damit bettet das Tool auch die toten Wettbewerberseiten ein. In der `.env` steht nur der Schlüssel, nicht das Modell. Passen die Modelle nicht zusammen, bricht der Lauf beim Dimensionscheck ab. Standard ist `text-embedding-3-small`.
+
+Führe dann je nach Wahl:
+
+- **Custom JavaScript:** Die Vorlage liegt im Repo unter `frog/main-content-embedding.js`. Sie findet den Hauptinhalt auf vielen Seiten von selbst, teilt lange Texte in Abschnitte und mittelt die Embeddings. Die Person öffnet in Frog Konfiguration, Benutzerdefiniert, Custom JavaScript, fügt ein Snippet vom Typ "Extraction" hinzu und kopiert den Inhalt der Datei hinein. Öffne ihr die Datei dazu mit `open -e <repo>/frog/main-content-embedding.js`, nur zum Kopieren. Den OpenAI-Schlüssel trägt sie erst im Editor von Frog ein, nie in der Datei im Repo. Dort prüft sie auch, dass `MODEL` zur Konfiguration passt. Deine Selektoren gehören in `CONTENT_ROOT_SELECTOR` und `EXTRA_EXCLUDE_SELECTOR`. Unter Konfiguration, Spider, Rendering muss JavaScript eingestellt sein. Tipp: Mit `PREVIEW_TEXT = true` zeigt Frog nach einem Testcrawl von ein paar Seiten den Text, der eingebettet würde, ohne OpenAI-Kosten. Danach wieder auf `false` stellen.
+- **KI-Anbindung:** Unter Konfiguration, API-Zugang, KI den Anbieter verbinden und in der Prompt-Konfiguration einen Eintrag mit der Kategorie "Embeddings" und dem Inhalt "Page Text" anlegen, mit dem Modell aus der Konfiguration. "Page Text" richtet sich nach Konfiguration, Content, Content Area. Dort sind Navigation und Footer schon ausgeschlossen. Deine Selektoren für weitere Ausschlüsse trägt die Person dort ein. Hinweis: Bei sehr langen Seiten kann die KI-Anbindung den Text kürzen, das Snippet teilt ihn dagegen auf.
 
 Dann in beiden Fällen:
 

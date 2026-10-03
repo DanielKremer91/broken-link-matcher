@@ -58,12 +58,14 @@ Das Frog-MCP kann Embeddings nicht selbst einschalten. Es startet den Crawl mit 
 
 | Weg | Einstellung im Monitor | Hinweis |
 |---|---|---|
-| Custom JavaScript (Snippet ruft die OpenAI-API auf) | `frog.embeddings_source`: `custom_javascript` | braucht JavaScript-Rendering; der Schlüssel steht im Snippet und damit in der Konfigurationsdatei |
-| Eingebaute KI-Anbindung von Frog | `frog.embeddings_source`: `ai` | Schlüssel wird in Frog hinterlegt |
+| Custom JavaScript mit der Vorlage `frog/main-content-embedding.js` | `frog.embeddings_source`: `custom_javascript` | extrahiert den Hauptinhalt, teilt lange Texte auf; braucht JavaScript-Rendering; der Schlüssel steht im Snippet und damit in der Konfigurationsdatei |
+| Eingebaute KI-Anbindung von Frog mit "Page Text" | `frog.embeddings_source`: `ai` | Hauptinhalt über Konfiguration, Content, Content Area; Navigation und Footer sind dort standardmäßig ausgeschlossen; Schlüssel wird in Frog hinterlegt |
+
+**Nur der Hauptinhalt zählt.** Kommen Navigation, Footer, Cookie-Banner oder Teaserlisten ins Embedding, sehen sich alle Seiten ähnlicher, als sie sind. Die Vorlage findet den Hauptinhalt auf vielen Seiten von selbst. Für eine bestimmte Website trägst du oben eigene Selektoren ein: `CONTENT_ROOT_SELECTOR` für den Inhaltsbereich, `EXTRA_EXCLUDE_SELECTOR` für Bereiche wie Bildnachweise oder Autorenboxen. Mit `PREVIEW_TEXT = true` zeigt Frog nach einem kurzen Testcrawl den Text, der eingebettet würde, ohne OpenAI-Kosten. Beim Weg über die KI-Anbindung trägst du dieselben Ausschlüsse unter Content Area ein.
 
 So legst du die Datei an:
 
-1. **Embeddings einrichten,** entweder als Custom-JavaScript-Snippet (Konfiguration, Benutzerdefiniert, Custom JavaScript) oder über die KI-Anbindung (Konfiguration, API-Zugang, KI).
+1. **Embeddings einrichten,** entweder mit der Vorlage als Custom-JavaScript-Snippet (Konfiguration, Benutzerdefiniert, Custom JavaScript, Typ "Extraction"; den Schlüssel erst im Frog-Editor eintragen) oder über die KI-Anbindung (Konfiguration, API-Zugang, KI, Prompt mit Kategorie "Embeddings" und Inhalt "Page Text").
 2. **Rendering:** Beim Custom-JavaScript-Weg unter Konfiguration, Spider, Rendering auf JavaScript stellen. Ohne Rendering läuft das Snippet nicht.
 3. **Umfang festlegen:** Nur HTML-Seiten, bei Bedarf auf relevante Verzeichnisse beschränken, Parameter-URLs ausschließen.
 4. **Einmal testen:** Ein paar Seiten crawlen und prüfen, ob die Embedding-Spalte gefüllt ist.
@@ -71,7 +73,7 @@ So legst du die Datei an:
 
 Heißt die Custom-JavaScript-Spalte nicht nach dem Muster "Embeddings ...", trage ihren Namen in `frog.custom_js_field` ein, zum Beispiel `Embeddings Fressnapf 1`.
 
-Das Modell im Snippet oder in der KI-Anbindung muss exakt zu `embedding.model` in der Monitor-Konfiguration passen. Sonst bricht der Dimensionscheck ab.
+Das Modell im Snippet oder in der KI-Anbindung muss exakt zu `embedding.model` in der Monitor-Konfiguration passen. Mit diesem Modell bettet das Tool auch die toten Wettbewerberseiten ein. In der `.env` steht nur der Schlüssel, nicht das Modell. Passen die Modelle nicht, bricht der Dimensionscheck ab.
 
 Gib die Konfigurationsdatei nie weiter und lege sie nie ins Repo. Beim Custom-JavaScript-Weg steht dein API-Schlüssel darin.
 
