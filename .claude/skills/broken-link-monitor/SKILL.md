@@ -21,7 +21,7 @@ description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wett
 
 ## Lauf für einzelne Wettbewerber
 
-Nennt der Auftrag einzelne Wettbewerber, zum Beispiel "nur für zooplus.de", gelten Schritt 2 bis 5 nur für diese. Gibt es für den aktuellen Monat schon einen geprüften Frog-Export (`<Basisverzeichnis>/broken-link-monitor/<own_domain>-<RUN>.ndjson` oder `.csv`), dessen Crawl-Prüfung `ok` war, nutze ihn und überspringe den Crawl. Sonst crawle wie in Schritt 1. Die anderen Wettbewerber bekommen in diesem Lauf keine Mail.
+Nennt der Auftrag einzelne Wettbewerber, zum Beispiel "nur für zooplus.de", gelten Schritt 2 bis 5 nur für diese. Gibt es für den aktuellen Monat schon einen Frog-Export (`<Basisverzeichnis>/broken-link-monitor/<own_domain>-<RUN>.ndjson` oder `.csv`) und die zugehörige Crawl-Übersicht `<own_domain>-<RUN>-intern.ndjson`, prüfe die Übersicht mit `frog_crawl_check.py`. Ist das Ergebnis `ok`, nutze den Export und überspringe den Crawl. Sonst crawle wie in Schritt 1. Die anderen Wettbewerber bekommen in diesem Lauf keine Mail.
 
 Die Schritte unten beschreiben den Lauf.
 
