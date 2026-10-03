@@ -1,0 +1,67 @@
+#!/usr/bin/env python
+"""Check an early sample of a Screaming Frog export: do HTML pages already carry embeddings?
+
+Used by the monthly monitor shortly after the crawl starts, so a missing
+JavaScript rendering or a broken snippet is caught after minutes, not hours.
+Prints JSON: {"html_rows", "with_vectors", "dimension", "verdict"} where verdict is
+"ok", "keine_embeddings" or "zu_wenig_daten".
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from collections import Counter
+from pathlib import Path
+from typing import Optional
+
+from blm.ingest.frog_csv import MIN_CONTENT_DIMENSION, _parse_vector, detect_frog_columns
+from blm.ingest.tables import read_table
+
+
+def probe(path: Path, field: Optional[str] = None, min_html: int = 10) -> dict:
+    df = read_table(path)
+    columns = {c.strip().lower(): c for c in df.columns}
+    vector_col = field if field in df.columns else detect_frog_columns(df).vector_col
+    ctype = columns.get("content type")
+    status = columns.get("status code")
+    rows = df
+    if ctype:
+        rows = rows[rows[ctype].astype(str).str.contains("html", case=False, na=False)]
+    if status:
+        rows = rows[rows[status].astype(str).str.strip().isin(["200", "200.0"])]
+    sizes: Counter = Counter()
+    if vector_col:
+        for raw in rows[vector_col].tolist():
+            vec = _parse_vector(raw)
+            if vec is not None and vec.size >= MIN_CONTENT_DIMENSION:
+                sizes[vec.size] += 1
+    with_vectors = sum(sizes.values())
+    if with_vectors:
+        verdict = "ok"
+    elif len(rows) >= min_html:
+        verdict = "keine_embeddings"
+    else:
+        verdict = "zu_wenig_daten"
+    return {"html_rows": int(len(rows)), "with_vectors": int(with_vectors),
+            "dimension": int(sizes.most_common(1)[0][0]) if sizes else 0, "verdict": verdict}
+
+
+def main(argv: Optional[list[str]] = None) -> int:
+    p = argparse.ArgumentParser(prog="frog_probe.py", description="Stichprobe eines Frog-Exports auf Embeddings prüfen.")
+    p.add_argument("export", type=Path, help="NDJSON- oder CSV-Export aus Screaming Frog")
+    p.add_argument("--field", help="Name der Embedding-Spalte, z. B. 'Embeddings Fressnapf 1'")
+    p.add_argument("--min-html", type=int, default=10, help="so viele HTML-Seiten braucht ein Urteil")
+    args = p.parse_args(argv)
+    try:
+        result = probe(args.export, args.field, args.min_html)
+    except (OSError, ValueError) as exc:
+        print(f"Abbruch: Export nicht lesbar: {exc}", file=sys.stderr)
+        return 1
+    print(json.dumps(result, ensure_ascii=False))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

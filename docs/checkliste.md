@@ -24,7 +24,7 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 - [ ] Frog: Embeddings eingerichtet, per Vorlage `frog/main-content-embedding.js` oder KI-Anbindung mit "Page Text"
 - [ ] Frog: Nur der Hauptinhalt wird eingebettet (Vorschau mit `PREVIEW_TEXT = true` oder Content Area geprüft)
 - [ ] Frog: dasselbe Modell wie `embedding.model` in `monitor.config.json`
-- [ ] Frog: bei Custom JavaScript das Rendering auf JavaScript gestellt
+- [ ] Frog: bei Custom JavaScript das Rendering auf JavaScript gestellt und mit `PREVIEW_TEXT = true` an wenigen Seiten getestet
 - [ ] Frog: ein Testcrawl zeigt gefüllte Embedding-Spalten
 - [ ] Frog: Modell notiert, zum Beispiel `text-embedding-3-small`
 - [ ] Frog: Konfiguration im MCP-Basisverzeichnis gespeichert, nie weitergegeben
