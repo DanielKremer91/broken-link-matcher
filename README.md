@@ -117,7 +117,7 @@ Der Skill `broken-link-monitor` in `.claude/skills/` macht aus dem agentischen W
 - Checkliste zum Abhaken: [docs/checkliste.md](docs/checkliste.md)
 - Einrichtung prüfen: `.venv/bin/python check_setup.py`
 - Ahrefs-Parameter ansehen: `.venv/bin/python ahrefs_params.py --target konkurrent.de`
-- Später etwas ändern, zum Beispiel einen Wettbewerber aufnehmen: Claude im Repo-Ordner sagen "Nimm zooplus.de als weiteren Wettbewerber in den Broken Link Monitor auf". Details in der [Anleitung](docs/monatlicher-workflow.md#später-etwas-ändern).
+- Später etwas ändern, zum Beispiel einen Wettbewerber aufnehmen: in der Claude-App eine Sitzung im Repo-Ordner starten, also dem Ordner, in den die Einrichtung alles geklont hat (Standard `~/broken-link-matcher`), und sagen "Nimm zooplus.de als weiteren Wettbewerber in den Broken Link Monitor auf". Details in der [Anleitung](docs/monatlicher-workflow.md#später-etwas-ändern).
 - Vorlage für das Frog-Snippet (Hauptinhalt plus Embedding): [frog/main-content-embedding.js](frog/main-content-embedding.js)
 
 ## Tests

@@ -152,7 +152,9 @@ Trage einfach mehrere Domains in `competitors` ein. Der Crawl der eigenen Seite 
 
 Alle Einstellungen stehen in `monitor.config.json` im Repo-Ordner. Der Monitor liest sie bei jedem Lauf neu. Eine Änderung gilt deshalb ab dem nächsten Lauf, auch für die geplante Aufgabe, ohne dass du diese anfassen musst.
 
-Am einfachsten sagst du es Claude, im Repo-Ordner:
+Der **Repo-Ordner** ist der Ordner, in den Claude bei der Einrichtung alles heruntergeladen hat, standardmäßig `~/broken-link-matcher` in deinem Benutzerordner. Darin liegen auch `monitor.config.json` und `.env`. Um mit Claude dort zu arbeiten, startest du in der Claude-App im Bereich Code eine neue Sitzung und wählst diesen Ordner aus.
+
+Am einfachsten sagst du es Claude, in einer Sitzung im Repo-Ordner:
 
 ```
 Nimm zooplus.de als weiteren Wettbewerber in den Broken Link Monitor auf.
