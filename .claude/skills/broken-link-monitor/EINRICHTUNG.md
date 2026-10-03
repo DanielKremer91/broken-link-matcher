@@ -25,7 +25,7 @@ Vieles ist bei der Person vielleicht schon da: das Repo, die Umgebung, Schlüsse
 
 ## Schritt 1: Repo und Umgebung
 
-1. Gibt es noch kein Repo, frage, wo der Monitor liegen soll. Standard: `~/broken-link-matcher`.
+1. Gibt es noch kein Repo, schlag als Speicherort `~/broken-link-matcher` im Benutzerordner vor und frag kurz, ob das passt. Klone nicht einfach in den Ordner, in dem die Sitzung gerade läuft. Erstnutzer starten Claude oft in einem zufälligen Ordner, und der Monitor soll an einem festen, leicht auffindbaren Ort liegen. Fragt Claude dafür nach einer Berechtigung, erkläre in einem Satz, warum.
 2. Klone das Repo dorthin: `git clone https://github.com/DanielKremer91/broken-link-matcher <ordner>`. Existiert der Ordner schon mit `cli.py`, nutze ihn und hole Neuerungen mit `git pull`.
 3. Fehlt die Umgebung `.venv`, richte sie ein, im Repo-Ordner:
    - mit `uv`: `uv venv --python 3.11 .venv && uv pip install -r requirements.txt`

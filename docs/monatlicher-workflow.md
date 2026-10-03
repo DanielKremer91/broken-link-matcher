@@ -1,6 +1,6 @@
 # Monatlicher Broken-Link-Monitor
 
-**Schnellstart:** Claude-Desktop-App öffnen, Bereich Code, und diesen Satz eingeben:
+**Schnellstart:** Claude-Desktop-App öffnen, Bereich Code, eine neue Sitzung starten (welcher Ordner, ist egal) und diesen Satz eingeben:
 
 ```
 Richte mir den Broken Link Monitor ein. Klone dazu https://github.com/DanielKremer91/broken-link-matcher und folge der Anleitung für Claude in der README.
