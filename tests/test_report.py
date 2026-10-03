@@ -87,7 +87,7 @@ def test_explanations_and_attachments_are_customer_friendly():
         assert "Domain Rating von Ahrefs, 0 bis 100" in body
         assert "Die Seite von Fressnapf, die inhaltlich am besten" in body
         assert "vollständige Liste mit allen Details (ergebnis.xlsx)" in body
-        assert "Textvorschläge für die Ansprache der Websites (ergebnis-entwuerfe.md)" in body
+        assert "Mail-Entwürfe an die verlinkenden Websites, nicht verschickt (ergebnis-entwuerfe.md)" in body
 
 
 def test_content_gaps_are_not_in_the_mail():

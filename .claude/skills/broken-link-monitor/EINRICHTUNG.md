@@ -37,8 +37,14 @@ Vieles ist bei der Person vielleicht schon da: das Repo, die Umgebung, Schlüsse
 
 Prüfe selbst, welche Werkzeuge in dieser Sitzung verfügbar sind, und berichte das Ergebnis in einer kurzen Liste:
 
-- **Ahrefs-MCP:** Es gibt ein Tool für `site-explorer-broken-backlinks`. Wenn nicht: Die Person verbindet Ahrefs in Claude unter Einstellungen, Connectors. Sie braucht dafür ein Ahrefs-Abo mit MCP-Zugang.
-- **Screaming-Frog-MCP:** Es gibt Tools wie `sf_crawl` und `sf_list_allowed_base_directory`. Wenn nicht: Die Person installiert die MCP-Erweiterung von Screaming Frog für Claude nach der Anleitung von Screaming Frog. Screaming Frog braucht eine Lizenz.
+- **Ahrefs-MCP:** Es gibt ein Tool für `site-explorer-broken-backlinks`. Wenn nicht, erkläre: In der Claude-App unter Einstellungen, Connectors den Ahrefs-Connector hinzufügen und mit dem Ahrefs-Konto anmelden. Dafür braucht es ein Ahrefs-Abo mit MCP-Zugang. Danach eine neue Claude-Sitzung starten, damit die Tools erscheinen.
+- **Screaming-Frog-MCP:** Es gibt Tools wie `sf_crawl` und `sf_list_allowed_base_directory`. Wenn nicht, erkläre Schritt für Schritt:
+  1. Screaming Frog SEO Spider ab Version 24.1 mit Lizenz installieren, am Mac im Ordner Programme. Speichermodus ist die Datenbank, das ist der Standard.
+  2. In Screaming Frog unter File, Settings, MCP Server die Node.js-Laufzeit akzeptieren und aktivieren.
+  3. Die STDIO-MCP-Erweiterung `spider-mcp.mcpb` von Screaming Frog herunterladen. Link und Anleitung stehen im Benutzerhandbuch von Screaming Frog im Abschnitt zum MCP Server: https://www.screamingfrog.co.uk/seo-spider/user-guide/configuration/
+  4. In der Claude-App unter Einstellungen, Erweiterungen auf "Install Extension" klicken und die Datei `spider-mcp.mcpb` wählen.
+  5. Claude komplett beenden, neu öffnen und eine neue Sitzung starten.
+  Bei der Fehlermeldung "Unexpected non-whitespace character": Erweiterung entfernen, Claude neu starten, Screaming Frog auf mindestens 24.1 aktualisieren und die Erweiterung neu installieren. Hilft das nicht, in Screaming Frog die Sprache auf eine feste Sprache statt "System" stellen.
 - **Embedding-Anbieter:** Ein OpenAI-Schlüssel, alternativ Gemini oder ein lokales Ollama.
 
 Fehlt ein MCP, erkläre, wie es verbunden wird, und mach mit den Schritten weiter, die ohne es gehen. Die Konfiguration kannst du trotzdem schreiben. Ist alles verbunden, reicht ein Satz dazu.
@@ -53,9 +59,18 @@ Sonst frag in einer Nachricht, mit Beispielen und Standardwerten:
 2. **Eigene Domain**, zum Beispiel `fressnapf.de`.
 3. **Start-URL des Crawls**, zum Beispiel `https://www.fressnapf.de/magazin/`. Tipp: Ein Ratgeber- oder Magazinbereich passt meist am besten.
 4. **Wettbewerber**, eine oder mehrere Domains, zum Beispiel `zooroyal.de`.
-5. **Mailversand:** Resend, ein verbundener Mail-Connector (Outlook oder Gmail) oder nur als Datei. Dazu die Empfängeradresse.
-6. **Name für die Textvorschläge** an die Websites, zum Beispiel "Vorname Nachname".
-7. **Wie entstehen die Embeddings im Frog:** per Custom-JavaScript-Snippet oder über die eingebaute KI-Anbindung? Welches Modell? Standard: OpenAI `text-embedding-3-small`.
+5. **Wohin soll der Bericht gehen, und wie?** Dazu die Empfängeradresse. Erkläre die drei Wege in je einem Satz:
+   - **Outlook oder Gmail** über einen in Claude verbundenen Mail-Connector. Am einfachsten, wenn der Connector schon verbunden ist.
+   - **Resend**, ein Versanddienst für automatische Mails. Braucht ein eigenes, kostenloses Konto und eine bestätigte Domain. Lohnt sich, wenn die Mail regelmäßig von einer festen Absenderadresse kommen soll. Ich helfe beim Einrichten.
+   - **Nur als Datei** im Ordner `laeufe`. Kein Versand, sofort startklar. Später jederzeit umstellbar.
+   Wer unsicher ist: mit "nur als Datei" starten.
+6. **Unterschrift für die Mail-Entwürfe:** Das Tool schreibt zu jeder Chance einen Entwurf für eine kurze Mail an die verlinkende Website, mit dem Vorschlag, den toten Link durch die eigene Seite zu ersetzen. Mit welchem Namen sollen diese Entwürfe unterschrieben sein? Zum Beispiel "Daniel Kremer". Verschickt werden die Entwürfe nie automatisch.
+
+Nur wenn die Bestandsaufnahme schon eine Frog-Konfiguration gefunden hat, frag zusätzlich:
+
+7. **Wie entstehen die Embeddings in dieser Frog-Konfiguration:** per Custom-JavaScript-Snippet oder über die eingebaute KI-Anbindung? Mit welchem Modell? Standard: OpenAI `text-embedding-3-small`.
+
+Ohne Frog-Konfiguration frag das nicht hier. Es wird in Schritt 4 gemeinsam festgelegt. Trag vorläufig `custom_javascript` und `text-embedding-3-small` ein und passe es in Schritt 4 an.
 
 Erwähne die Ahrefs-Standardfilter in einem Satz: 100 Links pro Wettbewerber, nur Dofollow-Links aus dem Inhaltsbereich, ohne Spam, nur Ziele mit 404 oder 410, sortiert nach Domain Rating. Etwa 12 Ahrefs-Units pro Link. Frag, ob das passt.
 
@@ -72,7 +87,14 @@ Zeig die wichtigsten Werte in einer kurzen Liste und frag, ob alles stimmt.
 
 Liegt die Frog-Konfiguration laut Bestandsaufnahme schon am richtigen Ort, frag nur: "Enthält sie das Embedding-Setup und JavaScript-Rendering?" Bei Ja überspringe diesen Schritt.
 
-Sonst erkläre, dass Screaming Frog die eigenen Seiten crawlt und dabei für jede Seite ein Embedding erzeugt, eine Zahlenfolge, die den Inhalt beschreibt. Das richtet die Person einmal in Frog ein und speichert es als Konfigurationsdatei. Führe sie je nach Antwort aus Schritt 3:
+Sonst erkläre, dass Screaming Frog die eigenen Seiten crawlt und dabei für jede Seite ein Embedding erzeugt, eine Zahlenfolge, die den Inhalt beschreibt. So kann das Tool später Seiten mit ähnlichem Inhalt finden. Das richtet die Person einmal in Frog ein und speichert es als Konfigurationsdatei.
+
+Gibt es noch kein Embedding-Setup, stell die beiden Wege kurz vor und lass die Person wählen:
+
+- **Eingebaute KI-Anbindung:** einfacher einzurichten, kein JavaScript-Rendering nötig, der Schlüssel wird in Frog hinterlegt. Gut für den Einstieg.
+- **Custom-JavaScript-Snippet:** flexibler, braucht aber JavaScript-Rendering, und der Schlüssel steht im Snippet und damit in der Konfigurationsdatei.
+
+Trag die Wahl als `frog.embeddings_source` (`ai` oder `custom_javascript`) und das Modell als `embedding.model` in `monitor.config.json` ein. Führe dann je nach Wahl:
 
 - **Custom JavaScript:** Konfiguration, Benutzerdefiniert, Custom JavaScript, Snippet hinzufügen. Die Snippet-Bibliothek von Frog bietet Vorlagen, darunter für OpenAI-Embeddings. Den eigenen OpenAI-Schlüssel trägt die Person im Snippet ein, dasselbe Modell wie in der Konfiguration. Dann unter Konfiguration, Spider, Rendering auf JavaScript stellen. Das Snippet läuft nur mit JavaScript-Rendering.
 - **KI-Anbindung:** Konfiguration, API-Zugang, KI, Anbieter verbinden und einen Embedding-Prompt für den Seiteninhalt anlegen.
@@ -92,7 +114,12 @@ Lies die Datei nicht aus und zeig keine Inhalte daraus.
 
 Sind `RESEND_API_KEY` und `RESEND_FROM` laut Bestandsaufnahme schon eingetragen, oder ist der gewählte Connector schon verbunden, überspringe diesen Schritt.
 
-- **Resend:** Die Person meldet sich selbst bei resend.com an. Unter Domains muss eine Domain den Status "Verified" haben. Wenn nicht, erklär, dass Resend dafür DNS-Einträge anzeigt, die die Person oder die zuständige IT einträgt. Absender wird eine Adresse auf dieser Domain. Trag `RESEND_FROM=Broken Link Monitor <monitor@domain>` selbst in `.env` ein, bevor die Person die Datei öffnet. Den Schlüssel legt die Person unter API keys an: Name "Broken Link Monitor", Berechtigung "Sending access", nur diese Domain. Rate von bestehenden Schlüsseln mit vollem Zugriff ab.
+- **Resend:** Hat die Person noch kein Konto, führe sie durch:
+  1. Auf resend.com ein Konto anlegen. Der kostenlose Tarif reicht für einen monatlichen Bericht.
+  2. Unter Domains auf "Add domain" klicken. Empfiehl eine Subdomain wie `mail.firma.de`, dann bleibt das normale Mail-Setup der Firma unberührt.
+  3. Resend zeigt einige DNS-Einträge an. Die trägt die Person oder die zuständige IT beim Domain-Anbieter ein. Das kann einige Minuten bis Stunden dauern, bis Resend die Domain als "Verified" zeigt.
+  4. Bis dahin kann der Monitor mit "nur als Datei" laufen. Stell `mail.method` vorübergehend auf `file` und später zurück auf `resend`.
+  Hat die Person schon ein Konto, meldet sie sich selbst an. Unter Domains muss eine Domain den Status "Verified" haben. Absender wird eine Adresse auf dieser Domain. Trag `RESEND_FROM=Broken Link Monitor <monitor@domain>` selbst in `.env` ein, bevor die Person die Datei öffnet. Den Schlüssel legt die Person unter API keys an: Name "Broken Link Monitor", Berechtigung "Sending access", nur diese Domain. Rate von bestehenden Schlüsseln mit vollem Zugriff ab.
 - **Connector:** Die Person verbindet Outlook oder Gmail unter Einstellungen, Connectors. Dann ist nichts weiter nötig.
 - **Datei:** Nichts zu tun. Der Bericht liegt nach jedem Lauf im Ordner `laeufe`.
 
@@ -117,7 +144,9 @@ Sag vorher, was passiert und was es kostet:
 - Danach Wayback-Abruf, Matching und Live-Prüfung, etwa 5 bis 10 Minuten.
 - Am Ende geht die Mail an die eingetragenen Empfänger.
 
-Starte erst nach einem ausdrücklichen "Go". Führe dann den Lauf nach `SKILL.md` aus, Schritt 0 bis 7. Halte die Person bei langen Schritten mit kurzen Zwischenständen auf dem Laufenden.
+Erkläre auch: Der Crawl läuft über das MCP in einer eigenen Screaming-Frog-Instanz im Hintergrund, ohne Fenster. Im geöffneten Frog-Fenster ist er deshalb nicht zu sehen. Den Fortschritt meldest du. Nach dem Ende erscheint der Crawl in Frog unter File, Crawls.
+
+Starte erst nach einem ausdrücklichen "Go". Führe dann den Lauf nach `SKILL.md` aus, Schritt 0 bis 7. Halte die Person bei langen Schritten mit kurzen Zwischenständen auf dem Laufenden, zum Beispiel alle 15 Minuten mit der Zahl gecrawlter URLs.
 
 ## Schritt 9: Monatlich automatisch
 

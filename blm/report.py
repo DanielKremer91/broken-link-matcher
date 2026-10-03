@@ -101,7 +101,7 @@ def _attachment_label(name: str) -> str:
     if lowered.endswith(".xlsx") or lowered.endswith(".csv"):
         return f"vollständige Liste mit allen Details ({name})"
     if lowered.endswith(".md"):
-        return f"Textvorschläge für die Ansprache der Websites ({name})"
+        return f"Mail-Entwürfe an die verlinkenden Websites, nicht verschickt ({name})"
     return name
 
 
