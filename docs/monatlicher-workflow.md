@@ -148,6 +148,20 @@ cp .claude/skills/broken-link-monitor/config.example.json monitor.config.json
 
 Trage einfach mehrere Domains in `competitors` ein. Der Crawl der eigenen Seite läuft einmal, Ahrefs-Abruf, Matching, Verlauf und Mail gibt es pro Wettbewerber.
 
+### Später etwas ändern
+
+Alle Einstellungen stehen in `monitor.config.json` im Repo-Ordner. Der Monitor liest sie bei jedem Lauf neu. Eine Änderung gilt deshalb ab dem nächsten Lauf, auch für die geplante Aufgabe, ohne dass du diese anfassen musst.
+
+Am einfachsten sagst du es Claude, im Repo-Ordner:
+
+```
+Nimm zooplus.de als weiteren Wettbewerber in den Broken Link Monitor auf.
+```
+
+Claude trägt die Domain ein, prüft die Einrichtung und bietet an, den neuen Wettbewerber sofort einmal laufen zu lassen. Gibt es diesen Monat schon einen vollständigen Crawl deiner Seite, wird er wiederverwendet. Genauso kannst du Empfänger, Kundennamen oder Ahrefs-Filter ändern oder einen Wettbewerber entfernen.
+
+Von Hand geht es auch: `monitor.config.json` in einem Texteditor öffnen, die Domain in die Liste bei `competitors` eintragen, zum Beispiel `["zooroyal.de", "zooplus.de"]`, speichern und `.venv/bin/python check_setup.py` ausführen.
+
 ### 6. Einrichtung prüfen
 
 ```bash

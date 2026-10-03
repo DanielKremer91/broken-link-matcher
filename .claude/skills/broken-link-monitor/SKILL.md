@@ -8,7 +8,20 @@ description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wett
 ## Modus wählen
 
 - **Einrichtung:** Die Person möchte den Monitor einrichten ("einrichten", "zum ersten Mal", "aufsetzen"), oder sie startet den Skill im Gespräch und es gibt noch keine `monitor.config.json`. Dann folge `EINRICHTUNG.md` in diesem Skill-Ordner. Rückfragen sind dort ausdrücklich erwünscht.
+- **Änderung:** Die Person möchte eine Einstellung ändern, zum Beispiel einen Wettbewerber hinzufügen oder entfernen, den Empfänger, den Kundennamen oder die Ahrefs-Filter. Dann folge dem Abschnitt "Einstellungen ändern" unten.
 - **Lauf:** Alles andere, insbesondere geplante Aufgaben. Ein geplanter Lauf beginnt mit "Geplanter Lauf ohne Rückfragen". Im Lauf stellst du keine Rückfragen. Wenn etwas fehlt oder scheitert, folge Schritt 6.
+
+## Einstellungen ändern
+
+1. Finde `monitor.config.json` wie in Schritt 0, Punkt 1 beschrieben.
+2. Ändere nur, was die Person nennt. Wettbewerber trägst du als Domain ein, klein, ohne `https://` und ohne Schrägstrich, zum Beispiel `"competitors": ["zooroyal.de", "zooplus.de"]`. Entfernst du einen Wettbewerber, bleibt seine Verlaufsdatei liegen, damit er beim erneuten Aufnehmen nicht wieder alles als neu meldet.
+3. Prüfe mit `.venv/bin/python check_setup.py` und zeig die geänderten Werte.
+4. Sag, dass die Änderung ab dem nächsten Lauf gilt, auch für eine geplante Aufgabe, ohne dass diese angepasst werden muss.
+5. Bei einem neuen Wettbewerber biete an, ihn sofort einmal laufen zu lassen, statt bis zum nächsten Termin zu warten. Nenne die Kosten: etwa 12 Ahrefs-Units pro Link. Bei einem Ja führe den Lauf nur für diesen Wettbewerber aus, siehe "Lauf für einzelne Wettbewerber".
+
+## Lauf für einzelne Wettbewerber
+
+Nennt der Auftrag einzelne Wettbewerber, zum Beispiel "nur für zooplus.de", gelten Schritt 2 bis 5 nur für diese. Gibt es für den aktuellen Monat schon einen geprüften Frog-Export (`<Basisverzeichnis>/broken-link-monitor/<own_domain>-<RUN>.ndjson` oder `.csv`), dessen Crawl-Prüfung `ok` war, nutze ihn und überspringe den Crawl. Sonst crawle wie in Schritt 1. Die anderen Wettbewerber bekommen in diesem Lauf keine Mail.
 
 Die Schritte unten beschreiben den Lauf.
 

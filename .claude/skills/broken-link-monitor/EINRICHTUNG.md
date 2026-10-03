@@ -174,4 +174,4 @@ Ohne Werkzeug für geplante Aufgaben erkläre, wie die Person die Aufgabe in der
 
 ## Zum Schluss
 
-Fasse in wenigen Sätzen zusammen, was eingerichtet ist, wo die Dateien liegen und wie man einen Lauf jederzeit von Hand startet: Claude im Repo-Ordner öffnen und `/broken-link-monitor` eingeben. Verweise auf `docs/checkliste.md` zum Abhaken.
+Fasse in wenigen Sätzen zusammen, was eingerichtet ist, wo die Dateien liegen und wie man einen Lauf jederzeit von Hand startet: Claude im Repo-Ordner öffnen und `/broken-link-monitor` eingeben. Erwähne, dass sich Einstellungen jederzeit ändern lassen, zum Beispiel mit "Nimm zooplus.de als weiteren Wettbewerber in den Broken Link Monitor auf", und dass Änderungen ab dem nächsten Lauf gelten. Verweise auf `docs/checkliste.md` zum Abhaken.
