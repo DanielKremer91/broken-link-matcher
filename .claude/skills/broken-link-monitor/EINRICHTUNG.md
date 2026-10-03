@@ -151,7 +151,8 @@ Sag vorher, was passiert und was es kostet:
 
 - Screaming Frog crawlt die Start-URL mit JavaScript-Rendering. Das kann je nach Größe eine bis mehrere Stunden dauern und kostet beim Embedding-Anbieter einige Cent pro tausend Seiten.
 - Ahrefs liefert die Broken Backlinks, etwa 12 Units pro Link.
-- Danach Wayback-Abruf, Matching und Live-Prüfung, etwa 5 bis 10 Minuten.
+- Danach Wayback-Abruf, Matching, Live-Prüfung und Mail-Entwürfe, etwa 10 bis 30 Minuten.
+- Der Rechner muss die ganze Zeit wach und online bleiben. Gegen das Einschlafen bei Untätigkeit startet der Lauf einen Schlafschutz. Den Laptop bitte nicht zuklappen und nicht das WLAN wechseln, sonst bricht dem Crawl die Verbindung ab. Der Lauf prüft danach, ob der Crawl vollständig war, und startet ihn bei Bedarf einmal neu.
 - Am Ende geht die Mail an die eingetragenen Empfänger.
 
 Erkläre auch: Der Crawl läuft über das MCP in einer eigenen Screaming-Frog-Instanz im Hintergrund, ohne Fenster. Im geöffneten Frog-Fenster ist er deshalb nicht zu sehen. Den Fortschritt meldest du. Nach dem Ende erscheint der Crawl in Frog unter File, Crawls.

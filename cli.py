@@ -70,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--report", type=Path, help="Bericht als .md oder .txt, dazu eine .html-Datei daneben")
     p.add_argument("--competitor", help="Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten URLs)")
     p.add_argument("--customer", default="", help="Kundenname für Betreff und Text des Berichts, z. B. Fressnapf")
+    p.add_argument("--note", action="append", default=[],
+                   help="Hinweis zum Lauf für den Bericht, z. B. ein unvollständiger Crawl; mehrfach möglich")
     p.add_argument("--env-file", type=Path, help="Datei mit KEY=Wert-Zeilen für Schlüssel (Standard: .env im Repo)")
     p.add_argument("--json", action="store_true", help="Zusammenfassung als JSON auf stdout")
     p.add_argument("--quiet", action="store_true", help="keinen Fortschritt auf stderr")
@@ -207,6 +209,7 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (PipelineError, EmbeddingError) as exc:
         print(f"Abbruch: {exc}", file=sys.stderr)
         return 1
+    result.summary.errors.extend(n.strip() for n in args.note if n.strip())
     new_flags = mark_new(result.results, seen or {}, run_id)
     # every open opportunity is in the report, content gaps are in the Excel file; both are
     # remembered so "Neu" stays meaningful, known pairs keep the run of their first record

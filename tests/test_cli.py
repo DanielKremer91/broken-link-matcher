@@ -347,3 +347,15 @@ def test_unreadable_env_file_exits_1(monkeypatch, tmp_path, capsys):
     env.write_bytes(b"OPENAI_API_KEY=\xff\xfe")
     assert cli.main(base_args(tmp_path) + ["--env-file", str(env)]) == 1
     assert "Schlüsseldatei" in capsys.readouterr().err
+
+
+@respx.mock
+def test_notes_appear_in_report_and_json(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    report = tmp_path / "bericht.md"
+    note = "Crawl unvollständig: 450 von 1340 Seiten ohne Antwort"
+    assert cli.main(base_args(tmp_path) + ["--report", str(report), "--note", note, "--note", " ", "--json"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert note in data["errors"] and " " not in data["errors"]
+    assert f"Hinweis zum Lauf: {note}" in report.read_text(encoding="utf-8")
