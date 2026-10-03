@@ -69,7 +69,7 @@ So legst du die Datei an:
 2. **Rendering:** Beim Custom-JavaScript-Weg unter Konfiguration, Spider, Rendering auf JavaScript stellen. Ohne Rendering läuft das Snippet nicht.
 3. **Umfang festlegen:** Nur HTML-Seiten, bei Bedarf auf relevante Verzeichnisse beschränken, Parameter-URLs ausschließen.
 4. **Einmal testen:** Ein paar Seiten crawlen und prüfen, ob die Embedding-Spalte gefüllt ist.
-5. **Speichern:** Datei, Konfiguration, Speichern unter. Lege die Datei in das Basisverzeichnis des Frog-MCP, bei dir `~/seo_spider_mcp_server/`. Auf dieses Verzeichnis hat das MCP sicher Zugriff.
+5. **Speichern:** Datei, Konfiguration, Speichern unter. Lege die Datei in das Basisverzeichnis des Frog-MCP, bei dir `~/seo_spider_mcp_server/`, mit dem Kundennamen im Dateinamen, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`. Auf dieses Verzeichnis hat das MCP sicher Zugriff. Jeder Kunde bekommt seine eigene Konfiguration, weil Snippet und Ausschlüsse auf den Seitenaufbau der jeweiligen Website zugeschnitten sind.
 
 Heißt die Custom-JavaScript-Spalte nicht nach dem Muster "Embeddings ...", trage ihren Namen in `frog.custom_js_field` ein, zum Beispiel `Embeddings Fressnapf 1`.
 
@@ -147,6 +147,10 @@ cp .claude/skills/broken-link-monitor/config.example.json monitor.config.json
 #### Mehrere Wettbewerber
 
 Trage einfach mehrere Domains in `competitors` ein. Der Crawl der eigenen Seite läuft einmal, Ahrefs-Abruf, Matching, Verlauf und Mail gibt es pro Wettbewerber.
+
+### Mehrere Kunden
+
+Eine Einrichtung gehört zu genau einem Kunden: eine eigene Domain, eine Frog-Konfiguration, beliebig viele Wettbewerber. Für einen weiteren Kunden richtest du den Monitor ein zweites Mal ein, mit demselben Startsatz. Als Speicherort wählst du dann einen eigenen Ordner, zum Beispiel `~/broken-link-matcher-bora`. Jede Einrichtung hat ihre eigene Konfiguration, ihren Verlauf und auf Wunsch ihre eigene geplante Aufgabe.
 
 ### Später etwas ändern
 

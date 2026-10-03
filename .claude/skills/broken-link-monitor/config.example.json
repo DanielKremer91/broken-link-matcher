@@ -5,7 +5,7 @@
   "start_url": "https://www.meine-domain.de/ratgeber/",
   "frog": {
     "crawl": true,
-    "config_file": "/Users/DEIN-NAME/seo_spider_mcp_server/broken-link-monitor.seospiderconfig",
+    "config_file": "/Users/DEIN-NAME/seo_spider_mcp_server/broken-link-monitor-kundenname.seospiderconfig",
     "embeddings_source": "custom_javascript",
     "custom_js_field": "",
     "embeddings_file": ""

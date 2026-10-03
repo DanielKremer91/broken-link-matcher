@@ -118,7 +118,7 @@ def check(cfg: dict) -> list[tuple[bool, str, str]]:
     return results
 
 
-DEFAULT_FROG_CONFIG = Path("~/seo_spider_mcp_server/broken-link-monitor.seospiderconfig")
+DEFAULT_FROG_DIR = Path("~/seo_spider_mcp_server")
 KEY_NAMES = ("OPENAI_API_KEY", "GEMINI_API_KEY", "RESEND_API_KEY", "RESEND_FROM")
 KEY_NOTES = {"OPENAI_API_KEY": " (bei OpenAI-Embeddings)", "GEMINI_API_KEY": " (nur bei Gemini-Embeddings)",
              "RESEND_API_KEY": " (nur bei Versand über Resend)", "RESEND_FROM": " (nur bei Versand über Resend)"}
@@ -147,8 +147,14 @@ def inventory(repo: Path, config: Path) -> list[tuple[bool, str]]:
             items.append((False, ".env lesbar"))
     for name in KEY_NAMES:
         items.append((bool(os.environ.get(name, "").strip()), f"{name} eingetragen{KEY_NOTES[name]}"))
-    frog_path = Path(str((cfg.get("frog") or {}).get("config_file") or DEFAULT_FROG_CONFIG)).expanduser()
-    items.append((frog_path.is_file(), f"Frog-Konfiguration {frog_path}"))
+    configured = (cfg.get("frog") or {}).get("config_file")
+    if configured:
+        frog_path = Path(str(configured)).expanduser()
+        items.append((frog_path.is_file(), f"Frog-Konfiguration {frog_path}"))
+    else:
+        found = sorted(DEFAULT_FROG_DIR.expanduser().glob("broken-link-monitor*.seospiderconfig"))
+        names = ", ".join(f.name for f in found)
+        items.append((bool(found), "Frog-Konfigurationen im MCP-Ordner" + (f": {names} (passt eine zu dieser Website?)" if found else "")))
     out_dir = repo / str(cfg.get("output_dir") or "laeufe")
     histories = sorted(out_dir.glob("verlauf-*.json")) if out_dir.is_dir() else []
     items.append((bool(histories), "Frühere Läufe (Verlaufsdateien)"))

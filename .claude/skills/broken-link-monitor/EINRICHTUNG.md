@@ -25,7 +25,7 @@ Vieles ist bei der Person vielleicht schon da: das Repo, die Umgebung, Schlüsse
 
 ## Schritt 1: Repo und Umgebung
 
-1. Gibt es noch kein Repo, schlag als Speicherort `~/broken-link-matcher` im Benutzerordner vor und frag kurz, ob das passt. Klone nicht einfach in den Ordner, in dem die Sitzung gerade läuft. Erstnutzer starten Claude oft in einem zufälligen Ordner, und der Monitor soll an einem festen, leicht auffindbaren Ort liegen. Fragt Claude dafür nach einer Berechtigung, erkläre in einem Satz, warum.
+1. Gibt es noch kein Repo, schlag als Speicherort `~/broken-link-matcher` im Benutzerordner vor und frag kurz, ob das passt. Gibt es schon eine Einrichtung für einen anderen Kunden, schlag einen eigenen Ordner vor, zum Beispiel `~/broken-link-matcher-<kunde>`. Eine Einrichtung gehört immer zu genau einem Kunden. Klone nicht einfach in den Ordner, in dem die Sitzung gerade läuft. Erstnutzer starten Claude oft in einem zufälligen Ordner, und der Monitor soll an einem festen, leicht auffindbaren Ort liegen. Fragt Claude dafür nach einer Berechtigung, erkläre in einem Satz, warum.
 2. Klone das Repo dorthin: `git clone https://github.com/DanielKremer91/broken-link-matcher <ordner>`. Existiert der Ordner schon mit `cli.py`, nutze ihn und hole Neuerungen mit `git pull`.
 3. Fehlt die Umgebung `.venv`, richte sie ein, im Repo-Ordner:
    - mit `uv`: `uv venv --python 3.11 .venv && uv pip install -r requirements.txt`
@@ -77,7 +77,7 @@ Erwähne die Ahrefs-Standardfilter in einem Satz: 100 Links pro Wettbewerber, nu
 Schreibe dann `monitor.config.json` im Repo-Ordner nach dem Muster von `config.example.json` in diesem Skill-Ordner:
 
 - `repo_path` ist der absolute Repo-Pfad.
-- `frog.config_file` ist `<Basisverzeichnis des Frog-MCP>/broken-link-monitor.seospiderconfig`. Das Basisverzeichnis liefert das Frog-Tool für das erlaubte Verzeichnis. Ohne Frog-MCP nimm vorläufig `~/seo_spider_mcp_server` und prüfe später.
+- `frog.config_file` ist `<Basisverzeichnis des Frog-MCP>/broken-link-monitor-<kunde>.seospiderconfig`. `<kunde>` ist der Kundenname klein geschrieben, Leerzeichen als Bindestrich, Umlaute als ae, oe, ue, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`. So bekommt jeder Kunde seine eigene Frog-Konfiguration. Das Basisverzeichnis liefert das Frog-Tool für das erlaubte Verzeichnis. Ohne Frog-MCP nimm vorläufig `~/seo_spider_mcp_server` und prüfe später.
 - Wettbewerber klein, ohne `https://` und ohne Schrägstrich.
 - `output_dir` ist `laeufe`.
 
@@ -85,7 +85,7 @@ Zeig die wichtigsten Werte in einer kurzen Liste und frag, ob alles stimmt.
 
 ## Schritt 4: Screaming Frog vorbereiten
 
-Liegt die Frog-Konfiguration laut Bestandsaufnahme schon am richtigen Ort, frag nur: "Enthält sie das Embedding-Setup und JavaScript-Rendering?" Bei Ja überspringe diesen Schritt.
+Liegen im Basisverzeichnis schon Frog-Konfigurationen (`broken-link-monitor*.seospiderconfig`), nenne sie und frag, ob eine davon für genau diese Website angelegt wurde und Embedding-Setup und JavaScript-Rendering enthält. Nur dann trag ihren Pfad als `frog.config_file` ein und überspringe diesen Schritt. Übernimm nie die Konfiguration einer anderen Website: Snippet und Ausschlüsse sind auf deren Seitenaufbau zugeschnitten und liefern bei einer fremden Website schlechte Embeddings.
 
 Sonst erkläre, dass Screaming Frog die eigenen Seiten crawlt und dabei für jede Seite ein Embedding erzeugt, eine Zahlenfolge, die den Inhalt beschreibt. So kann das Tool später Seiten mit ähnlichem Inhalt finden. Das richtet die Person einmal in Frog ein und speichert es als Konfigurationsdatei.
 
@@ -113,10 +113,10 @@ Dann in beiden Fällen:
 
 1. Umfang festlegen: nur HTML-Seiten, bei Bedarf auf den Bereich der Start-URL beschränken.
 2. Optional ein paar Seiten testweise crawlen und prüfen, ob die Embedding-Spalte gefüllt ist.
-3. Speichern über Datei, Konfiguration, Speichern unter. Wichtig: Im Dialog zuerst den Ordner `<Basisverzeichnis>` auswählen und dann nur den Dateinamen `broken-link-monitor.seospiderconfig` eintippen. Wird der ganze Pfad ins Namensfeld getippt, landet die Datei mit einem Doppelpunkt im Namen im Benutzerordner.
+3. Speichern über Datei, Konfiguration, Speichern unter. Wichtig: Im Dialog zuerst den Ordner `<Basisverzeichnis>` auswählen und dann nur den Dateinamen aus `frog.config_file` eintippen, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`. Wird der ganze Pfad ins Namensfeld getippt, landet die Datei mit einem Doppelpunkt im Namen im Benutzerordner.
 4. Hinweis: Beim Custom-JavaScript-Weg steht der API-Schlüssel in dieser Datei. Sie darf nie weitergegeben werden.
 
-Wenn die Person "gespeichert" sagt, prüfe, ob die Datei an der richtigen Stelle liegt. Liegt sie mit Doppelpunkt im Namen im Benutzerordner (zum Beispiel `~/seo_spider_mcp_server:broken-link-monitor.seospiderconfig`), sag das und verschiebe sie an den richtigen Ort.
+Wenn die Person "gespeichert" sagt, prüfe, ob die Datei an der richtigen Stelle liegt. Liegt sie mit Doppelpunkt im Namen im Benutzerordner (zum Beispiel `~/seo_spider_mcp_server:broken-link-monitor-fressnapf.seospiderconfig`), sag das und verschiebe sie an den richtigen Ort.
 
 Lies die Datei nicht aus und zeig keine Inhalte daraus.
 

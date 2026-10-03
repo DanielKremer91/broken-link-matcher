@@ -160,7 +160,9 @@ def test_inventory_works_without_config_and_hides_values(tmp_path, monkeypatch, 
     repo.mkdir()
     (repo / ".env").write_text("OPENAI_API_KEY=sk-geheim\nRESEND_FROM=\n", encoding="utf-8")
     monkeypatch.setattr(check_setup, "__file__", str(repo / "check_setup.py"))
-    monkeypatch.setattr(check_setup, "DEFAULT_FROG_CONFIG", tmp_path / "fehlt.seospiderconfig")
+    frog_dir = tmp_path / "mcp"
+    frog_dir.mkdir()
+    monkeypatch.setattr(check_setup, "DEFAULT_FROG_DIR", frog_dir)
     rc = check_setup.main(["--inventory", "--config", str(repo / "monitor.config.json")])
     out = capsys.readouterr().out
     assert rc == 0 and "sk-geheim" not in out
@@ -169,6 +171,10 @@ def test_inventory_works_without_config_and_hides_values(tmp_path, monkeypatch, 
     assert "○ fehlt: RESEND_FROM eingetragen (nur bei Versand über Resend)" in out
     assert "○ fehlt: Konfiguration monitor.config.json" in out
     assert "○ fehlt: Virtuelle Umgebung .venv" in out
+    assert "○ fehlt: Frog-Konfigurationen im MCP-Ordner" in out
+    (frog_dir / "broken-link-monitor-fressnapf.seospiderconfig").write_text("x")
+    check_setup.main(["--inventory", "--config", str(repo / "monitor.config.json")])
+    assert "broken-link-monitor-fressnapf.seospiderconfig (passt eine zu dieser Website?)" in capsys.readouterr().out
 
 
 def test_inventory_uses_frog_path_from_config(tmp_path, monkeypatch, capsys):
