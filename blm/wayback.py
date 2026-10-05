@@ -1,7 +1,7 @@
 """Recover the content of a dead URL from the Wayback Machine.
 
 Always uses the newest snapshot with HTTP status 200. Fetches the raw archived
-HTML with the ``id_`` flag so no Wayback toolbar or rewritten links end up in
+HTML with the ``id_`` flag so no Wayback Machine toolbar or rewritten links end up in
 the text. Falls back to a plain concatenation of fields Ahrefs already
 delivered; nothing is generated.
 """
@@ -29,7 +29,7 @@ _EXT_RE = re.compile(r"\.(html?|php|aspx?|jsp)$", re.IGNORECASE)
 
 
 def user_agent(contact: Optional[str] = None) -> str:
-    """User-Agent for Wayback and live checks; a contact (e-mail or URL) lets site owners reach the operator."""
+    """User-Agent for Wayback Machine and live checks; a contact (e-mail or URL) lets site owners reach the operator."""
     # printable ASCII only: header values must not carry line breaks or non-ASCII characters
     clean = "".join(ch for ch in (contact or "") if " " <= ch <= "~")
     clean = " ".join(clean.replace("(", " ").replace(")", " ").split())[:200]
@@ -64,7 +64,7 @@ def _get_with_retry(
                 return resp
         if attempt < len(RETRY_PAUSES):
             sleeper(RETRY_PAUSES[attempt])
-    raise WaybackError(f"Wayback request failed after retries: {last_error}")
+    raise WaybackError(f"Wayback Machine request failed after retries: {last_error}")
 
 
 def latest_snapshot(
@@ -178,6 +178,6 @@ def recover_content(
         else:
             error = "Kein Snapshot mit Status 200"
     except WaybackError as exc:
-        error = f"Wayback-Fehler: {exc}"
+        error = f"Wayback-Machine-Fehler: {exc}"
 
     return fallback_content(backlink, error, max_chars)

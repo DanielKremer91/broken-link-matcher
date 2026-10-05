@@ -22,7 +22,7 @@ Die App ist in fünf Abschnitte gegliedert, die du von oben nach unten durchgehs
 
 1. Eigene Domain: Screaming-Frog-Crawl mit Embeddings, Export hochladen, Dimensionscheck gegen das gewählte Modell.
 2. Wettbewerber-Backlinks: Ahrefs-Export hochladen (CSV oder XLSX) oder per Ahrefs-API laden, filtern, nach Linkwert sortieren.
-3. Wayback-Abruf: jüngster Snapshot mit Status 200 pro toter URL, Haupttext-Extraktion. Ohne Snapshot: Fallback aus Anker, Kontext, Titel und URL-Pfad, also ausschließlich aus Feldern, die Ahrefs bereits geliefert hat. Es wird nie Text generiert.
+3. Abruf aus der Wayback Machine: jüngster Snapshot mit Status 200 pro toter URL, Haupttext-Extraktion. Ohne Snapshot: Fallback aus Anker, Kontext, Titel und URL-Pfad, also ausschließlich aus Feldern, die Ahrefs bereits geliefert hat. Es wird nie Text generiert.
 4. Matching: Embeddings mit demselben Modell wie im Frog, Top 3 pro URL, Content-Gap unter dem Schwellwert.
 5. Verifikation und Outreach: Live-Check (Ziel noch 404? Link noch da?), Export als CSV oder Excel, Mail-Entwurf pro Treffer.
 
@@ -81,10 +81,10 @@ Dieselben Anbieter erzeugen auch die Mail-Entwürfe (Chat-Modell in der Seitenle
 
 ## Kosten und Etikette
 
-- Wayback Machine: pro tote URL zwei Anfragen (CDX-Abfrage nach dem jüngsten Snapshot mit Status 200, danach der Rohdaten-Abruf über das `id_`-Flag, also ohne Wayback-Toolbar), mit einer Sekunde Pause zwischen den beiden Anfragen und einer Sekunde Pause zwischen den URLs. Bei Fehlern, Status 429 und 5xx wird mit Backoff (2, 4, 8 Sekunden) wiederholt. Bitte nicht parallelisieren. Bereits geholte Seiten kommen aus dem Cache und kosten keine Pause.
-- User-Agent: Wayback-Abruf und Live-Check senden `broken-link-matcher/0.1 (…)`. Trag in der Seitenleiste unter "Kontakt für User-Agent" eine E-Mail-Adresse oder URL ein, dann wird sie mitgeschickt und Betreiber können dich erreichen.
+- Wayback Machine: pro tote URL zwei Anfragen (CDX-Abfrage nach dem jüngsten Snapshot mit Status 200, danach der Rohdaten-Abruf über das `id_`-Flag, also ohne die Toolbar der Wayback Machine), mit einer Sekunde Pause zwischen den beiden Anfragen und einer Sekunde Pause zwischen den URLs. Bei Fehlern, Status 429 und 5xx wird mit Backoff (2, 4, 8 Sekunden) wiederholt. Bitte nicht parallelisieren. Bereits geholte Seiten kommen aus dem Cache und kosten keine Pause.
+- User-Agent: Der Abruf aus der Wayback Machine und der Live-Check senden `broken-link-matcher/0.1 (…)`. Trag in der Seitenleiste unter "Kontakt für User-Agent" eine E-Mail-Adresse oder URL ein, dann wird sie mitgeschickt und Betreiber können dich erreichen.
 - Embeddings: pro toter URL ein Text von maximal 12000 Zeichen (in Abschnitt 3 einstellbar, 1000 bis 50000). Gleiche Texte werden nur einmal eingebettet. Bei Status 429, 5xx und Zeitüberschreitungen wird bis zu dreimal wiederholt (2, 4, 8 Sekunden, ein numerischer Retry-After-Header wird bis 30 Sekunden beachtet). Fertige Batches landen sofort im Cache, ein Abbruch verliert also nur den laufenden Batch.
-- Cache: Wayback-Texte (bis 50000 Zeichen, gekürzt auf die eingestellte Länge) und Embeddings werden in `.cache/` neben `app.py` gespeichert; "Cache leeren" in der Seitenleiste löscht die gespeicherten Einträge.
+- Cache: Texte aus der Wayback Machine (bis 50000 Zeichen, gekürzt auf die eingestellte Länge) und Embeddings werden in `.cache/` neben `app.py` gespeichert; "Cache leeren" in der Seitenleiste löscht die gespeicherten Einträge.
 - Live-Check: "confirmed" heißt, das Ziel antwortet noch mit 404 oder 410 und die verlinkende Seite enthält den Link noch. Leitet das Ziel inzwischen auf eine erreichbare Seite weiter oder ist der Link entfernt, gilt die Zeile als "fixed". Nicht eindeutige Antworten (Netzwerkfehler, 403, 429, 5xx, fehlerhafte URLs) ergeben "unknown".
 - Schwellwert: 0,5 ist ein Startwert. Die Score-Verteilung hängt vom Modell ab; an eigenen Daten kalibrieren.
 - Export: Die CSV nutzt Semikolon als Trennzeichen und Dezimalkomma, damit sie in deutschem Excel direkt sauber öffnet. Die Excel-Datei enthält dieselben Spalten im Blatt "Treffer".

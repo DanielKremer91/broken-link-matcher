@@ -359,3 +359,26 @@ def test_notes_appear_in_report_and_json(monkeypatch, tmp_path, capsys, fake_pro
     data = json.loads(capsys.readouterr().out)
     assert note in data["errors"] and " " not in data["errors"]
     assert f"Hinweis zum Lauf: {note}" in report.read_text(encoding="utf-8")
+
+
+@respx.mock
+def test_mailed_excel_has_no_internal_columns(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    args = base_args(tmp_path) + ["--report", str(tmp_path / "bericht.md"), "--seen-file", str(tmp_path / "seen.json")]
+    assert cli.main(args) == 0
+    columns = list(pd.read_excel(tmp_path / "ergebnis.xlsx").columns)
+    for hidden in ("Priorität", "Rang Linkwert", "Traffic", "Content-Gap"):
+        assert hidden not in columns
+    assert columns[:3] == ["Neu", "Erstmals erfasst", "Linkgebende URL"]
+
+
+@respx.mock
+def test_excel_without_report_keeps_all_columns_and_summary_says_wayback_machine(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    assert cli.main(base_args(tmp_path)) == 0
+    columns = list(pd.read_excel(tmp_path / "ergebnis.xlsx").columns)
+    assert columns[:2] == ["Priorität", "Rang Linkwert"] and "Content-Gap" in columns
+    out = capsys.readouterr().out
+    assert "Wayback Machine: " in out and "Wayback: " not in out

@@ -16,6 +16,16 @@ COLUMNS = [
 ]
 
 
+# Internal working columns that the customer-facing Excel of the monthly mail does not show.
+MAIL_HIDDEN_COLUMNS = ("Priorität", "Rang Linkwert", "Traffic", "Content-Gap")
+SOURCE_LABELS = {"wayback": "Wayback Machine"}
+
+
+def source_label(source: str) -> str:
+    """Display name of RecoveredContent.source; the service is called Wayback Machine."""
+    return SOURCE_LABELS.get(source, source)
+
+
 def sanitize_cell(value: str) -> str:
     """Prevent formula injection by prefixing dangerous characters with a single quote."""
     if isinstance(value, str) and value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
@@ -33,9 +43,11 @@ def results_to_dataframe(
     results: list[MatchResult],
     new_flags: Optional[list[bool]] = None,
     first_reported: Optional[list[str]] = None,
+    hide: tuple[str, ...] = (),
 ) -> pd.DataFrame:
     """One row per result; with new_flags a column "Neu" (Ja/Nein) follows "Priorität",
-    with first_reported a column "Erstmals erfasst" (run id) follows that."""
+    with first_reported a column "Erstmals erfasst" (run id) follows that.
+    Columns named in ``hide`` are left out; the row order stays the priority order."""
     records = []
     for idx, r in enumerate(results):
         top = r.top + [None] * (3 - len(r.top))
@@ -48,7 +60,7 @@ def results_to_dataframe(
             "Traffic": r.backlink.page_traffic,
             "Anker": sanitize_cell(r.backlink.anchor),
             "Tote URL": sanitize_cell(r.backlink.url_to),
-            "Quelle Text": sanitize_cell(r.recovered.source),
+            "Quelle Text": sanitize_cell(source_label(r.recovered.source)),
             "Snapshot": sanitize_cell(format_snapshot(r.recovered.snapshot_timestamp)),
         }
         for i, m in enumerate(top, start=1):
@@ -63,7 +75,7 @@ def results_to_dataframe(
             rec["Erstmals erfasst"] = sanitize_cell(first_reported[idx] or "")
         records.append(rec)
     extra = (["Neu"] if new_flags is not None else []) + (["Erstmals erfasst"] if first_reported is not None else [])
-    columns = COLUMNS[:1] + extra + COLUMNS[1:]
+    columns = [c for c in COLUMNS[:1] + extra + COLUMNS[1:] if c not in hide]
     return pd.DataFrame.from_records(records, columns=columns)
 
 

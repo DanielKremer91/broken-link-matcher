@@ -14,7 +14,7 @@ import streamlit as st
 
 from blm.cache import JsonCache
 from blm.embeddings import DEFAULT_EMBED_MODELS, PROVIDERS, EmbeddingError, embed_cached, make_provider
-from blm.export import results_to_dataframe, to_csv_bytes, to_xlsx_bytes
+from blm.export import results_to_dataframe, source_label, to_csv_bytes, to_xlsx_bytes
 from blm.ingest.ahrefs_api import AhrefsError, describe_filters, fetch_broken_backlinks
 from blm.ingest.backlinks_csv import OPTIONAL_FIELDS, REQUIRED_FIELDS, detect_columns, parse_backlinks
 from blm.ingest.frog_csv import detect_frog_columns, load_frog_embeddings
@@ -69,7 +69,7 @@ ausreichend passt, entsteht als Nebenprodukt eine Liste von Content-Gaps.
 **Ablauf**
 1. Eigene Domain: Frog-Embeddings hochladen und per Dimensionscheck prüfen, ob das gewählte Modell passt.
 2. Wettbewerber-Backlinks: CSV/XLSX hochladen oder per Ahrefs-API laden, filtern und nach Wert sortieren.
-3. Wayback-Abruf: den früheren Inhalt der toten URLs aus der Wayback Machine holen.
+3. Abruf aus der Wayback Machine: den früheren Inhalt der toten URLs holen.
 4. Matching: Embeddings berechnen, die passendste eigene Seite je Backlink bestimmen, Content-Gaps markieren.
 5. Verifikation und Outreach: optional live prüfen, Ergebnisse als CSV oder Excel laden, Mail-Entwürfe erzeugen.
 
@@ -78,7 +78,7 @@ ausreichend passt, entsteht als Nebenprodukt eine Liste von Content-Gaps.
 **Hinweise**
 - Texte werden nie erfunden: Sie stammen aus der Wayback Machine oder werden aus Ahrefs-Feldern (Anker, Kontext, Titel) zusammengesetzt.
 - Der einzige generierte Text ist der optionale Mail-Entwurf. Es wird nichts versendet.
-- API-Schlüssel bleiben in dieser Sitzung und werden nicht gespeichert. Wayback-Texte und Embeddings landen im Ordner `.cache`.
+- API-Schlüssel bleiben in dieser Sitzung und werden nicht gespeichert. Texte aus der Wayback Machine und Embeddings landen im Ordner `.cache`.
 - Kosten: Ahrefs berechnet Units pro abgerufener Zeile, der Embedding-Anbieter Tokens pro toter URL.
 - Derselbe Ablauf steht als Kommandozeile für Claude Code zur Verfügung (`cli.py`, siehe `docs/agentic-workflow.md`).
 """
@@ -139,7 +139,7 @@ with st.sidebar:
              "So kann dich ein Seitenbetreiber erreichen, falls der Abruf stört. archive.org bittet darum.")
     agent = user_agent(contact)
     st.divider()
-    if st.button("Cache leeren", help="Löscht gespeicherte Wayback-Texte und Embeddings. Danach dauert der nächste Lauf wieder länger."):
+    if st.button("Cache leeren", help="Löscht gespeicherte Texte aus der Wayback Machine und Embeddings. Danach dauert der nächste Lauf wieder länger."):
         st.success(f"{CACHE.clear()} Einträge gelöscht")
     st.caption("Schlüssel bleiben in dieser Sitzung und werden nicht gespeichert.")
 
@@ -264,7 +264,7 @@ def run_matching(report: Callable[[str], object] = st.error) -> bool:
 
 
 def run_all() -> str | None:
-    """One click for dimension check, Wayback fetch and matching; stops at the first failure.
+    """One click for dimension check, Wayback Machine fetch and matching; stops at the first failure.
 
     Returns None on success, otherwise the error text to show after the rerun.
     """
@@ -276,7 +276,7 @@ def run_all() -> str | None:
         if not run_dimension_check(report=errors.append):
             # a mismatch has no provider error; step 1 shows its details from the stored state
             return errors[0] if errors else "Die Dimension passt nicht zum Frog-Export, Details in Schritt 1."
-    st.write("Wayback-Abruf …")
+    st.write("Abruf aus der Wayback Machine …")
     run_wayback()
     st.write("Matching …")
     if not run_matching(report=errors.append):
@@ -298,7 +298,7 @@ def next_step_hint() -> tuple[str, str]:
         return "warning", "Filter geändert. \"Los geht's\" erneut klicken, damit die Ergebnisse zur aktuellen Auswahl passen."
     if S.get("results"):
         return "success", "Ergebnisse liegen vor. Optional in Schritt 5 live prüfen, exportieren oder Mail-Entwürfe erzeugen."
-    return "info", "Alles bereit. Klicke \"Los geht's\" für Dimensionscheck, Wayback-Abruf und Matching in einem Durchlauf."
+    return "info", "Alles bereit. Klicke \"Los geht's\" für Dimensionscheck, Abruf aus der Wayback Machine und Matching in einem Durchlauf."
 
 
 def missing_inputs() -> list[str]:
@@ -512,7 +512,7 @@ if "raw_backlinks" in S:
     sort_by = c4.selectbox("Sortieren nach", SORT_FIELDS, format_func=SORT_LABELS.get,
                            help="Kennzahl für den Rang der Zeilen. Die Obergrenze schneidet nach dieser Sortierung ab.")
     limit = c5.number_input("Obergrenze", min_value=1, max_value=1000, value=100,
-                            help="Höchstzahl der Backlinks für Wayback-Abruf und Matching. Weniger Zeilen bedeuten kürzere Läufe und geringere Embedding-Kosten.")
+                            help="Höchstzahl der Backlinks für Wayback-Machine-Abruf und Matching. Weniger Zeilen bedeuten kürzere Läufe und geringere Embedding-Kosten.")
     S["ranked"] = rank_backlinks(S["raw_backlinks"], dofollow_only=dofollow_only, content_only=content_only, min_dr=float(min_dr), sort_by=sort_by, limit=int(limit))
     preview = pd.DataFrame([{"Rang": b.value_rank, "Linkgebende URL": b.url_from, "DR": b.domain_rating, "UR": b.url_rating,
                              "Traffic": b.page_traffic, "Anker": b.anchor, "Tote URL": b.url_to} for b in S["ranked"]])
@@ -520,12 +520,12 @@ if "raw_backlinks" in S:
 
 # ----------------------------------------------------------------- 3. wayback
 if "ranked" in S:
-    st.header("3. Wayback-Abruf")
+    st.header("3. Abruf aus der Wayback Machine")
     st.number_input("Maximale Zeichen pro Text", min_value=1000, max_value=50000, value=12000, step=1000, key="max_chars",
                                 help="Begrenzt den Text, der embedded wird. 12000 Zeichen reichen für Ratgeberseiten und bleiben unter den Token-Limits.")
     st.caption("Immer der jüngste Snapshot mit Status 200. Ohne Snapshot: Fallback aus Anker, Kontext, Titel und URL-Pfad, kein generierter Text.")
     if "recovered_for" in S and S["recovered_for"] != S["ranked"]:
-        st.warning("Filter oder Backlinks geändert, Wayback-Abruf erneut starten.")
+        st.warning("Filter oder Backlinks geändert, Abruf aus der Wayback Machine erneut starten.")
     if st.button("Inhalte aus der Wayback Machine holen",
                  help="Holt je toter URL den jüngsten Snapshot mit Status 200 aus archive.org, etwa zwei bis vier Sekunden pro neuer URL, gecachte URLs sind sofort da."):
         run_wayback()
@@ -533,10 +533,10 @@ if "ranked" in S:
         rec = S["recovered"]
         counts = {src: sum(r.source == src for r in rec) for src in ("wayback", "fallback", "none")}
         errors = sum(bool(r.error) for r in rec)
-        st.write(f"Snapshots: {counts['wayback']} · Fallback aus Ahrefs-Feldern: {counts['fallback']} · Kein Text: {counts['none']} · Fehler: {errors}")
+        st.write(f"Snapshots aus der Wayback Machine: {counts['wayback']} · Fallback aus Ahrefs-Feldern: {counts['fallback']} · Kein Text: {counts['none']} · Fehler: {errors}")
         with st.expander("Rekonstruierte Texte ansehen"):
             for r in rec:
-                label = f"**{r.url_to}** · {r.source}" + (f" · Snapshot {r.snapshot_timestamp[:8]}" if r.snapshot_timestamp else "")
+                label = f"**{r.url_to}** · {source_label(r.source)}" + (f" · Snapshot {r.snapshot_timestamp[:8]}" if r.snapshot_timestamp else "")
                 label += f" · {r.error}" if r.error else ""
                 st.markdown(label)
                 st.text((r.text or "(kein Text)")[:600])
@@ -547,7 +547,7 @@ if "recovered" in S:
     threshold = st.slider("Schwellwert: darunter gilt eine Zeile als Content-Gap", 0.0, 1.0, 0.5, 0.01,
                           help="Beste Ähnlichkeit darunter = Content-Gap. Die Verteilung hängt vom Modell ab, 0.5 ist ein Startwert.")
     match_fallback = st.checkbox("Fallback-Zeilen (ohne Snapshot) ebenfalls matchen", value=True,
-                                 help="Zeilen ohne Wayback-Snapshot werden mit Anker, Kontext, Titel und URL-Pfad gematcht. Ergebnis ist unschärfer, aber oft brauchbar.")
+                                 help="Zeilen ohne Snapshot in der Wayback Machine werden mit Anker, Kontext, Titel und URL-Pfad gematcht. Ergebnis ist unschärfer, aber oft brauchbar.")
     blocked = "frog" not in S or not dim_valid
     if blocked:
         st.warning("Erst den Frog-Export laden und den Dimensionscheck bestehen.")
@@ -635,7 +635,7 @@ with next_step_box:
     getattr(st, kind)(hint)
     missing = missing_inputs()
     if st.button("Los geht's", type="primary", key="run_all", disabled=bool(missing),
-                 help="Führt Dimensionscheck, Wayback-Abruf und Matching nacheinander aus. Kostet Embedding-Tokens, "
+                 help="Führt Dimensionscheck, Wayback-Machine-Abruf und Matching nacheinander aus. Kostet Embedding-Tokens, "
                       "gecachte Texte und Vektoren werden wiederverwendet."):
         with st.status("Läuft …", expanded=True) as run_status:
             run_error = run_all()

@@ -1,6 +1,6 @@
 # Agentischer Weg: Claude Code steuert den Workflow
 
-Dieselbe Pipeline wie in der Streamlit-App, aber ohne Oberfläche. Claude Code holt die Eingaben über die MCP-Server von Screaming Frog und Ahrefs, ruft `cli.py` auf, liest die Zusammenfassung und wertet die Ergebnisdatei aus. `cli.py` nutzt dieselben Module wie die App (Ingest, Ranking, Wayback, Embeddings, Matching, Verifikation, Mail-Entwürfe) und teilt sich den Cache-Ordner `.cache/` mit ihr.
+Dieselbe Pipeline wie in der Streamlit-App, aber ohne Oberfläche. Claude Code holt die Eingaben über die MCP-Server von Screaming Frog und Ahrefs, ruft `cli.py` auf, liest die Zusammenfassung und wertet die Ergebnisdatei aus. `cli.py` nutzt dieselben Module wie die App (Ingest, Ranking, Wayback Machine, Embeddings, Matching, Verifikation, Mail-Entwürfe) und teilt sich den Cache-Ordner `.cache/` mit ihr.
 
 ## Voraussetzungen
 
@@ -52,7 +52,8 @@ usage: cli.py [-h] --frog FROG --backlinks BACKLINKS [--provider {openai,gemini,
               [--contact CONTACT] [--verify] [--drafts] [--sender SENDER] [--domain DOMAIN]
               [--chat-model CHAT_MODEL] [--drafts-out DRAFTS_OUT] [--cache-dir CACHE_DIR]
               [--seen-file SEEN_FILE] [--run-id RUN_ID] [--report REPORT]
-              [--competitor COMPETITOR] [--env-file ENV_FILE] [--json] [--quiet]
+              [--competitor COMPETITOR] [--customer CUSTOMER] [--note NOTE] [--env-file ENV_FILE]
+              [--json] [--quiet]
 
 Broken Link Matcher: tote Wettbewerber-URLs mit eigenen Seiten matchen (ohne Oberfläche).
 
@@ -73,7 +74,7 @@ options:
                         Content-Gap unterhalb dieses Scores
   --no-fallback         Zeilen ohne Snapshot nicht matchen
   --max-chars MAX_CHARS
-  --pause PAUSE         Sekunden Pause nach jedem Wayback-Abruf
+  --pause PAUSE         Sekunden Pause nach jedem Abruf aus der Wayback Machine
   --contact CONTACT     Kontakt (Mail oder URL) für den User-Agent
   --verify              Live prüfen: Ziel noch 404, Link noch vorhanden
   --drafts              Mail-Entwürfe erzeugen (braucht --sender und --domain)
@@ -90,10 +91,15 @@ options:
                         gemeldeten
   --run-id RUN_ID       Kennung des Laufs, Standard aktueller Monat JJJJ-MM; ein zweiter Lauf mit
                         gleicher Kennung liefert denselben Bericht
-  --report REPORT       Bericht als .md oder .txt, dazu eine .html-Datei daneben
+  --report REPORT       Bericht als .md oder .txt, dazu eine .html-Datei daneben; die
+                        Ergebnisdatei ist dann der Mailanhang und enthält keine internen Spalten
+                        (Priorität, Rang Linkwert, Traffic, Content-Gap)
   --competitor COMPETITOR
                         Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten
                         URLs)
+  --customer CUSTOMER   Kundenname für Betreff und Text des Berichts, z. B. Fressnapf
+  --note NOTE           Hinweis zum Lauf für den Bericht, z. B. ein unvollständiger Crawl;
+                        mehrfach möglich
   --env-file ENV_FILE   Datei mit KEY=Wert-Zeilen für Schlüssel (Standard: .env im Repo)
   --json                Zusammenfassung als JSON auf stdout
   --quiet               keinen Fortschritt auf stderr
@@ -117,4 +123,4 @@ Schlüssel gehören nie auf die Kommandozeile. Es gibt dafür bewusst keine Opti
 
 ### Monatlicher Lauf
 
-`--seen-file` merkt sich offene Chancen und Content-Gaps als Paare aus linkgebender Seite und toter URL, jeweils mit der Lauf-Kennung aus `--run-id` (Standard: aktueller Monat), in der sie zuerst erfasst wurden. Ein zweiter Lauf mit derselben Kennung liefert denselben Bericht. Die Ergebnisdatei bekommt die Spalten "Neu" und "Erstmals erfasst". `--report bericht.md` schreibt einen Bericht aller offenen Chancen, neue zuerst, und daneben `bericht.html` für den Mailversand. Mit `--json` stehen zusätzlich `run_id`, `new_rows` (nur mit Verlaufsdatei), `opportunities`, `new_opportunities`, `new_content_gaps`, `report`, `report_html` und `report_subject` in der Ausgabe. Den kompletten monatlichen Ablauf beschreibt [monatlicher-workflow.md](monatlicher-workflow.md).
+`--seen-file` merkt sich offene Chancen und Content-Gaps als Paare aus linkgebender Seite und toter URL, jeweils mit der Lauf-Kennung aus `--run-id` (Standard: aktueller Monat), in der sie zuerst erfasst wurden. Ein zweiter Lauf mit derselben Kennung liefert denselben Bericht. Die Ergebnisdatei bekommt die Spalten "Neu" und "Erstmals erfasst". Mit `--report` ist die Ergebnisdatei der Anhang der Kundenmail. Sie enthält dann die internen Spalten "Priorität", "Rang Linkwert", "Traffic" und "Content-Gap" nicht; die Zeilen bleiben nach Priorität sortiert. `--report bericht.md` schreibt einen Bericht aller offenen Chancen, neue zuerst, und daneben `bericht.html` für den Mailversand. Mit `--json` stehen zusätzlich `run_id`, `new_rows` (nur mit Verlaufsdatei), `opportunities`, `new_opportunities`, `new_content_gaps`, `report`, `report_html` und `report_subject` in der Ausgabe. Den kompletten monatlichen Ablauf beschreibt [monatlicher-workflow.md](monatlicher-workflow.md).

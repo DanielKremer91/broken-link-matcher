@@ -103,7 +103,7 @@ Zusätze:
 - `--contact "<contact>"`, wenn `contact` nicht leer ist.
 - `--note "<Hinweis>"` für jeden Hinweis aus Schritt 1, zum Beispiel einen unvollständigen Crawl. Er erscheint im Bericht unter den technischen Details.
 
-Das Matching dauert je nach Zahl der Links 10 bis 30 Minuten, beim ersten Lauf länger. Starte `cli.py` deshalb im Hintergrund mit einem Zeitlimit von mindestens 60 Minuten und warte auf das Ende. Bricht es trotzdem wegen eines Zeitlimits ab, starte es einmal neu. Die Wayback-Texte und Embeddings liegen im Cache, der zweite Durchlauf ist deutlich schneller.
+Das Matching dauert je nach Zahl der Links 10 bis 30 Minuten, beim ersten Lauf länger. Starte `cli.py` deshalb im Hintergrund mit einem Zeitlimit von mindestens 60 Minuten und warte auf das Ende. Bricht es trotzdem wegen eines Zeitlimits ab, starte es einmal neu. Die Texte aus der Wayback Machine und die Embeddings liegen im Cache, der zweite Durchlauf ist deutlich schneller.
 
 Exit-Code 0: Lies die JSON-Ausgabe. Du brauchst `report_subject`, `report`, `report_html`, `output`, `drafts_output` (falls vorhanden), `opportunities` und `new_opportunities`.
 

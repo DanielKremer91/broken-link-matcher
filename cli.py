@@ -26,7 +26,7 @@ from typing import Optional
 from blm.cache import JsonCache
 from blm.embeddings import DEFAULT_EMBED_MODELS, PROVIDERS, EmbeddingError, make_provider
 from blm.envfile import load_env_file
-from blm.export import results_to_dataframe, to_csv_bytes, to_xlsx_bytes
+from blm.export import MAIL_HIDDEN_COLUMNS, results_to_dataframe, to_csv_bytes, to_xlsx_bytes
 from blm.history import HistoryError, current_run_id, load_seen, mark_new, pair_key, record_reported, save_seen
 from blm.outreach import DEFAULT_CHAT_MODELS
 from blm.pipeline import ChatConfig, PipelineConfig, PipelineError, PipelineResult, run_pipeline, summary_to_dict
@@ -56,7 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--threshold", type=float, default=0.5, help="Content-Gap unterhalb dieses Scores")
     p.add_argument("--no-fallback", action="store_true", help="Zeilen ohne Snapshot nicht matchen")
     p.add_argument("--max-chars", type=int, default=12000)
-    p.add_argument("--pause", type=float, default=1.0, help="Sekunden Pause nach jedem Wayback-Abruf")
+    p.add_argument("--pause", type=float, default=1.0, help="Sekunden Pause nach jedem Abruf aus der Wayback Machine")
     p.add_argument("--contact", help="Kontakt (Mail oder URL) für den User-Agent")
     p.add_argument("--verify", action="store_true", help="Live prüfen: Ziel noch 404, Link noch vorhanden")
     p.add_argument("--drafts", action="store_true", help="Mail-Entwürfe erzeugen (braucht --sender und --domain)")
@@ -67,7 +67,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--cache-dir", type=Path, default=Path(__file__).parent / ".cache")
     p.add_argument("--seen-file", type=Path, help="Verlaufsdatei (JSON): markiert neue Zeilen und merkt sich die im Bericht gemeldeten")
     p.add_argument("--run-id", help="Kennung des Laufs, Standard aktueller Monat JJJJ-MM; ein zweiter Lauf mit gleicher Kennung liefert denselben Bericht")
-    p.add_argument("--report", type=Path, help="Bericht als .md oder .txt, dazu eine .html-Datei daneben")
+    p.add_argument("--report", type=Path,
+                   help="Bericht als .md oder .txt, dazu eine .html-Datei daneben; die Ergebnisdatei ist dann der "
+                        "Mailanhang und enthält keine internen Spalten (Priorität, Rang Linkwert, Traffic, Content-Gap)")
     p.add_argument("--competitor", help="Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten URLs)")
     p.add_argument("--customer", default="", help="Kundenname für Betreff und Text des Berichts, z. B. Fressnapf")
     p.add_argument("--note", action="append", default=[],
@@ -102,7 +104,8 @@ def guess_competitor(result: PipelineResult) -> str:
 
 
 def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[Path],
-                 new_flags: Optional[list[bool]] = None, first_reported: Optional[list[str]] = None) -> None:
+                 new_flags: Optional[list[bool]] = None, first_reported: Optional[list[str]] = None,
+                 hide: tuple[str, ...] = ()) -> None:
     if drafts_path is not None:
         lines = ["# Mail-Entwürfe", ""]
         for key, text in result.drafts.items():
@@ -111,7 +114,7 @@ def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[P
             lines += [f"## {url_from}", "", f"Tote URL: {url_to}", "", text, ""]
         drafts_path.parent.mkdir(parents=True, exist_ok=True)
         drafts_path.write_text("\n".join(lines), encoding="utf-8")  # drafts first: they cost money
-    df = results_to_dataframe(result.results, new_flags, first_reported)
+    df = results_to_dataframe(result.results, new_flags, first_reported, hide=hide)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.suffix.lower() == ".xlsx":
         out_path.write_bytes(to_xlsx_bytes(df))
@@ -124,7 +127,7 @@ def summary_lines(summary) -> list[str]:
     lines = [
         f"Eigene Seiten: {s.own_pages} (Dimension {s.dimension})",
         f"Backlinks: {s.backlinks_total} geladen, {s.backlinks_ranked} nach Filter",
-        f"Wayback: {s.snapshots} Snapshots, {s.fallbacks} Fallbacks, {s.no_text} ohne Text",
+        f"Wayback Machine: {s.snapshots} Snapshots, {s.fallbacks} Fallbacks, {s.no_text} ohne Text",
         f"Treffer: {s.matched}, Content-Gaps: {s.content_gaps}, nicht gematcht: {s.unmatched}",
     ]
     if s.verified:
@@ -219,8 +222,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     first_reported = [updated.get(pair_key(r.backlink), {}).get("since", "") for r in result.results]
     report = None
     try:
+        # with --report the result file is the attachment of the customer mail: no internal columns
         write_output(result, args.out, drafts_out, new_flags if seen is not None else None,
-                     first_reported if seen is not None else None)
+                     first_reported if seen is not None else None,
+                     hide=MAIL_HIDDEN_COLUMNS if args.report else ())
         if args.report:
             attachments = [args.out.name] + ([drafts_out.name] if drafts_out else [])
             report = build_report(result.results, result.summary, new_flags,

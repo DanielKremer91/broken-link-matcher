@@ -659,7 +659,7 @@ def test_backlink_read_error_shows_prefix_once():
 HINT_NO_FROG = "Nächster Schritt: Screaming-Frog-Export in Schritt 1 hochladen."
 HINT_NO_BACKLINKS = "Nächster Schritt: Broken Backlinks in Schritt 2 hochladen oder per API laden."
 HINT_KEY = "Nächster Schritt: API-Schlüssel in der Seitenleiste eintragen, dann \"Los geht's\" klicken."
-HINT_READY = "Alles bereit. Klicke \"Los geht's\" für Dimensionscheck, Wayback-Abruf und Matching in einem Durchlauf."
+HINT_READY = "Alles bereit. Klicke \"Los geht's\" für Dimensionscheck, Abruf aus der Wayback Machine und Matching in einem Durchlauf."
 HINT_DONE = "Ergebnisse liegen vor. Optional in Schritt 5 live prüfen, exportieren oder Mail-Entwürfe erzeugen."
 HINT_FILTERS = "Filter geändert. \"Los geht's\" erneut klicken, damit die Ergebnisse zur aktuellen Auswahl passen."
 RUN_ALL = "Los geht's"
@@ -924,3 +924,14 @@ def test_run_error_is_shown_only_once(monkeypatch):
     assert any("Schlüssel ungültig" in e.value for e in at.error)
     at.run()
     assert not any("Schlüssel ungültig" in e.value for e in at.error)
+
+
+def test_visible_texts_say_wayback_machine():
+    import re as _re
+    at = seeded_app().run()
+    assert not at.exception
+    assert "3. Abruf aus der Wayback Machine" in [h.value for h in at.header]
+    texts = " ".join(str(el.value) for el in list(at.markdown) + list(at.caption) + list(at.header))
+    assert "· Wayback Machine · Snapshot 20240101" in texts
+    assert "Snapshots aus der Wayback Machine: 1" in texts
+    assert not _re.search(r"Wayback(?![ -]Machine)", texts), texts

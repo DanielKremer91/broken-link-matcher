@@ -1,4 +1,4 @@
-"""Tiny JSON-per-entry file cache used for Wayback texts and embeddings."""
+"""Tiny JSON-per-entry file cache used for Wayback Machine texts and embeddings."""
 
 from __future__ import annotations
 

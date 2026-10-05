@@ -117,7 +117,7 @@ cp .claude/skills/broken-link-monitor/config.example.json monitor.config.json
 | `ahrefs` | Filter für den Ahrefs-Abruf, siehe unten |
 | `verify` | Live-Prüfung, ob Ziel noch tot und Link noch vorhanden |
 | `drafts` | Mail-Entwürfe an Linkgeber erzeugen, nur als Entwurf |
-| `contact` | optional: Mail oder URL im User-Agent für Wayback und Live-Prüfung |
+| `contact` | optional: Mail oder URL im User-Agent für Wayback Machine und Live-Prüfung |
 | `mail.method`, `mail.to` | `resend`, `connector` oder `file`, dazu die Empfänger |
 | `output_dir` | Ordner für Laufergebnisse und Verlaufsdateien |
 
@@ -226,7 +226,7 @@ laeufe/
   2026-11/
     zooroyal.de/
       broken-backlinks.csv         Antwort des Ahrefs-MCP
-      ergebnis.xlsx                alle Zeilen, mit den Spalten "Neu" und "Erstmals erfasst"
+      ergebnis.xlsx                Mailanhang: alle Zeilen mit "Neu" und "Erstmals erfasst", ohne interne Spalten
       ergebnis-entwuerfe.md        Mail-Entwürfe
       bericht.md, bericht.html     Bericht, so wie er verschickt wird
     fehler.md                      nur wenn etwas schiefging

@@ -91,3 +91,18 @@ def test_content_gap_ja_nein():
     assert df.loc[0, "Content-Gap"] == "Nein"
     # Row 1 is a gap
     assert df.loc[1, "Content-Gap"] == "Ja"
+
+
+def test_source_is_called_wayback_machine():
+    df = results_to_dataframe(rows())
+    assert df.loc[0, "Quelle Text"] == "Wayback Machine"
+
+
+def test_hidden_columns_are_dropped_and_order_kept():
+    from blm.export import MAIL_HIDDEN_COLUMNS
+    assert MAIL_HIDDEN_COLUMNS == ("Priorität", "Rang Linkwert", "Traffic", "Content-Gap")
+    df = results_to_dataframe(rows(), [True, False], ["2026-10", "2026-09"], hide=MAIL_HIDDEN_COLUMNS)
+    assert list(df.columns) == ["Neu", "Erstmals erfasst", "Linkgebende URL", "DR", "UR", "Anker", "Tote URL",
+                                "Quelle Text", "Snapshot", "Vorschlag 1", "Score 1", "Vorschlag 2", "Score 2",
+                                "Vorschlag 3", "Score 3", "Verifikation", "Fehler"]
+    assert df.loc[0, "Linkgebende URL"] == "https://a.de/p"
