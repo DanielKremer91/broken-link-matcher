@@ -112,7 +112,7 @@ Schlüssel nur über Umgebungsvariablen oder .env: OPENAI_API_KEY, GEMINI_API_KE
 | Code | Bedeutung |
 |---|---|
 | 0 | Lauf erfolgreich, Ergebnisdatei geschrieben |
-| 1 | Laufzeitfehler: fehlender Schlüssel, nicht lesbare `.env`, Ausgabepfad ist ein Verzeichnis oder nicht beschreibbar, nicht lesbare oder unpassende Eingabedatei, nicht lesbare Verlaufsdatei, Dimensionskonflikt, Anbieter nicht erreichbar, fehlende `--sender`/`--domain` bei `--drafts` |
+| 1 | Laufzeitfehler: Backlink-Datei ohne Zeilen, fehlender Schlüssel, nicht lesbare `.env`, Ausgabepfad ist ein Verzeichnis oder nicht beschreibbar, nicht lesbare oder unpassende Eingabedatei, nicht lesbare Verlaufsdatei, Dimensionskonflikt, Anbieter nicht erreichbar, fehlende `--sender`/`--domain` bei `--drafts` |
 | 2 | Ungültige Argumente (argparse), zum Beispiel unbekannte Option, negative `--pause`, `--limit` unter 1, `--max-chars` unter 1000, `--min-dr` außerhalb 0 bis 100, `--out` ohne Endung `.xlsx` oder `.csv` oder `--report` ohne Endung `.md` oder `.txt` |
 
 Fehlermeldungen stehen auf stderr, die Zusammenfassung (Text oder mit `--json` als JSON) auf stdout. Der Fortschritt läuft auf stderr und lässt sich mit `--quiet` abschalten.

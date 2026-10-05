@@ -12,7 +12,7 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 
 ## Zugänge
 
-- [ ] Claude-Desktop-App installiert, Claude Code nutzbar
+- [ ] Claude-Desktop-App installiert, Claude Code nutzbar (macOS erprobt, Windows mit abweichenden Befehlen)
 - [ ] Ahrefs-Abo mit MCP-Zugang, Ahrefs-MCP in Claude verbunden
 - [ ] Screaming Frog mit Lizenz, MCP-Erweiterung in Claude verbunden
 - [ ] OpenAI-Schlüssel (oder Gemini oder Ollama)
@@ -27,7 +27,7 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 - [ ] Frog: bei Custom JavaScript das Rendering auf JavaScript gestellt und mit `PREVIEW_TEXT = true` an wenigen Seiten getestet
 - [ ] Frog: ein Testcrawl zeigt gefüllte Embedding-Spalten
 - [ ] Frog: Modell notiert, zum Beispiel `text-embedding-3-small`
-- [ ] Frog: Konfiguration auf dem Schreibtisch gespeichert, Claude hat sie an den richtigen Ort verschoben; nie weitergegeben
+- [ ] Frog: Konfiguration im Ordner Downloads gespeichert, Claude hat sie an den richtigen Ort verschoben; nie weitergegeben
 - [ ] Frog: Probe-Crawl von Claude meldet "funktioniert" und die Dimension passt zum Modell
 - [ ] `.env` aus `.env.example` angelegt, Schlüssel eingetragen, `chmod 600 .env`
 - [ ] Resend: Domain verifiziert, Schlüssel und Absender in `.env`
@@ -48,7 +48,8 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 ## Automatisierung
 
 - [ ] Geplante Aufgabe angelegt, zum Beispiel am 1. des Monats um 7 Uhr
-- [ ] Einmal "Jetzt ausführen" getestet (ein zweiter Lauf im selben Monat liefert denselben Bericht)
+- [ ] Beim ersten automatischen Lauf am Rechner gewesen und alle Berechtigungen dauerhaft erlaubt
+- [ ] Bei mehreren Kunden: Aufgaben auf verschiedene Tage gelegt
 - [ ] Desktop-App bleibt geöffnet, Mac zur Laufzeit wach
 - [ ] Ordner `laeufe/` mit den Verlaufsdateien ist im Backup
 

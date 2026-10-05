@@ -33,7 +33,7 @@ Für jede tote URL holt das Tool den jüngsten Snapshot mit Status 200 aus der W
 
 | Was | Wofür |
 |---|---|
-| Claude-Desktop-App mit Claude Code | Skill und geplante Aufgabe |
+| Claude-Desktop-App mit Claude Code, auf macOS oder Windows | Skill und geplante Aufgabe. Erprobt ist bisher nur macOS; unter Windows nennt die Einrichtung die abweichenden Befehle |
 | Ahrefs-Abo mit MCP-Zugang | Broken Backlinks der Wettbewerber |
 | Screaming Frog SEO Spider mit Lizenz und MCP-Erweiterung | Crawl mit Embeddings |
 | OpenAI-Schlüssel (oder Gemini, oder lokal Ollama) | Embeddings im Frog und im Tool, Mail-Entwürfe |
@@ -71,8 +71,8 @@ Beim Snippet-Weg:
 2. **Snippet anlegen:** `Konfiguration > Eigene > Eigenes JavaScript`, `Hinzufügen` (`Configuration > Custom > Custom JavaScript`, `Add`). Typ `Extraktion` (`Extraction`), Name `Embeddings <Kunde>`. Der Name muss mit "Embeddings" beginnen.
 3. **Vorlage einfügen:** Den Inhalt von `frog/main-content-embedding.js` kopieren und über den Knopf `JS` in den Editor einfügen.
 4. **Anpassen, nur im Frog-Editor:** eigenen OpenAI-Schlüssel eintragen, `MODEL` prüfen, bei Bedarf Selektoren für Inhaltsbereich und Ausschlüsse setzen.
-5. **Speichern:** `Konfiguration > Profile > Speichern unter...` (`Configuration > Profiles > Save As...`), in älteren Versionen `Datei > Konfiguration > Speichern unter...`. Speichere einfach auf dem **Schreibtisch**, mit dem Kundennamen im Dateinamen, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`.
-6. **An den richtigen Ort:** Claude verschiebt die Datei in den Ordner des Frog-MCP. Von Hand geht es mit `.venv/bin/python place_frog_config.py --target <Pfad aus frog.config_file>`. Das Skript findet die Datei auf dem Schreibtisch, in Downloads, Dokumente und im Benutzerordner.
+5. **Speichern:** `Konfiguration > Profile > Speichern unter...` (`Configuration > Profiles > Save As...`), in älteren Versionen `Datei > Konfiguration > Speichern unter...`. Speichere einfach im Ordner **Downloads**, mit dem Kundennamen im Dateinamen, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`.
+6. **An den richtigen Ort:** Claude verschiebt die Datei in den Ordner des Frog-MCP. Von Hand geht es mit `.venv/bin/python place_frog_config.py --target <Pfad aus frog.config_file>`. Das Skript findet die Datei in Downloads, auf dem Schreibtisch, in Dokumente und im Benutzerordner. Den Schreibtisch besser meiden: Er wird auf vielen Macs mit iCloud abgeglichen, und die Datei kann deinen Schlüssel enthalten.
 
 Bei der KI-Anbindung: Anbieter unter `Konfiguration > API-Zugang > KI` verbinden, in der `Prompt-Konfiguration` einen Embedding-Prompt für den `Seitentext` anlegen, unter `Konfiguration > Inhalt > Einbettungen` einschalten und unter `Konfiguration > Inhalt > Bereich` die Ausschlüsse prüfen. Dann speichern wie oben.
 
@@ -161,6 +161,8 @@ Trage einfach mehrere Domains in `competitors` ein. Der Crawl der eigenen Seite 
 
 Eine Einrichtung gehört zu genau einem Kunden: eine eigene Domain, eine Frog-Konfiguration, beliebig viele Wettbewerber. Für einen weiteren Kunden richtest du den Monitor ein zweites Mal ein, mit demselben Startsatz. Als Speicherort wählst du dann einen eigenen Ordner, zum Beispiel `~/broken-link-matcher-bora`. Jede Einrichtung hat ihre eigene Konfiguration, ihren Verlauf und auf Wunsch ihre eigene geplante Aufgabe.
 
+Alle Einrichtungen teilen sich einen Screaming Frog, und der crawlt immer nur eine Website gleichzeitig. Lege die Aufgaben deshalb auf verschiedene Tage, zum Beispiel den 1., 2. und 3. des Monats. Läuft beim Start doch noch ein anderer Crawl, wartet der Monitor bis zu sechs Stunden, statt abzubrechen.
+
 ### Später etwas ändern
 
 Alle Einstellungen stehen in `monitor.config.json` im Repo-Ordner. Der Monitor liest sie bei jedem Lauf neu. Eine Änderung gilt deshalb ab dem nächsten Lauf, auch für die geplante Aufgabe, ohne dass du diese anfassen musst.
@@ -195,7 +197,11 @@ Das Skript zeigt pro Punkt einen Haken oder ein Kreuz und nennt nie Schlüsselwe
 
 Beim ersten Lauf fragt Claude nach Berechtigungen für die MCP-Tools und für Shell-Befehle. Erlaube sie, damit der automatische Lauf später ohne Rückfrage durchkommt. Prüfe danach Bericht, Excel und Mail.
 
-Weitere Läufe im selben Monat sind unkritisch. Sie melden dieselben Paare noch einmal, weil sich die Verlaufsdatei den Monat jeder Meldung merkt. Das hilft auch, wenn ein Versand gescheitert ist: Lauf wiederholen, Bericht kommt erneut.
+Weitere Läufe im selben Monat sind unkritisch:
+
+- Der Bericht enthält dieselben Paare noch einmal, weil sich die Verlaufsdatei den Monat jeder Meldung merkt.
+- Die Mail geht nicht doppelt raus. Nach dem Versand legt der Monitor einen Versandmerker im Laufordner ab (`versendet.json`). Soll sie bewusst noch einmal kommen, sag "erneut senden".
+- Ein vollständiger Crawl deiner Seite aus demselben Monat wird wiederverwendet. Ist der Versand gescheitert, reicht also ein kurzer zweiter Lauf.
 
 ### 8. Monatlich automatisch
 
@@ -206,7 +212,9 @@ Lege eine geplante Aufgabe an, die am 1. jedes Monats um 7 Uhr läuft.
 Prompt: Geplanter Lauf ohne Rückfragen: Arbeite im Ordner /Pfad/zu/broken-link-matcher. Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.
 ```
 
-Geplante Aufgaben laufen nur, wenn die Desktop-App geöffnet ist. Verpasste Läufe holt die App beim nächsten Start nach. Der Mac sollte zur geplanten Zeit wach sein, weil der Crawl je nach Seitengröße eine Weile dauert.
+Geplante Aufgaben laufen nur, wenn die Desktop-App geöffnet ist. Verpasste Läufe holt die App beim nächsten Start nach. Der Rechner muss zur geplanten Zeit wach und online sein, weil der Crawl je nach Seitengröße eine Weile dauert.
+
+**Sei beim ersten automatischen Lauf am Rechner.** Die Claude-App kann dann nach Berechtigungen fragen, zum Beispiel für Screaming Frog, Ahrefs oder das Ausführen von Befehlen. Wähle jeweils die dauerhafte Erlaubnis. Erst danach läuft der Monitor wirklich ohne dich. Bleibt die Mail an einem Termin aus, sieh zuerst in der Sitzung der geplanten Aufgabe in der Claude-App nach, ob dort eine Abfrage wartet.
 
 ## Skill herauslösen
 
@@ -257,4 +265,8 @@ laeufe/
 | Verlaufsdatei nicht lesbar | Datei wurde von Hand beschädigt. Aus einem Backup zurückholen oder löschen; dann gilt beim nächsten Lauf wieder alles als neu. |
 | Erster Crawl-Start bleibt ohne Aktivität | Im Frog-MCP war noch ein alter Crawl geladen. Der Lauf räumt das inzwischen selbst und startet neu. |
 | Lauf ist nicht gestartet | Die Desktop-App war geschlossen. Er läuft beim nächsten Öffnen. |
+| Lauf steht, keine Mail | In der Sitzung der geplanten Aufgabe wartet eine Berechtigungsabfrage. Dauerhaft erlauben, der Lauf geht weiter. |
+| "Bereits versendet", keine neue Mail | Der Bericht dieses Monats ging schon raus. Für eine bewusste Wiederholung "erneut senden" sagen. |
+| "Ahrefs lieferte keine Broken Backlinks" | Null Zeilen gelten als Fehler: Units aufgebraucht, Filter zu streng oder eine Störung. Es geht bewusst keine Kundenmail raus. Units und Filter prüfen, Lauf wiederholen. |
+| "In Screaming Frog lief ein anderer Crawl" | Ein anderer Monitor oder ein eigener Crawl hat Frog über sechs Stunden belegt. Aufgaben auf verschiedene Tage legen. |
 | Bericht kam nicht an | `fehler.md` im Laufordner lesen. Nach der Behebung den Lauf wiederholen. Im selben Monat genügt `/broken-link-monitor`. Ist der Monat schon vorbei, nenne die Lauf-Kennung: `/broken-link-monitor mit Lauf-Kennung 2026-11`. |

@@ -51,7 +51,7 @@ def test_several_recent_candidates_are_listed_not_moved(tmp_path, capsys):
 def test_nothing_found_explains_what_to_do(tmp_path, capsys):
     (tmp_path / "Desktop").mkdir()
     rc, out, target = run(tmp_path, capsys)
-    assert rc == 1 and "broken-link-monitor-bora.seospiderconfig" in out and "Schreibtisch" in out
+    assert rc == 1 and "broken-link-monitor-bora.seospiderconfig" in out and "Downloads" in out
 
 
 def test_existing_target_is_kept_when_nothing_new_and_backed_up_when_replaced(tmp_path, capsys):
@@ -69,3 +69,22 @@ def test_explicit_source(tmp_path, capsys):
     src = make(tmp_path / "irgendwo" / "x.seospiderconfig", age_minutes=600)
     rc, out, target = run(tmp_path, capsys, "--source", str(src))
     assert rc == 0 and target.exists() and not src.exists()
+
+
+def test_default_search_starts_with_downloads():
+    assert pfc.DEFAULT_SEARCH[0] == "~/Downloads"
+
+
+def test_unreadable_folder_is_reported(tmp_path, capsys):
+    import os
+    import pytest
+    if os.geteuid() == 0:
+        pytest.skip("root reads everything")
+    locked = tmp_path / "Desktop"
+    locked.mkdir()
+    locked.chmod(0o000)
+    try:
+        rc, out, _ = run(tmp_path, capsys)
+    finally:
+        locked.chmod(0o755)
+    assert rc == 1 and "Kein Zugriff" in out and str(locked) in out

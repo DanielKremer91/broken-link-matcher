@@ -12,13 +12,17 @@ Diese Anleitung ist für Claude. Sie gilt, wenn jemand den Monitor zum ersten Ma
 - Melde dich nirgends mit Zugangsdaten an und lege keine Konten an. Das macht die Person selbst.
 - Ändere die Datei `.env` nicht, solange sie in einem Editor geöffnet ist. Trage Werte ohne Geheimnis vorher ein und öffne die Datei erst dann für die Person. Sonst überschreibt der Editor deine Änderung beim Speichern.
 
+## Betriebssystem
+
+Stell als Erstes fest, ob die Person macOS oder Windows nutzt. Die Befehle hier sind für macOS geschrieben. Für Windows gilt die Tabelle "Betriebssystem" in `SKILL.md`: anderer Python-Pfad, `notepad` statt `open -e`, kein `mdfind`, kein `caffeinate`, statt Cmd die Strg-Taste. Windows ist bisher nicht praktisch erprobt. Sag das der Person offen und geh dort besonders kleinschrittig vor. Unter Linux gibt es die Claude-Desktop-App mit geplanten Aufgaben nicht; dort lässt sich der Monitor nur von Hand starten.
+
 ## Grundsatz: Erledigtes überspringen
 
 Vieles ist bei der Person vielleicht schon da: das Repo, die Umgebung, Schlüssel, die Frog-Konfiguration, ein verbundenes MCP oder eine verifizierte Resend-Domain. Prüfe jeden Schritt zuerst und überspringe, was schon erledigt ist. Sag das kurz, zum Beispiel: "Die Frog-Konfiguration liegt schon am richtigen Ort, diesen Schritt überspringen wir." Frag nie nach Dingen, die du selbst nachsehen kannst. Überschreibe nie vorhandene Dateien der Person, insbesondere nicht `.env`, `monitor.config.json` und die Verlaufsdateien.
 
 ## Schritt 0: Bestandsaufnahme
 
-1. Suche ein vorhandenes Repo: `~/broken-link-matcher`, den aktuellen Arbeitsordner und auf dem Mac zusätzlich mit `mdfind -name monitor.config.json` nach einer bestehenden Einrichtung. Findest du eine, nenne den Ordner und frag kurz, ob sie genutzt oder bewusst eine neue angelegt werden soll.
+1. Suche ein vorhandenes Repo: `~/broken-link-matcher`, den aktuellen Arbeitsordner und nur auf dem Mac zusätzlich mit `mdfind -name monitor.config.json` nach einer bestehenden Einrichtung. Findest du eine, nenne den Ordner und frag kurz, ob sie genutzt oder bewusst eine neue angelegt werden soll.
 2. Ist ein Repo da, führe dort `.venv/bin/python check_setup.py --inventory` aus. Ohne `.venv` geht das mit `python3 check_setup.py --inventory` nicht, dann gilt die Umgebung als fehlend. Die Ausgabe zeigt, was vorhanden ist, ohne Werte zu verraten.
 3. Prüfe die Werkzeuge dieser Sitzung (Ahrefs-MCP, Frog-MCP, geplante Aufgaben), wie in Schritt 2 beschrieben. Gibt es geplante Aufgaben, sieh nach, ob schon eine für den Broken-Link-Monitor existiert.
 4. Zeig der Person eine kurze Liste: "Schon erledigt" und "Noch zu tun". Mach dann nur mit den offenen Punkten weiter, in der Reihenfolge der Schritte unten.
@@ -49,6 +53,19 @@ Prüfe selbst, welche Werkzeuge in dieser Sitzung verfügbar sind, und berichte 
 - **Embedding-Anbieter:** Ein OpenAI-Schlüssel, alternativ Gemini oder ein lokales Ollama.
 
 Fehlt ein MCP, erkläre, wie es verbunden wird, und mach mit den Schritten weiter, die ohne es gehen. Die Konfiguration kannst du trotzdem schreiben. Ist alles verbunden, reicht ein Satz dazu.
+
+### Was tun, wenn etwas fehlt
+
+Sag der Person früh und ehrlich, wenn es ohne etwas nicht geht, und nenne den Ausweg:
+
+- **Kein Ahrefs mit MCP-Zugang:** Der automatische Monitor braucht ihn. Ausweg: das Streamlit-Tool aus diesem Repo. Dort lädt man einen Ahrefs-Export von Hand hoch. Der Link steht in der README.
+- **Ahrefs-Verbindung kostenlos testen:** Eine Abfrage mit dem Ziel `ahrefs.com` und `limit` 1 kostet keine Units. Nutze sie, wenn unklar ist, ob der Connector funktioniert.
+- **Keine Screaming-Frog-Lizenz:** Ohne Lizenz gibt es weder gespeicherte Konfigurationen noch Custom JavaScript oder KI-Anbindung. Dann geht weder der Monitor noch das Streamlit-Tool, denn beide brauchen die Embeddings der eigenen Seiten aus dem Frog.
+- **`git` fehlt:** Auf einem frischen Mac öffnet der erste `git`-Befehl ein Fenster zur Installation der "Command Line Tools". Die Person bestätigt die Installation, danach wiederholst du den Befehl.
+- **Weder `uv` noch Python 3.11:** Nenne der Person den Installationsweg für `uv` von astral.sh und warte, bis sie fertig ist. Installiere nichts aus dem Netz, ohne dass sie zustimmt.
+- **Nur ein Gemini-Schlüssel oder Ollama:** Der Snippet-Weg in Schritt 4 braucht OpenAI. Dann die KI-Anbindung von Frog wählen.
+- **Resend-Domain noch nicht bestätigt:** Mit "nur als Datei" starten und später umstellen, siehe Schritt 5.
+- **Berechtigungsabfragen der Claude-App:** Sie sind normal. Erkläre kurz, wofür die jeweilige Abfrage ist.
 
 ## Schritt 3: Fragen und Konfiguration
 
@@ -136,15 +153,15 @@ Nenne die Zeilen wörtlich, so wie sie nach der Änderung aussehen sollen:
 - Falls du Selektoren ermittelt hast: `const CONTENT_ROOT_SELECTOR = '...';` und `const EXTRA_EXCLUDE_SELECTOR = '...';` mit deinen Werten. Sonst bleiben beide leer.
 Danach den Editor und das Fenster mit OK schließen.
 
-**4.5 Konfiguration auf dem Schreibtisch speichern.**
+**4.5 Konfiguration im Ordner Downloads speichern.**
 Klickpfad: `Konfiguration > Profile > Speichern unter...`. Englisch: `Configuration > Profiles > Save As...`. In älteren Versionen: `Datei > Konfiguration > Speichern unter...` (`File > Configuration > Save As...`).
-Im Speichern-Dialog links **Schreibtisch** wählen und als Namen genau den Dateinamen aus der Vorbereitung eintippen. Gib den Namen zum Kopieren an.
+Im Speichern-Dialog links **Downloads** wählen und als Namen genau den Dateinamen aus der Vorbereitung eintippen. Gib den Namen zum Kopieren an. Nimm bewusst nicht den Schreibtisch: Der wird auf vielen Macs mit iCloud abgeglichen, und die Datei enthält beim Snippet-Weg den Schlüssel.
 Hinweis in einem Satz: Diese Datei enthält den Schlüssel. Sie wird nie weitergegeben.
 
-Schreibt die Person "weiter", verschiebst du die Datei selbst an den richtigen Ort:
+Schreibt die Person "weiter", verschiebst du die Datei selbst an den richtigen Ort. Sag vorher: Auf dem Mac kann jetzt eine Systemabfrage erscheinen, ob Claude auf den Ordner Downloads zugreifen darf. Die bitte erlauben.
 `.venv/bin/python place_frog_config.py --target "<frog.config_file>"`
 - Exit-Code 0: Sag, dass die Datei jetzt am richtigen Ort liegt. Die Person muss nichts weiter tun.
-- Exit-Code 1: nichts gefunden. Bitte die Person, noch einmal zu speichern, und nenne Ort und Namen erneut.
+- Exit-Code 1: nichts gefunden. Meldet das Skript "Kein Zugriff", fehlt die Systemfreigabe für den Ordner: Die Person erlaubt den Zugriff, dann wiederholst du den Befehl. Sonst bitte die Person, noch einmal zu speichern, und nenne Ort und Namen erneut.
 - Exit-Code 2: mehrere Kandidaten. Zeig die Liste, frag, welche es ist, und ruf das Skript mit `--source "<Datei>"` erneut auf.
 
 ### Teilschritte bei der KI-Anbindung
@@ -167,7 +184,7 @@ Sag der Person, was jetzt passiert: Du crawlst zur Probe etwa 60 Seiten, das dau
    - **custom_javascript:** Liste die Datenfelder des Elements `Custom JavaScript`, Filter `All`. Das Embedding-Feld beginnt mit "Embeddings". Exportiere mit dem Tool für SEO-Element-URLs die Felder `Address`, `Content Type`, `Status Code` und das Embedding-Feld nach `broken-link-monitor/probe-<kunde>.ndjson`, höchstens 300 Zeilen. Die Antwort des Tools enthält eine sehr lange Beispielzeile mit Zahlen. Lies sie nicht aus.
    - **ai:** Exportiere mit dem Embedding-Export-Tool nach `broken-link-monitor/probe-<kunde>.csv`.
 6. Prüfe: `.venv/bin/python frog_probe.py "<absoluter Pfad>"`, beim Snippet-Weg mit `--field "<Embedding-Feld>"`.
-7. Verwirf den Probe-Crawl (`sf_clear_crawl`) und lösche die Probe-Datei.
+7. Verwirf den Probe-Crawl (`sf_clear_crawl`) und lösche die Probe-Datei. Hat `place_frog_config.py` eine Sicherung mit der Endung `.vorher` angelegt und war die Probe erfolgreich, lösche auch diese. Sie enthält ebenfalls den Schlüssel.
 8. Sag das Ergebnis in einfachen Worten:
    - `ok`: "Die Konfiguration funktioniert: N von M Seiten haben ein Embedding." Vergleiche `dimension` mit dem Modell: `text-embedding-3-small` hat 1536, `text-embedding-3-large` 3072, `text-embedding-ada-002` 1536, Gemini `text-embedding-004` 768. Passt es nicht, stimmt das Modell im Snippet nicht mit `embedding.model` überein. Dann zurück zu 4.4.
    - `keine_embeddings`: Nenne die häufigsten Ursachen und geh mit der Person zum passenden Teilschritt zurück: Rendering steht nicht auf JavaScript (4.1), Schlüssel im Snippet fehlt oder ist falsch (4.4), `PREVIEW_TEXT` steht auf `true` (4.4), bei der KI-Anbindung sind die Einbettungen nicht eingeschaltet (4.3). Danach neu speichern (4.5) und den Probe-Crawl wiederholen.
@@ -193,7 +210,7 @@ Sind `RESEND_API_KEY` und `RESEND_FROM` laut Bestandsaufnahme schon eingetragen,
 
 Sind alle nötigen Schlüssel laut Bestandsaufnahme eingetragen, überspringe diesen Schritt. Sonst nenne nur die fehlenden.
 
-1. Öffne die Datei für die Person: `open -e <repo>/.env` (auf dem Mac in TextEdit).
+1. Öffne die Datei für die Person: `open -e <repo>/.env` (auf dem Mac in TextEdit), unter Windows `notepad <repo>\.env`.
 2. Erkläre: Den OpenAI-Schlüssel direkt hinter `OPENAI_API_KEY=` einfügen, bei Resend den Schlüssel hinter `RESEND_API_KEY=`. Keine Leerzeichen, keine Anführungszeichen. Speichern mit Cmd+S und das Fenster schließen.
 3. Warte, bis die Person "fertig" sagt.
 
@@ -209,7 +226,7 @@ Sag vorher, was passiert und was es kostet:
 - Ahrefs liefert die Broken Backlinks, etwa 12 Units pro Link.
 - Danach Abruf aus der Wayback Machine, Matching, Live-Prüfung und Mail-Entwürfe, etwa 10 bis 30 Minuten.
 - Der Rechner muss die ganze Zeit wach und online bleiben. Gegen das Einschlafen bei Untätigkeit startet der Lauf einen Schlafschutz. Den Laptop bitte nicht zuklappen und nicht das WLAN wechseln, sonst bricht dem Crawl die Verbindung ab. Der Lauf prüft danach, ob der Crawl vollständig war, und startet ihn bei Bedarf einmal neu.
-- Am Ende geht die Mail an die eingetragenen Empfänger.
+- Am Ende geht die Mail an die eingetragenen Empfänger. Ein zweiter Lauf im selben Monat verschickt sie nicht noch einmal.
 
 Erkläre auch: Der Crawl läuft über das MCP in einer eigenen Screaming-Frog-Instanz im Hintergrund, ohne Fenster. Im geöffneten Frog-Fenster ist er deshalb nicht zu sehen. Den Fortschritt meldest du. Nach dem Ende erscheint der Crawl in Frog unter File, Crawls.
 
@@ -217,14 +234,19 @@ Starte erst nach einem ausdrücklichen "Go". Führe dann den Lauf nach `SKILL.md
 
 ## Schritt 9: Monatlich automatisch
 
-Gibt es schon eine geplante Aufgabe für den Broken-Link-Monitor, zeig ihren Zeitplan und frag nur, ob er so bleiben soll. Leg keine zweite an.
+Gibt es schon eine geplante Aufgabe für genau diesen Kunden, zeig ihren Zeitplan und frag nur, ob er so bleiben soll. Leg keine zweite an.
 
-Sonst frag, ob der Lauf monatlich automatisch kommen soll, zum Beispiel am 1. um 7 Uhr. Wenn ja und ein Werkzeug für geplante Aufgaben verfügbar ist, lege die Aufgabe an:
+Sonst frag, ob der Lauf monatlich automatisch kommen soll. Wenn ja und ein Werkzeug für geplante Aufgaben verfügbar ist, lege die Aufgabe an:
 
-- Zeitplan als Cron: `0 7 1 * *`
-- Prompt: `Geplanter Lauf ohne Rückfragen: Arbeite im Ordner <repo_path>. Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.`
+- **Name der Aufgabe:** `broken-link-monitor-<kunde>`.
+- **Tag:** Standard ist der 1. des Monats um 7 Uhr, Cron `0 7 1 * *`. Gibt es schon Monitor-Aufgaben für andere Kunden, nimm einen anderen Tag, zum Beispiel den 2. oder 3. (`0 7 2 * *`). Alle Einrichtungen teilen sich einen Screaming Frog, und der kann immer nur einen Crawl gleichzeitig ausführen. Erklär das in einem Satz.
+- **Prompt:** `Geplanter Lauf ohne Rückfragen: Arbeite im Ordner <repo_path>. Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.`
 
-Erkläre dazu: Die Aufgabe läuft nur, wenn die Claude-App geöffnet ist. Verpasste Läufe holt sie beim nächsten Start nach. Der Rechner sollte zur geplanten Zeit wach sein.
+Erkläre dazu ehrlich:
+
+- Die Aufgabe läuft nur, wenn die Claude-App geöffnet ist. Verpasste Läufe holt sie beim nächsten Start nach. Der Rechner muss zur geplanten Zeit wach und online sein.
+- **Beim ersten automatischen Lauf bitte am Rechner sein.** Die Claude-App kann dann nach Berechtigungen fragen, zum Beispiel für Screaming Frog, Ahrefs oder das Ausführen von Befehlen. Die Person wählt jeweils die dauerhafte Erlaubnis. Erst danach läuft der Monitor wirklich ohne Zutun. Bleibt die Mail am Termin aus, ist das der erste Ort zum Nachsehen: die Sitzung der geplanten Aufgabe in der Claude-App.
+- Wer das nicht bis zum Termin offen lassen will, kann die Aufgabe einmal über "Jetzt ausführen" starten und dabeibleiben. Das kostet einen weiteren Ahrefs-Abruf, etwa 12 Units pro Link. Die Kundenmail geht dabei nicht noch einmal raus, und ein vollständiger Crawl dieses Monats wird wiederverwendet.
 
 Ohne Werkzeug für geplante Aufgaben erkläre, wie die Person die Aufgabe in der Claude-App selbst anlegt, mit genau diesem Prompt.
 

@@ -11,6 +11,22 @@ description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wett
 - **Änderung:** Die Person möchte eine Einstellung ändern, zum Beispiel einen Wettbewerber hinzufügen oder entfernen, den Empfänger, den Kundennamen oder die Ahrefs-Filter. Dann folge dem Abschnitt "Einstellungen ändern" unten.
 - **Lauf:** Alles andere, insbesondere geplante Aufgaben. Ein geplanter Lauf beginnt mit "Geplanter Lauf ohne Rückfragen". Im Lauf stellst du keine Rückfragen. Wenn etwas fehlt oder scheitert, folge Schritt 6.
 
+## Betriebssystem
+
+Die Befehle in dieser Anleitung sind für macOS geschrieben. Unter Windows gilt dasselbe mit diesen Entsprechungen. Windows ist bisher nicht praktisch erprobt; geh dort besonders sorgfältig vor und sag der Person, wenn etwas anders aussieht.
+
+| Zweck | macOS | Windows |
+|---|---|---|
+| Python der Umgebung | `.venv/bin/python` | `.venv\Scripts\python.exe` |
+| Datei im Editor öffnen | `open -e <datei>` | `notepad <datei>` |
+| Datei nur anlegen, wenn sie fehlt | `cp -n quelle ziel` | nur kopieren, wenn das Ziel nicht existiert |
+| Datei nur für den Nutzer lesbar | `chmod 600 <datei>` | entfällt |
+| Schlafschutz während des Laufs | `caffeinate -i -t 43200` im Hintergrund | gibt es nicht per Befehl: Der Rechner darf im Netzbetrieb nicht in den Standby gehen, das stellt die Person in den Energieoptionen ein |
+| Bestehende Einrichtung suchen | `mdfind -name monitor.config.json` | nur die Standardordner prüfen |
+| Ordner für gespeicherte Dateien | `~/Downloads` | `%USERPROFILE%\Downloads` |
+
+Ändere nie selbst Energie- oder Systemeinstellungen. Das macht die Person.
+
 ## Einstellungen ändern
 
 1. Finde `monitor.config.json` wie in Schritt 0, Punkt 1 beschrieben.
@@ -21,7 +37,7 @@ description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wett
 
 ## Lauf für einzelne Wettbewerber
 
-Nennt der Auftrag einzelne Wettbewerber, zum Beispiel "nur für zooplus.de", gelten Schritt 2 bis 5 nur für diese. Gibt es für den aktuellen Monat schon einen Frog-Export (`<Basisverzeichnis>/broken-link-monitor/<own_domain>-<RUN>.ndjson` oder `.csv`) und die zugehörige Crawl-Übersicht `<own_domain>-<RUN>-intern.ndjson`, prüfe die Übersicht mit `frog_crawl_check.py`. Ist das Ergebnis `ok`, nutze den Export und überspringe den Crawl. Sonst crawle wie in Schritt 1. Die anderen Wettbewerber bekommen in diesem Lauf keine Mail.
+Nennt der Auftrag einzelne Wettbewerber, zum Beispiel "nur für zooplus.de", gelten Schritt 2 bis 5 nur für diese. Für den Crawl gilt die Regel aus Schritt 1: Ein vollständiger Crawl dieses Monats wird wiederverwendet. Die anderen Wettbewerber bekommen in diesem Lauf keine Mail.
 
 Die Schritte unten beschreiben den Lauf.
 
@@ -40,7 +56,7 @@ Die Schritte unten beschreiben den Lauf.
 3. Lauf-Kennung `RUN` ist der aktuelle Monat im Format `JJJJ-MM`. Nennt die aufrufende Aufgabe ausdrücklich eine Lauf-Kennung, zum Beispiel zum Nachholen eines Vormonats, nimm diese. Laufordner ist `<output_dir>/<RUN>/`.
 4. Prüfe die Einrichtung: `.venv/bin/python check_setup.py --config <pfad zur config>`. Bei Exit-Code ungleich 0 weiter mit Schritt 6 (Fehler melden), die Ausgabe ist die Fehlermeldung.
 
-5. Schlafschutz auf dem Mac: Starte im Hintergrund `caffeinate -i -t 28800`. Das verhindert für bis zu acht Stunden, dass der Rechner wegen Untätigkeit einschläft und dem Crawl die Verbindung abreißt. Den zugeklappten Laptop verhindert es nicht.
+5. Schlafschutz auf dem Mac: Starte im Hintergrund `caffeinate -i -t 43200`. Das verhindert für bis zu zwölf Stunden, dass der Rechner wegen Untätigkeit einschläft und dem Crawl die Verbindung abreißt. Den zugeklappten Laptop verhindert es nicht. Unter Windows entfällt dieser Punkt, siehe Tabelle oben.
 
 Ein zweiter Lauf im selben Monat ist unkritisch. Er meldet dieselben Paare noch einmal und überschreibt die Dateien des Laufordners.
 
@@ -48,11 +64,13 @@ Ein zweiter Lauf im selben Monat ist unkritisch. Er meldet dieselben Paare noch 
 
 Wenn `frog.crawl` true ist:
 
+**Vorhandenen Crawl dieses Monats wiederverwenden:** Liegen im Basisverzeichnis unter `broken-link-monitor/` schon der Embedding-Export für `RUN` (`<own_domain>-<RUN>.ndjson` oder `.csv`) und die Crawl-Übersicht `<own_domain>-<RUN>-intern.ndjson`, prüfe die Übersicht mit `frog_crawl_check.py`. Ist das Ergebnis `ok`, nutze den Export und überspringe den Crawl. So kostet ein zweiter Lauf im selben Monat, zum Beispiel nach einem gescheiterten Versand, keine Stunden. Verlangt der Auftrag ausdrücklich einen frischen Crawl, crawle neu.
+
 1. Hol das Basisverzeichnis des Frog-MCP mit dem Tool, das das erlaubte Verzeichnis auflistet. Lege darin den Ordner `broken-link-monitor` an, falls er fehlt (Tool zum Anlegen von Verzeichnissen).
 2. Frag zuerst den Zustand mit dem Fortschritts-Tool ab:
-   - `SpiderActiveState`: Es läuft bereits ein Crawl. Brich ihn nicht ab. Weiter mit Schritt 6 (Fehler melden): "In Screaming Frog läuft bereits ein Crawl."
+   - `SpiderActiveState`: Es läuft bereits ein Crawl, zum Beispiel der Monitor eines anderen Kunden. Brich ihn nie ab. Im geplanten Lauf wartest du: Frag den Zustand alle zehn Minuten erneut ab, bis zu sechs Stunden lang. Läuft dann immer noch ein Crawl, weiter mit Schritt 6 (Fehler melden): "In Screaming Frog lief über sechs Stunden ein anderer Crawl." Im Gespräch sagst du es der Person und fragst, wie es weitergehen soll.
    - Jeder andere Zustand außer `SpiderNoDataIdleState`: Im MCP ist noch ein alter Crawl geladen. Räume ihn mit `sf_clear_crawl`. Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der nächste Start ohne Aktivität.
-   Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, räume mit `sf_clear_crawl` und starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
+   Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`, `crawl_name` = `blm-<customer>-<RUN>`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, räume mit `sf_clear_crawl` und starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
 3. **Frühwarnung bei `custom_javascript`:** Sobald das Fortschritts-Tool mindestens 60 abgeschlossene URLs meldet, prüfe eine Stichprobe, statt bis zum Ende zu warten:
    - Halte den Crawl an (`sf_pause_crawl`). Solange er läuft, verweigert Frog jeden Export ("SEO Spider is busy").
    - Ermittle das Embedding-Feld wie in Punkt 6 beschrieben.
@@ -62,7 +80,7 @@ Wenn `frog.crawl` true ist:
    - `zu_wenig_daten`: Crawl fortsetzen und bei der nächsten Fortschrittsabfrage erneut anhalten und prüfen, höchstens dreimal, danach ohne Frühwarnung weiter.
    - `keine_embeddings`: Der Crawl bleibt angehalten. Weiter mit Schritt 6 (Fehler melden). Meldung: "Das Custom-JavaScript-Snippet liefert keine Embeddings. Häufigste Ursachen: Rendering steht nicht auf JavaScript (Konfiguration, Spider, Rendering), im Snippet fehlt der OpenAI-Schlüssel, oder PREVIEW_TEXT steht noch auf true. Konfiguration korrigieren, neu speichern und den Lauf erneut starten."
    - Scheitert das Anhalten oder der Export, setze den Crawl fort, notiere das und mach ohne Frühwarnung weiter. Punkt 7 prüft das Ergebnis nach dem Crawl.
-4. Frage den Fortschritt mit dem Fortschritts-Tool ab, bis Crawl, API-Abrufe und Nachbearbeitung bei 100 Prozent sind. Warte zwischen zwei Abfragen zwei bis fünf Minuten, zum Beispiel mit `sleep 180` in der Shell. Ist Warten in der Shell gesperrt, nutze das verfügbare Warte- oder Monitor-Werkzeug. Nach sechs Stunden ohne Abschluss weiter mit Schritt 6 (Fehler melden).
+4. Frage den Fortschritt mit dem Fortschritts-Tool ab, bis Crawl, API-Abrufe und Nachbearbeitung bei 100 Prozent sind. Warte zwischen zwei Abfragen zwei bis fünf Minuten, zum Beispiel mit `sleep 180` in der Shell. Ist Warten in der Shell gesperrt, nutze das verfügbare Warte- oder Monitor-Werkzeug. Nach sechs Stunden ohne Abschluss hältst du den Crawl an (`sf_pause_crawl`), damit er nicht endlos weiterläuft und den nächsten Lauf blockiert. Weiter mit Schritt 6 (Fehler melden): "Der Crawl war nach sechs Stunden nicht fertig. Die Website ist sehr groß oder hat endlose URL-Räume. Bitte den Crawl-Umfang in der Frog-Konfiguration begrenzen."
 5. **Vollständigkeit prüfen:** Exportiere mit dem Tool für SEO-Element-URLs das Element `Internal`, Filter `All`, Felder `Address`, `Status Code` und `Status`, Datei `broken-link-monitor/<own_domain>-<RUN>-intern.ndjson`. Prüfe sie mit `.venv/bin/python frog_crawl_check.py <absoluter Pfad>`. Die Ausgabe ist JSON mit `verdict`, `no_response`, `internal` und `reasons`.
    - `ok`: weiter.
    - `warnung` (5 bis 30 Prozent der Seiten ohne Antwort): weiter, aber merke dir den Hinweis für Schritt 3, zum Beispiel "Crawl nicht vollständig: 80 von 1.340 Seiten ohne Antwort (Internet Disconnected). Für diese Seiten fehlen Vorschläge."
@@ -83,6 +101,7 @@ Für jeden Eintrag `W` in `competitors`:
 2. Rufe `site-explorer-broken-backlinks` mit genau den Werten aus `mcp` auf. Übernimm `where` unverändert als Text.
 3. Speichere die CSV-Antwort unverändert als `<laufordner>/W/broken-backlinks.csv`. Hinweise des MCP zur Darstellung gehören nicht in die Datei.
 4. Kontrolle: `.venv/bin/python -c "import sys; from blm.ingest.backlinks_csv import read_table, detect_columns; df = read_table(sys.argv[1]); col = detect_columns(df).mapping['url_to']; print(len(df), df[col].astype(str).str.lower().str.contains(sys.argv[2].lower(), regex=False).all())" <datei> W`. Die erste Zahl muss zur Zeilenzahl der MCP-Antwort passen und der zweite Wert muss `True` sein. Sonst die Datei neu schreiben, beim zweiten Fehlschlag weiter mit Schritt 6 (Fehler melden) für diesen Wettbewerber.
+5. Liefert Ahrefs null Zeilen, ist das ein Fehler und kein Ergebnis: Units aufgebraucht, Filter zu streng oder eine Störung. Für diesen Wettbewerber gibt es dann keinen Bericht und keine Kundenmail. Weiter mit Schritt 6 (Fehler melden): "Ahrefs lieferte für W keine Broken Backlinks." `cli.py` bricht bei einer Datei ohne Zeilen ebenfalls mit Exit-Code 1 ab und speichert nichts.
 
 ## Schritt 3: Matching (cli.py)
 
@@ -121,10 +140,14 @@ Je erfolgreichem Wettbewerber eine Mail, je nach `mail.method`:
   ```
   .venv/bin/python send_report.py --to <empfänger> [--to <weitere>] \
     --subject "<report_subject>" --html <report_html> --text <report> \
-    --attach <output> [--attach <drafts_output>]
+    --attach <output> [--attach <drafts_output>] \
+    --marker <laufordner>/W/versendet.json
   ```
+  Der Versandmerker verhindert doppelte Mails: Existiert er, meldet das Skript "Bereits versendet" und verschickt nichts.
 - **connector**: Schicke mit dem verbundenen Mail-Connector (Outlook oder Gmail) an die Empfänger aus `mail.to`. Betreff ist `report_subject`. Der Mailtext besteht nur aus zwei Sätzen: "Der Bericht liegt im Anhang." und dem Pfad des Laufordners. Hänge `bericht.html` und die Excel-Datei an. Kann der Connector keine Anhänge, nenne stattdessen die Dateipfade. Schreibe den Bericht nicht ab.
 - **file**: Kein Versand.
+
+**Nie doppelt verschicken.** Existiert `<laufordner>/W/versendet.json`, wurde der Bericht dieses Monats schon verschickt. Verschicke ihn nicht noch einmal, auch nicht per Connector, und erwähne das in Schritt 7. Nur wenn der Auftrag ausdrücklich "erneut senden" verlangt, verschickst du erneut, bei `resend` mit dem Zusatz `--resend`. Nach einem erfolgreichen Versand per Connector legst du den Merker selbst an: eine JSON-Datei mit `sent_at` (Datum und Uhrzeit), `to` und `subject`.
 
 Scheitert der Versand, notiere die Meldung für Schritt 6. Die Dateien bleiben im Laufordner. Ein erneuter Lauf im selben Monat erzeugt denselben Bericht und versucht den Versand noch einmal.
 

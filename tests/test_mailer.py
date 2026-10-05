@@ -138,3 +138,47 @@ def test_separate_calls_use_different_idempotency_keys():
         for _ in range(2):
             send_resend("k", "a@b.de", ["c@d.de"], "S", "h", "t", [], client=client, sleeper=no_sleep)
     assert len({c.request.headers["Idempotency-Key"] for c in route.calls}) == 2
+
+
+# ------------------------------------------------------------------ sent marker
+
+@respx.mock
+def test_marker_written_after_send_and_blocks_second_send(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("RESEND_API_KEY", "re_x")
+    monkeypatch.setenv("RESEND_FROM", "a@b.de")
+    route = respx.post(RESEND_URL).mock(return_value=httpx.Response(200, json={"id": "msg_1"}))
+    marker = tmp_path / "lauf" / "versendet.json"
+    args = ["--to", "d@obs.com", "--subject", "S", "--env-file", str(tmp_path / "keine.env"),
+            "--marker", str(marker)] + bodies(tmp_path)
+    assert send_report.main(args) == 0
+    data = json.loads(marker.read_text(encoding="utf-8"))
+    assert data["id"] == "msg_1" and data["to"] == ["d@obs.com"] and data["subject"] == "S" and "sent_at" in data
+    capsys.readouterr()
+    assert send_report.main(args) == 0
+    out = capsys.readouterr().out
+    assert route.call_count == 1 and "Bereits versendet" in out and "msg_1" in out
+
+
+@respx.mock
+def test_resend_flag_sends_again_and_updates_marker(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("RESEND_API_KEY", "re_x")
+    monkeypatch.setenv("RESEND_FROM", "a@b.de")
+    route = respx.post(RESEND_URL).mock(side_effect=[httpx.Response(200, json={"id": "m1"}),
+                                                     httpx.Response(200, json={"id": "m2"})])
+    marker = tmp_path / "versendet.json"
+    args = ["--to", "d@obs.com", "--subject", "S", "--env-file", str(tmp_path / "keine.env"),
+            "--marker", str(marker)] + bodies(tmp_path)
+    assert send_report.main(args) == 0 and send_report.main(args + ["--resend"]) == 0
+    assert route.call_count == 2 and json.loads(marker.read_text(encoding="utf-8"))["id"] == "m2"
+
+
+@respx.mock
+def test_failed_send_writes_no_marker(monkeypatch, tmp_path, capsys):
+    monkeypatch.setenv("RESEND_API_KEY", "re_x")
+    monkeypatch.setenv("RESEND_FROM", "a@b.de")
+    monkeypatch.setattr(send_report, "default_sleeper", no_sleep)
+    respx.post(RESEND_URL).mock(return_value=httpx.Response(403, json={"message": "nope"}))
+    marker = tmp_path / "versendet.json"
+    rc = send_report.main(["--to", "d@obs.com", "--subject", "S", "--env-file", str(tmp_path / "keine.env"),
+                           "--marker", str(marker)] + bodies(tmp_path))
+    assert rc == 1 and not marker.exists()

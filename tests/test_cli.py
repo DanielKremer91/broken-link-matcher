@@ -397,3 +397,18 @@ def test_mailed_excel_has_no_content_gap_rows_but_plain_export_has(monkeypatch, 
     assert cli.main(base_args(tmp_path, out="mail.xlsx") + gaps + ["--report", str(tmp_path / "b.md")]) == 0
     mailed = pd.read_excel(tmp_path / "mail.xlsx")
     assert len(mailed) == len(plain) - total["content_gaps"]
+
+
+def test_backlink_file_without_rows_exits_1_and_writes_nothing(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    empty = tmp_path / "leer.csv"
+    empty.write_text((FIX / "pipeline_backlinks.csv").read_text(encoding="utf-8").splitlines()[0] + "\n", encoding="utf-8")
+    seen = tmp_path / "seen.json"
+    seen.write_text(json.dumps({"keys": {"a.de/x|k.de/y": {"status": "match", "since": "2026-09"}}}), encoding="utf-8")
+    before = seen.read_text(encoding="utf-8")
+    args = ["--frog", str(FIX / "pipeline_frog.csv"), "--backlinks", str(empty), "--out", str(tmp_path / "e.xlsx"),
+            "--cache-dir", str(tmp_path / "cache"), "--report", str(tmp_path / "b.md"), "--seen-file", str(seen)]
+    assert cli.main(args) == 1
+    assert "keine Zeilen" in capsys.readouterr().err
+    assert not (tmp_path / "e.xlsx").exists() and not (tmp_path / "b.md").exists()
+    assert seen.read_text(encoding="utf-8") == before

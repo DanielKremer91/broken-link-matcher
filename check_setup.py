@@ -14,6 +14,14 @@ from ahrefs_params import build as build_ahrefs
 from blm.envfile import load_env_file
 from blm.ingest.ahrefs_api import AhrefsError
 
+def venv_python(repo: Path) -> Optional[Path]:
+    """Interpreter of the repo's virtual environment on macOS/Linux or Windows."""
+    for candidate in (repo / ".venv" / "bin" / "python", repo / ".venv" / "Scripts" / "python.exe"):
+        if candidate.exists():
+            return candidate
+    return None
+
+
 PROVIDER_KEYS = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY", "ollama": None}
 MAIL_METHODS = ("resend", "connector", "file")
 
@@ -32,11 +40,11 @@ def check(cfg: dict) -> list[tuple[bool, str, str]]:
         "In monitor.config.json bei repo_path den vollständigen Pfad zum Ordner broken-link-matcher eintragen, "
         "zum Beispiel /Users/name/broken-link-matcher.")
     if repo_ok:
-        add((repo / ".venv" / "bin" / "python").exists(), "Virtuelle Umgebung .venv ist eingerichtet",
+        add(venv_python(repo) is not None, "Virtuelle Umgebung .venv ist eingerichtet",
             "Im Repo-Ordner ausführen: uv venv --python 3.11 .venv && uv pip install -r requirements.txt "
             "(ohne uv: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt).")
         add((repo / ".env").is_file(), "Schlüsseldatei .env ist angelegt",
-            "Im Repo-Ordner ausführen: cp .env.example .env && chmod 600 .env")
+            "Im Repo-Ordner die Datei .env.example nach .env kopieren (macOS: cp -n .env.example .env && chmod 600 .env).")
         try:
             load_env_file(repo / ".env")
         except (OSError, UnicodeDecodeError):
@@ -59,8 +67,8 @@ def check(cfg: dict) -> list[tuple[bool, str, str]]:
     if frog.get("crawl", True):
         path = Path(str(frog.get("config_file", ""))).expanduser()
         add(bool(frog.get("config_file")) and path.is_file(), f"Frog-Konfiguration vorhanden ({path})",
-            "In Screaming Frog über Konfiguration > Profile > Speichern unter... unter genau diesem Dateinamen auf dem "
-            "Schreibtisch speichern. Danach ausführen: .venv/bin/python place_frog_config.py --target <dieser Pfad>")
+            "In Screaming Frog über Konfiguration > Profile > Speichern unter... unter genau diesem Dateinamen im "
+            "Ordner Downloads speichern. Danach place_frog_config.py --target <dieser Pfad> ausführen.")
     else:
         path = Path(str(frog.get("embeddings_file", ""))).expanduser()
         add(bool(frog.get("embeddings_file")) and path.is_file(), f"Frog-Embeddings-Export vorhanden ({path})",
@@ -127,7 +135,7 @@ KEY_NOTES = {"OPENAI_API_KEY": " (bei OpenAI-Embeddings)", "GEMINI_API_KEY": " (
 def inventory(repo: Path, config: Path) -> list[tuple[bool, str]]:
     """What already exists, for the guided setup. Works without a config; never prints values."""
     items: list[tuple[bool, str]] = []
-    items.append(((repo / ".venv" / "bin" / "python").exists(), "Virtuelle Umgebung .venv"))
+    items.append((venv_python(repo) is not None, "Virtuelle Umgebung .venv"))
     env = repo / ".env"
     items.append((env.is_file(), "Schlüsseldatei .env"))
     cfg: dict = {}

@@ -149,7 +149,7 @@ def test_every_failed_item_explains_the_fix(setup, capsys):
     lines = out.splitlines()
     failed = [i for i, line in enumerate(lines) if line.startswith("✗")]
     assert failed and all(lines[i + 1].startswith("  Lösung: ") for i in failed)
-    assert "cp .env.example .env" in out and "nie in den Chat" in out
+    assert "cp -n .env.example .env" in out and "nie in den Chat" in out
 
 
 def test_inventory_works_without_config_and_hides_values(tmp_path, monkeypatch, capsys):
@@ -188,3 +188,13 @@ def test_inventory_uses_frog_path_from_config(tmp_path, monkeypatch, capsys):
     check_setup.main(["--inventory", "--config", str(cfg)])
     out = capsys.readouterr().out
     assert f"✓ vorhanden: Frog-Konfiguration {frog}" in out and "✓ vorhanden: Konfiguration" in out
+
+
+def test_windows_style_venv_is_accepted(setup, capsys):
+    write, repo = setup
+    (repo / ".venv" / "bin" / "python").unlink()
+    (repo / ".venv" / "bin").rmdir()
+    (repo / ".venv" / "Scripts").mkdir()
+    (repo / ".venv" / "Scripts" / "python.exe").write_text("")
+    rc, out = run(write(), capsys)
+    assert rc == 0, out

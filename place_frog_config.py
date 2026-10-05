@@ -1,8 +1,9 @@
 #!/usr/bin/env python
 """Find the Screaming Frog configuration the user just saved and move it to its place.
 
-The user saves the file where it is easy (Desktop) under a given name; this script
-looks for it on the Desktop, in Downloads, Documents and the home folder, moves it
+The user saves the file where it is easy (Downloads, which is not synced to iCloud)
+under a given name; this script looks for it in Downloads, on the Desktop, in
+Documents and the home folder, moves it
 to the folder the Frog MCP can read and restricts its permissions, because the file
 can contain an API key. It never reads or prints the file's content.
 
@@ -19,18 +20,28 @@ from pathlib import Path
 from typing import Optional
 
 SUFFIX = ".seospiderconfig"
-DEFAULT_SEARCH = ("~/Desktop", "~/Downloads", "~/Documents", "~")
+DEFAULT_SEARCH = ("~/Downloads", "~/Desktop", "~/Documents", "~")
 
 
-def find_candidates(target: Path, search_dirs: list[Path], max_age_minutes: int) -> list[Path]:
-    """Files named like the target (also with a typed path in front) win; else recent configs."""
+def find_candidates(target: Path, search_dirs: list[Path], max_age_minutes: int,
+                    denied: Optional[list[Path]] = None) -> list[Path]:
+    """Files named like the target (also with a typed path in front) win; else recent configs.
+
+    Folders that exist but cannot be listed (macOS privacy protection) are collected in ``denied``.
+    """
     named: list[Path] = []
     recent: list[Path] = []
     now = time.time()
     for folder in search_dirs:
         if not folder.is_dir():
             continue
-        for p in sorted(folder.glob(f"*{SUFFIX}")):
+        try:
+            entries = sorted(p for p in folder.iterdir() if p.name.endswith(SUFFIX))
+        except OSError:
+            if denied is not None:
+                denied.append(folder)
+            continue
+        for p in entries:
             if not p.is_file() or p.resolve() == target.resolve():
                 continue
             if p.name == target.name or p.name.endswith(target.name):
@@ -57,7 +68,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                                 description="Gespeicherte Frog-Konfiguration finden und an ihren Platz verschieben.")
     p.add_argument("--target", required=True, type=Path, help="Zielpfad, wie frog.config_file in monitor.config.json")
     p.add_argument("--source", type=Path, help="Datei direkt angeben statt suchen")
-    p.add_argument("--search", nargs="*", type=Path, help="Suchordner (Standard: Schreibtisch, Downloads, Dokumente, Benutzerordner)")
+    p.add_argument("--search", nargs="*", type=Path, help="Suchordner (Standard: Downloads, Schreibtisch, Dokumente, Benutzerordner)")
     p.add_argument("--max-age", type=int, default=120, help="anders benannte Dateien nur, wenn höchstens so viele Minuten alt")
     args = p.parse_args(argv)
     target = args.target.expanduser()
@@ -69,13 +80,17 @@ def main(argv: Optional[list[str]] = None) -> int:
         candidates = [source]
     else:
         dirs = [d.expanduser() for d in (args.search or [Path(d) for d in DEFAULT_SEARCH])]
-        candidates = find_candidates(target, dirs, args.max_age)
+        denied: list[Path] = []
+        candidates = find_candidates(target, dirs, args.max_age, denied)
+        for folder in denied:
+            print(f"Kein Zugriff auf {folder}. Auf dem Mac fragt das System beim ersten Mal, ob Claude auf diesen Ordner "
+                  "zugreifen darf. Bitte erlauben und erneut versuchen.")
     if not candidates:
         if target.is_file():
             print(f"Die Konfiguration liegt bereits am Ziel: {target}")
             return 0
         print(f"Keine gespeicherte Konfiguration gefunden. Bitte in Screaming Frog unter dem Namen {target.name} "
-              "auf dem Schreibtisch speichern und erneut versuchen.")
+              "im Ordner Downloads speichern und erneut versuchen.")
         return 1
     if len(candidates) > 1:
         print("Mehrere Konfigurationsdateien gefunden. Welche ist die richtige?")

@@ -214,6 +214,11 @@ def main(argv: Optional[list[str]] = None) -> int:
     except (PipelineError, EmbeddingError) as exc:
         print(f"Abbruch: {exc}", file=sys.stderr)
         return 1
+    if result.summary.backlinks_total == 0:
+        # an empty export (units used up, wrong filter, outage) must not turn into "no opportunities"
+        print("Abbruch: Die Backlink-Datei enthält keine Zeilen. Es wurde nichts ausgewertet und nichts gespeichert.",
+              file=sys.stderr)
+        return 1
     result.summary.errors.extend(n.strip() for n in args.note if n.strip())
     new_flags = mark_new(result.results, seen or {}, run_id)
     # every open opportunity is in the report; content gaps appear in neither mail nor attachment
