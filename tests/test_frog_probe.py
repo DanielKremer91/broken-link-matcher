@@ -58,3 +58,17 @@ def test_domain_check_on_the_export(tmp_path):
     assert frog_probe.probe(p, "Ext 1", domain="a.de")["verdict"] == "ok"
     r = frog_probe.probe(p, "Ext 1", domain="fressnapf.de")
     assert r["verdict"] == "falsche_domain" and r["on_domain_share"] == 0.0
+
+
+def test_load_reports_pages_like_the_matching_will_read_them(tmp_path, capsys):
+    p = write(tmp_path, [row(1, VEC), row(2, VEC), row(3, "")])
+    assert frog_probe.main([str(p), "--field", "Ext 1", "--load"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["pages"] == 2 and data["dimension"] == 64 and data["verdict"] == "ok"
+
+
+def test_load_turns_an_unusable_export_into_keine_embeddings(tmp_path, capsys):
+    p = write(tmp_path, [row(i, "kein vektor") for i in range(3)])
+    assert frog_probe.main([str(p), "--field", "Ext 1", "--load"]) == 0
+    data = json.loads(capsys.readouterr().out)
+    assert data["pages"] == 0 and data["verdict"] == "keine_embeddings"

@@ -207,16 +207,26 @@ Weitere Läufe im selben Monat sind unkritisch:
 
 ### 8. Monatlich automatisch
 
-Bitte Claude in der Desktop-App:
+Drei Dinge müssen stimmen, damit der Monitor wirklich ohne dich läuft. Sie sind an echten geplanten Läufen getestet.
+
+**1. Die Aufgabe aus dem Repo-Ordner anlegen.** Eine geplante Aufgabe läuft in dem Ordner, aus dem sie angelegt wurde. Starte in der Claude-App eine Sitzung mit dem Repo-Ordner und schreib dort:
 
 ```
-Lege eine geplante Aufgabe an, die am 1. jedes Monats um 7 Uhr läuft.
-Prompt: Geplanter Lauf ohne Rückfragen: Arbeite im Ordner /Pfad/zu/broken-link-matcher. Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.
+Lege den monatlichen Termin für den Broken Link Monitor an.
 ```
 
-Geplante Aufgaben laufen nur, wenn die Desktop-App geöffnet ist. Verpasste Läufe holt die App beim nächsten Start nach. Der Rechner muss zur geplanten Zeit wach und online sein, weil der Crawl je nach Seitengröße eine Weile dauert.
+Von Hand geht es auch: eine Aufgabe für den 1. jedes Monats um 7 Uhr mit dem Prompt `Geplanter Lauf ohne Rückfragen: Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.`
 
-**Sei beim ersten automatischen Lauf am Rechner.** Die Claude-App kann dann nach Berechtigungen fragen, zum Beispiel für Screaming Frog, Ahrefs oder das Ausführen von Befehlen. Wähle jeweils die dauerhafte Erlaubnis. Erst danach läuft der Monitor wirklich ohne dich. Bleibt die Mail an einem Termin aus, sieh zuerst in der Sitzung der geplanten Aufgabe in der Claude-App nach, ob dort eine Abfrage wartet.
+**2. Die Freigabeliste des Repos.** Die Datei `.claude/settings.json` erlaubt Claude in diesem Ordner zwei Dinge ohne Rückfrage:
+
+- die neun Skripte des Monitors auszuführen: `monitor_match.py`, `send_report.py`, `check_setup.py`, `ahrefs_params.py`, `backlinks_check.py`, `frog_state.py`, `frog_probe.py`, `frog_crawl_check.py` und `oshelp.py`
+- Dateien im Ordner `laeufe` zu schreiben
+
+Mehr steht nicht drin. Diese Skripte nehmen keine freien Empfänger, Anhänge oder Ausgabepfade an: Wer die Mail bekommt und wohin geschrieben wird, bestimmt allein deine `monitor.config.json`. Beim ersten Öffnen des Ordners fragt die Claude-App, ob du ihm vertraust. Erst mit deinem Ja gilt die Liste. Ohne sie würde der Lauf jeden Monat an Abfragen hängen bleiben, weil die App Erlaubnisse für wechselnde Befehle und für das Schreiben von Dateien nicht dauerhaft speichert.
+
+**3. Der erste Lauf über die Aufgabe, mit dir am Rechner.** Screaming Frog, Ahrefs und ein Mail-Connector stehen bewusst nicht auf der Liste. Für sie fragt die App beim ersten Mal je Werkzeug einmal. Wähle "Immer erlauben", dann merkt sie es sich für alle späteren Läufe. Starte den ersten Lauf deshalb bei der Aufgabe über "Jetzt ausführen", öffne die neue Sitzung und erlaube die Abfragen. Es sind etwa zehn bis zwölf, einige gleich zu Beginn, einige nach dem Crawl.
+
+Geplante Aufgaben laufen nur, wenn die Desktop-App geöffnet ist. Verpasste Läufe holt die App beim nächsten Start nach. Der Rechner muss zur geplanten Zeit wach und online sein, weil der Crawl je nach Seitengröße eine Weile dauert. Bleibt die Mail an einem Termin aus, sieh zuerst in der Sitzung der Aufgabe nach, ob dort eine Abfrage wartet.
 
 ## Skill herauslösen
 
@@ -268,6 +278,7 @@ laeufe/
 | Erster Crawl-Start bleibt ohne Aktivität | Im Frog-MCP war noch ein alter Crawl geladen. Der Lauf räumt das inzwischen selbst und startet neu. |
 | Lauf ist nicht gestartet | Die Desktop-App war geschlossen. Er läuft beim nächsten Öffnen. |
 | Lauf steht, keine Mail | In der Sitzung der geplanten Aufgabe wartet eine Berechtigungsabfrage. Dauerhaft erlauben, der Lauf geht weiter. |
+| Jeden Monat neue Abfragen für Befehle oder Dateien | Die Aufgabe wurde nicht aus dem Repo-Ordner angelegt, oder dem Ordner wurde nicht vertraut. Dann gilt die Freigabeliste nicht. Aufgabe löschen und in einer Sitzung im Repo-Ordner neu anlegen. |
 | "Bereits versendet", keine neue Mail | Der Bericht dieses Monats ging schon raus. Für eine bewusste Wiederholung "erneut senden" sagen. |
 | "Ahrefs lieferte keine Broken Backlinks" | Null Zeilen gelten als Fehler: Units aufgebraucht, Filter zu streng oder eine Störung. Es geht bewusst keine Kundenmail raus. Units und Filter prüfen, Lauf wiederholen. |
 | "Screaming Frog war belegt" oder "lief ein anderer Crawl" | Ein anderer Monitor oder ein eigener Crawl hat Frog über sechs Stunden belegt. Aufgaben auf verschiedene Tage legen. |

@@ -47,8 +47,9 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 
 ## Automatisierung
 
-- [ ] Geplante Aufgabe angelegt, zum Beispiel am 1. des Monats um 7 Uhr
-- [ ] Beim ersten automatischen Lauf am Rechner gewesen und alle Berechtigungen dauerhaft erlaubt
+- [ ] Geplante Aufgabe in einer Sitzung im Repo-Ordner angelegt, zum Beispiel am 1. des Monats um 7 Uhr
+- [ ] Dem Repo-Ordner in der Claude-App vertraut, damit die Freigabeliste gilt
+- [ ] Ersten Lauf bei der Aufgabe über "Jetzt ausführen" gestartet und alle Abfragen für Screaming Frog und Ahrefs dauerhaft erlaubt
 - [ ] Bei mehreren Kunden: Aufgaben auf verschiedene Tage gelegt
 - [ ] Desktop-App bleibt geöffnet, Mac zur Laufzeit wach
 - [ ] Ordner `laeufe/` mit den Verlaufsdateien ist im Backup

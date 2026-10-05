@@ -220,6 +220,8 @@ Führe `.venv/bin/python check_setup.py` im Repo-Ordner aus. Zu jedem Kreuz steh
 
 ## Schritt 8: Erster Lauf
 
+Frag zuerst, ob der Monitor künftig monatlich automatisch laufen soll. Wenn ja, ist der bessere Weg: erst Schritt 9, also die Aufgabe anlegen, und den ersten Lauf dann über die Aufgabe starten. So erteilt die Person alle Erlaubnisse genau dort, wo sie später gebraucht werden. Soll es keinen Termin geben, läuft der erste Lauf in dieser Sitzung. Dafür muss dein Arbeitsordner der Repo-Ordner sein, siehe Schritt 9, Punkt 1.
+
 Sag vorher, was passiert und was es kostet:
 
 - Screaming Frog crawlt die Start-URL mit JavaScript-Rendering. Das kann je nach Größe eine bis mehrere Stunden dauern und kostet beim Embedding-Anbieter einige Cent pro tausend Seiten.
@@ -236,19 +238,27 @@ Starte erst nach einem ausdrücklichen "Go". Führe dann den Lauf nach `SKILL.md
 
 Gibt es schon eine geplante Aufgabe für genau diesen Kunden, zeig ihren Zeitplan und frag nur, ob er so bleiben soll. Leg keine zweite an.
 
-Sonst frag, ob der Lauf monatlich automatisch kommen soll. Wenn ja und ein Werkzeug für geplante Aufgaben verfügbar ist, lege die Aufgabe an:
+Sonst frag, ob der Lauf monatlich automatisch kommen soll. Wenn ja und ein Werkzeug für geplante Aufgaben verfügbar ist:
+
+**1. Die Sitzung muss im Repo-Ordner arbeiten.** Eine geplante Aufgabe läuft in dem Ordner, aus dem sie angelegt wurde, und nur im Repo-Ordner gilt die Freigabeliste. Prüfe deinen Arbeitsordner. Ist er nicht der Repo-Ordner, verlege die Sitzung dorthin, wenn es dafür ein Werkzeug gibt (Ordner wechseln; die Person bestätigt den Ordner, der Wechsel gilt ab ihrer nächsten Nachricht). Gibt es keins, bitte die Person, in der Claude-App eine neue Sitzung mit dem Repo-Ordner zu starten und dort zu schreiben: "Lege den monatlichen Termin für den Broken Link Monitor an." Lege die Aufgabe nie aus einem anderen Ordner an.
+
+**2. Erkläre die Freigabeliste in drei Sätzen.** Im Repo liegt die Datei `.claude/settings.json`. Sie erlaubt Claude in diesem Ordner, die neun Skripte des Monitors ohne Rückfrage auszuführen und Dateien im Ordner `laeufe` zu schreiben, sonst nichts. Empfänger und Anhänge der Mail lassen sich über diese Skripte nicht frei angeben; sie kommen aus `monitor.config.json`. Beim Öffnen des Ordners fragt die Claude-App, ob sie ihm vertraut. Das muss die Person bestätigen, sonst gilt die Liste nicht.
+
+**3. Lege die Aufgabe an:**
 
 - **Name der Aufgabe:** `broken-link-monitor-<kunde>`.
 - **Tag:** Standard ist der 1. des Monats um 7 Uhr, Cron `0 7 1 * *`. Gibt es schon Monitor-Aufgaben für andere Kunden, nimm einen anderen Tag, zum Beispiel den 2. oder 3. (`0 7 2 * *`). Alle Einrichtungen teilen sich einen Screaming Frog, und der kann immer nur einen Crawl gleichzeitig ausführen. Erklär das in einem Satz.
-- **Prompt:** `Geplanter Lauf ohne Rückfragen: Arbeite im Ordner <repo_path>. Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.`
+- **Prompt:** `Geplanter Lauf ohne Rückfragen: Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.`
 
-Erkläre dazu ehrlich:
+**4. Erster Lauf über die Aufgabe, mit der Person am Rechner.** Die Freigabeliste deckt Skripte und Dateien ab, aber nicht Screaming Frog, Ahrefs und einen Mail-Connector. Dafür fragt die Claude-App beim ersten Mal je Werkzeug einmal. Wählt die Person "Immer erlauben", merkt sich die App das für alle späteren Läufe dieser Aufgabe. Erkläre das und empfiehl:
 
-- Die Aufgabe läuft nur, wenn die Claude-App geöffnet ist. Verpasste Läufe holt sie beim nächsten Start nach. Der Rechner muss zur geplanten Zeit wach und online sein.
-- **Beim ersten automatischen Lauf bitte am Rechner sein.** Die Claude-App kann dann nach Berechtigungen fragen, zum Beispiel für Screaming Frog, Ahrefs oder das Ausführen von Befehlen. Die Person wählt jeweils die dauerhafte Erlaubnis. Erst danach läuft der Monitor wirklich ohne Zutun. Bleibt die Mail am Termin aus, ist das der erste Ort zum Nachsehen: die Sitzung der geplanten Aufgabe in der Claude-App.
-- Ein Probelauf über "Jetzt ausführen" im selben Monat ersetzt das nicht: Er überspringt schon verschickte Wettbewerber und den vorhandenen Crawl und stößt deshalb kaum Abfragen an.
+- Der erste Monatslauf soll über die Aufgabe laufen und nicht in dieser Sitzung. Die Person startet ihn in der Claude-App bei der Aufgabe mit "Jetzt ausführen", öffnet die neue Sitzung und erlaubt jede Abfrage dauerhaft. Es sind etwa zehn bis zwölf Abfragen, verteilt über den Lauf: einige gleich zu Beginn, einige nach dem Crawl.
+- Hat der erste Lauf schon in dieser Sitzung stattgefunden (Schritt 8), sag ehrlich: Dann kommen die Abfragen beim ersten automatischen Termin. Die Person sollte an diesem Tag kurz in die Claude-App schauen.
+- Bleibt an einem Termin die Mail aus, ist der erste Ort zum Nachsehen die Sitzung der Aufgabe: Dort wartet dann eine Abfrage, etwa für ein selten genutztes Frog-Werkzeug.
 
-Ohne Werkzeug für geplante Aufgaben erkläre, wie die Person die Aufgabe in der Claude-App selbst anlegt, mit genau diesem Prompt.
+Erkläre außerdem: Die Aufgabe läuft nur, wenn die Claude-App geöffnet ist. Verpasste Läufe holt sie beim nächsten Start nach. Der Rechner muss zur geplanten Zeit wach und online sein.
+
+Ohne Werkzeug für geplante Aufgaben erkläre, wie die Person die Aufgabe in der Claude-App selbst anlegt: in einer Sitzung im Repo-Ordner, mit genau diesem Prompt.
 
 ## Zum Schluss
 

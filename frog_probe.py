@@ -18,7 +18,7 @@ from typing import Optional
 
 import pandas as pd
 
-from blm.ingest.frog_csv import MIN_CONTENT_DIMENSION, _parse_vector, detect_frog_columns
+from blm.ingest.frog_csv import MIN_CONTENT_DIMENSION, _parse_vector, detect_frog_columns, load_frog_embeddings
 from blm.ingest.tables import read_table
 from frog_crawl_check import MIN_DOMAIN_SHARE, _on_domain
 from blm.console import use_utf8
@@ -73,9 +73,21 @@ def main(argv: Optional[list[str]] = None) -> int:
     p.add_argument("--field", help="Name der Embedding-Spalte, z. B. 'Embeddings Fressnapf 1'")
     p.add_argument("--min-html", type=int, default=10, help="so viele HTML-Seiten braucht ein Urteil")
     p.add_argument("--domain", help="eigene Domain: prüft, ob der Export wirklich diese Website ist")
+    p.add_argument("--load", action="store_true",
+                   help="den Export zusätzlich so einlesen wie das Matching und die Zahl nutzbarer Seiten melden")
     args = p.parse_args(argv)
     try:
         result = probe(args.export, args.field, args.min_html, args.domain)
+        if args.load:
+            try:
+                loaded = load_frog_embeddings(args.export, vector_col=args.field if args.field else None)
+                result["pages"], result["dimension"] = len(loaded.pages), loaded.dimension
+            except ValueError:
+                result["pages"] = 0
+            if result["pages"] == 0 and result["verdict"] == "ok":
+                result["verdict"] = "keine_embeddings"
+            if result["pages"] == 0 and result["verdict"] == "zu_wenig_daten":
+                result["verdict"] = "keine_embeddings"
     except (OSError, ValueError) as exc:
         print(f"Abbruch: Export nicht lesbar: {exc}", file=sys.stderr)
         return 1

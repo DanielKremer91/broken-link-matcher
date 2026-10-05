@@ -99,3 +99,19 @@ def test_meta_differs_when_frog_config_file_was_saved_again(tmp_path):
 def test_missing_meta_means_no_reuse(tmp_path):
     cfg, _ = config(tmp_path)
     assert frog_state.main(["check-meta", "--config", str(cfg), "--meta", str(tmp_path / "fehlt.json")]) == 1
+
+
+def test_discard_removes_only_this_months_crawl_files(tmp_path):
+    names = ["a.de-2026-11.ndjson", "a.de-2026-11-meta.json", "a.de-2026-11-stichprobe.ndjson",
+             "a.de-2026-11-intern.ndjson", "a.de-2026-10.ndjson", "b.de-2026-11.ndjson", "andere.txt"]
+    for n in names:
+        (tmp_path / n).write_text("x")
+    assert frog_state.main(["discard", "--dir", str(tmp_path), "--domain", "a.de", "--run", "2026-11"]) == 0
+    left = sorted(p.name for p in tmp_path.iterdir())
+    assert left == ["a.de-2026-10.ndjson", "andere.txt", "b.de-2026-11.ndjson"]
+
+
+def test_discard_refuses_path_tricks(tmp_path):
+    (tmp_path / "x").mkdir()
+    assert frog_state.main(["discard", "--dir", str(tmp_path / "x"), "--domain", "../a.de", "--run", "2026-11"]) == 1
+    assert frog_state.main(["discard", "--dir", str(tmp_path / "x"), "--domain", "a.de", "--run", "../2026-11"]) == 1

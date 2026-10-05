@@ -5,3 +5,4 @@
 - `monitor.config.json`, `.env` und `laeufe/` sind persönlich und stehen in `.gitignore`.
 - Tests: `.venv/bin/pytest -q`, ohne Netzwerkzugriff.
 - Oberfläche und Texte sind deutsch. Berichte enthalten keinen von einem Modell erfundenen Text.
+- Im Monitor-Lauf Skripte immer als einzelnen Befehl `.venv/bin/python <skript>.py <angaben>` aufrufen, ohne cd, Pipes oder Verkettung. Nur so greift die Freigabeliste in `.claude/settings.json`.

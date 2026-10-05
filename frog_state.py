@@ -23,6 +23,8 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+
+from blm.monitor_config import ConfigError, check_run_id
 from blm.console import use_utf8
 
 LOCK_NAME = "frog-lock.json"
@@ -87,6 +89,24 @@ def unlock(folder: Path, customer: str) -> int:
     return 0
 
 
+DISCARD_SUFFIXES = (".ndjson", ".csv", "-meta.json", "-stichprobe.ndjson", "-intern.ndjson")
+
+
+def discard(folder: Path, domain: str, run: str) -> int:
+    """Remove this month's crawl exports of one domain so the next run crawls fresh."""
+    check_run_id(run)
+    if not domain or any(ch in domain for ch in "/\\") or ".." in domain:
+        raise ConfigError(f"Ungültige Domain: {domain!r}")
+    removed = []
+    for suffix in DISCARD_SUFFIXES:
+        path = folder / f"{domain}-{run}{suffix}"
+        if path.is_file():
+            path.unlink()
+            removed.append(path.name)
+    print("Entfernt: " + (", ".join(removed) if removed else "nichts vorhanden"))
+    return 0
+
+
 def crawl_settings(config_path: Path) -> dict:
     cfg = json.loads(config_path.read_text(encoding="utf-8"))
     frog = cfg.get("frog") or {}
@@ -116,6 +136,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         sp.add_argument("--customer", required=True)
         if name == "lock":
             sp.add_argument("--run", default="")
+    dp = sub.add_parser("discard")
+    dp.add_argument("--dir", required=True, type=Path)
+    dp.add_argument("--domain", required=True)
+    dp.add_argument("--run", required=True)
     for name in ("save-meta", "check-meta"):
         sp = sub.add_parser(name)
         sp.add_argument("--config", required=True, type=Path, help="monitor.config.json")
@@ -128,6 +152,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             return unlock(args.dir.expanduser(), args.customer)
         if args.cmd == "refresh":
             return refresh(args.dir.expanduser(), args.customer)
+        if args.cmd == "discard":
+            return discard(args.dir.expanduser(), args.domain, args.run)
         settings = crawl_settings(args.config)
         if args.cmd == "save-meta":
             args.meta.parent.mkdir(parents=True, exist_ok=True)
@@ -144,7 +170,7 @@ def main(argv: Optional[list[str]] = None) -> int:
             return 1
         print("Crawl-Einstellungen unverändert.")
         return 0
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, ConfigError) as exc:
         print(f"Abbruch: {exc}", file=sys.stderr)
         return 1
 
