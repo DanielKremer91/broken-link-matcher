@@ -5,9 +5,10 @@
 // Seiten von selbst; für eine bestimmte Website trägst du unten bei
 // CONTENT_ROOT_SELECTOR und EXTRA_EXCLUDE_SELECTOR eigene Selektoren ein.
 //
-// Screaming Frog: Konfiguration > Benutzerdefiniert > Custom JavaScript >
-// Hinzufügen, Typ "Extraction". Dafür muss das Rendering auf JavaScript stehen
-// (Konfiguration > Spider > Rendering).
+// Screaming Frog: Konfiguration > Eigene > Eigenes JavaScript > Hinzufügen, Typ
+// "Extraktion" (englisch: Configuration > Custom > Custom JavaScript > Add, Type
+// "Extraction"). Als Name "Embeddings <Kunde>" eintragen. Dafür muss das Rendering
+// auf JavaScript stehen: Konfiguration > Spider > Rendering > JavaScript.
 //
 // Ablauf:
 // 1. Hauptinhalt extrahieren: H1 plus Inhaltsbereich, ohne Navigation, Header,

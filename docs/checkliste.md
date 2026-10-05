@@ -27,7 +27,8 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 - [ ] Frog: bei Custom JavaScript das Rendering auf JavaScript gestellt und mit `PREVIEW_TEXT = true` an wenigen Seiten getestet
 - [ ] Frog: ein Testcrawl zeigt gefüllte Embedding-Spalten
 - [ ] Frog: Modell notiert, zum Beispiel `text-embedding-3-small`
-- [ ] Frog: Konfiguration im MCP-Basisverzeichnis gespeichert, nie weitergegeben
+- [ ] Frog: Konfiguration auf dem Schreibtisch gespeichert, Claude hat sie an den richtigen Ort verschoben; nie weitergegeben
+- [ ] Frog: Probe-Crawl von Claude meldet "funktioniert" und die Dimension passt zum Modell
 - [ ] `.env` aus `.env.example` angelegt, Schlüssel eingetragen, `chmod 600 .env`
 - [ ] Resend: Domain verifiziert, Schlüssel und Absender in `.env`
 - [ ] `monitor.config.json` aus der Vorlage angelegt und ausgefüllt, inklusive Kundenname in `customer`

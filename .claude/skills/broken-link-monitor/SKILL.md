@@ -49,15 +49,19 @@ Ein zweiter Lauf im selben Monat ist unkritisch. Er meldet dieselben Paare noch 
 Wenn `frog.crawl` true ist:
 
 1. Hol das Basisverzeichnis des Frog-MCP mit dem Tool, das das erlaubte Verzeichnis auflistet. Lege darin den Ordner `broken-link-monitor` an, falls er fehlt (Tool zum Anlegen von Verzeichnissen).
-2. Starte den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
-3. **Frühwarnung bei `custom_javascript`:** Sobald das Fortschritts-Tool mindestens 50 abgeschlossene URLs meldet, prüfe eine Stichprobe, statt bis zum Ende zu warten:
+2. Frag zuerst den Zustand mit dem Fortschritts-Tool ab:
+   - `SpiderActiveState`: Es läuft bereits ein Crawl. Brich ihn nicht ab. Weiter mit Schritt 6 (Fehler melden): "In Screaming Frog läuft bereits ein Crawl."
+   - Jeder andere Zustand außer `SpiderNoDataIdleState`: Im MCP ist noch ein alter Crawl geladen. Räume ihn mit `sf_clear_crawl`. Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der nächste Start ohne Aktivität.
+   Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
+3. **Frühwarnung bei `custom_javascript`:** Sobald das Fortschritts-Tool mindestens 60 abgeschlossene URLs meldet, prüfe eine Stichprobe, statt bis zum Ende zu warten:
+   - Halte den Crawl an (`sf_pause_crawl`). Solange er läuft, verweigert Frog jeden Export ("SEO Spider is busy").
    - Ermittle das Embedding-Feld wie in Punkt 6 beschrieben.
    - Exportiere mit dem Tool für SEO-Element-URLs: Element `Custom JavaScript`, Filter `All`, Felder `Address`, `Content Type`, `Status Code` und das Embedding-Feld, höchstens 300 Zeilen, Datei `broken-link-monitor/<own_domain>-<RUN>-stichprobe.ndjson`.
    - Prüfe sie: `.venv/bin/python frog_probe.py <absoluter Pfad> --field "<Embedding-Feld>"`. Die Ausgabe ist JSON mit `verdict`.
-   - `ok`: weiter mit Punkt 4.
-   - `zu_wenig_daten`: bei der nächsten Fortschrittsabfrage erneut prüfen, höchstens dreimal, danach ohne Frühwarnung weiter.
-   - `keine_embeddings`: Crawl mit dem Pause-Tool anhalten und weiter mit Schritt 6 (Fehler melden). Meldung: "Das Custom-JavaScript-Snippet liefert keine Embeddings. Häufigste Ursachen: Rendering steht nicht auf JavaScript (Konfiguration, Spider, Rendering), im Snippet fehlt der OpenAI-Schlüssel, oder PREVIEW_TEXT steht noch auf true. Konfiguration korrigieren, neu speichern und den Lauf erneut starten."
-   - Scheitert der Export, solange der Crawl läuft, notiere das und mach ohne Frühwarnung weiter. Punkt 7 prüft das Ergebnis nach dem Crawl.
+   - `ok`: Crawl fortsetzen (`sf_resume_crawl`) und weiter mit Punkt 4.
+   - `zu_wenig_daten`: Crawl fortsetzen und bei der nächsten Fortschrittsabfrage erneut anhalten und prüfen, höchstens dreimal, danach ohne Frühwarnung weiter.
+   - `keine_embeddings`: Der Crawl bleibt angehalten. Weiter mit Schritt 6 (Fehler melden). Meldung: "Das Custom-JavaScript-Snippet liefert keine Embeddings. Häufigste Ursachen: Rendering steht nicht auf JavaScript (Konfiguration, Spider, Rendering), im Snippet fehlt der OpenAI-Schlüssel, oder PREVIEW_TEXT steht noch auf true. Konfiguration korrigieren, neu speichern und den Lauf erneut starten."
+   - Scheitert das Anhalten oder der Export, setze den Crawl fort, notiere das und mach ohne Frühwarnung weiter. Punkt 7 prüft das Ergebnis nach dem Crawl.
 4. Frage den Fortschritt mit dem Fortschritts-Tool ab, bis Crawl, API-Abrufe und Nachbearbeitung bei 100 Prozent sind. Warte zwischen zwei Abfragen zwei bis fünf Minuten, zum Beispiel mit `sleep 180` in der Shell. Ist Warten in der Shell gesperrt, nutze das verfügbare Warte- oder Monitor-Werkzeug. Nach sechs Stunden ohne Abschluss weiter mit Schritt 6 (Fehler melden).
 5. **Vollständigkeit prüfen:** Exportiere mit dem Tool für SEO-Element-URLs das Element `Internal`, Filter `All`, Felder `Address`, `Status Code` und `Status`, Datei `broken-link-monitor/<own_domain>-<RUN>-intern.ndjson`. Prüfe sie mit `.venv/bin/python frog_crawl_check.py <absoluter Pfad>`. Die Ausgabe ist JSON mit `verdict`, `no_response`, `internal` und `reasons`.
    - `ok`: weiter.

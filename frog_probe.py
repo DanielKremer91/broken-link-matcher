@@ -16,6 +16,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Optional
 
+import pandas as pd
+
 from blm.ingest.frog_csv import MIN_CONTENT_DIMENSION, _parse_vector, detect_frog_columns
 from blm.ingest.tables import read_table
 
@@ -23,7 +25,8 @@ from blm.ingest.tables import read_table
 def probe(path: Path, field: Optional[str] = None, min_html: int = 10) -> dict:
     df = read_table(path)
     columns = {c.strip().lower(): c for c in df.columns}
-    vector_col = field if field in df.columns else detect_frog_columns(df).vector_col
+    detected = detect_frog_columns(df)
+    vector_col = field if field in df.columns else detected.vector_col
     ctype = columns.get("content type")
     status = columns.get("status code")
     rows = df
@@ -32,7 +35,13 @@ def probe(path: Path, field: Optional[str] = None, min_html: int = 10) -> dict:
     if status:
         rows = rows[rows[status].astype(str).str.strip().isin(["200", "200.0"])]
     sizes: Counter = Counter()
-    if vector_col:
+    if not vector_col and detected.wide_cols:
+        # export of Frog's built-in AI embeddings: one number per column embedding_0 ... embedding_N
+        numeric = rows[detected.wide_cols].apply(lambda col: pd.to_numeric(col.astype(str).str.replace(",", "."), errors="coerce"))
+        filled = int(numeric.notna().all(axis=1).sum())
+        if filled:
+            sizes[len(detected.wide_cols)] = filled
+    elif vector_col:
         for raw in rows[vector_col].tolist():
             vec = _parse_vector(raw)
             if vec is not None and vec.size >= MIN_CONTENT_DIMENSION:

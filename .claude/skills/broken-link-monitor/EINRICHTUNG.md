@@ -86,40 +86,95 @@ Zeig die wichtigsten Werte in einer kurzen Liste und frag, ob alles stimmt.
 
 ## Schritt 4: Screaming Frog vorbereiten
 
-Liegen im Basisverzeichnis schon Frog-Konfigurationen (`broken-link-monitor*.seospiderconfig`), nenne sie und frag, ob eine davon für genau diese Website angelegt wurde und Embedding-Setup und JavaScript-Rendering enthält. Nur dann trag ihren Pfad als `frog.config_file` ein und überspringe diesen Schritt. Übernimm nie die Konfiguration einer anderen Website: Snippet und Ausschlüsse sind auf deren Seitenaufbau zugeschnitten und liefern bei einer fremden Website schlechte Embeddings.
+Das ist der einzige Schritt, bei dem die Person länger selbst in einem anderen Programm arbeitet. Hier gehen Erstnutzer am ehesten verloren. Führe deshalb besonders kleinschrittig.
 
-Sonst erkläre, dass Screaming Frog die eigenen Seiten crawlt und dabei für jede Seite ein Embedding erzeugt, eine Zahlenfolge, die den Inhalt beschreibt. So kann das Tool später Seiten mit ähnlichem Inhalt finden. Das richtet die Person einmal in Frog ein und speichert es als Konfigurationsdatei.
+### Vorab: Gibt es schon eine passende Konfiguration?
 
-Gibt es noch kein Embedding-Setup, stell die beiden Wege kurz vor und lass die Person wählen:
+Liegen im Basisverzeichnis schon Frog-Konfigurationen (`broken-link-monitor*.seospiderconfig`), nenne sie und frag, ob eine davon für genau diese Website angelegt wurde und Embedding-Setup und JavaScript-Rendering enthält. Nur dann trag ihren Pfad als `frog.config_file` ein und spring direkt zum Probe-Crawl (4.6). Übernimm nie die Konfiguration einer anderen Website: Snippet und Ausschlüsse sind auf deren Seitenaufbau zugeschnitten und liefern bei einer fremden Website schlechte Embeddings.
 
-- **Eingebaute KI-Anbindung:** einfacher einzurichten, kein JavaScript-Rendering nötig, der Schlüssel wird in Frog hinterlegt. Gut für den Einstieg.
-- **Custom-JavaScript-Snippet:** flexibler, braucht aber JavaScript-Rendering, und der Schlüssel steht im Snippet und damit in der Konfigurationsdatei.
+### So führst du durch diesen Schritt
 
-Trag die Wahl als `frog.embeddings_source` (`ai` oder `custom_javascript`) und das Modell als `embedding.model` in `monitor.config.json` ein.
+- **Ein Teilschritt pro Nachricht.** Jede Nachricht enthält genau eine Aktion, den Klickpfad und am Ende den Satz: "Schreib 'weiter', wenn das erledigt ist." Dann wartest du. Schick nie mehrere Teilschritte auf einmal.
+- **Klickpfade immer in beiden Sprachen,** so wie unten angegeben, zuerst Deutsch, dann Englisch. Frag nicht nach der Sprache der Oberfläche.
+- Sieht bei der Person etwas anders aus, hilf zuerst dort weiter, bevor du zum nächsten Teilschritt gehst. Menüs können je nach Frog-Version leicht abweichen.
+- Lies die Konfigurationsdatei nie aus und zeig keine Inhalte daraus. Beim Snippet-Weg steht ein API-Schlüssel darin.
 
-**Wichtig in beiden Fällen: nur der Hauptinhalt.** Erkläre: Das Embedding soll nur den eigentlichen Inhalt einer Seite beschreiben. Kommen Navigation, Footer, Cookie-Banner oder Teaserlisten mit hinein, sehen sich alle Seiten ähnlicher, als sie sind, und die Vorschläge werden schlechter. Jede Website ist anders gebaut, deshalb lohnt sich ein kurzer Blick.
+### Einstieg (eine Nachricht, noch ohne Aktion)
 
-Hilf dabei so: Hol dir mit `curl -sL` das HTML von zwei, drei Seiten unterhalb der Start-URL und schau, ob es `main` oder `article` gibt und ob Navigation und Footer als `nav` und `footer` ausgezeichnet sind. Schlag daraus konkrete Selektoren vor, zum Beispiel `.article-body` für den Inhalt oder `.teaser-list, .author-box` für Ausschlüsse.
+Erkläre in drei, vier Sätzen: Screaming Frog crawlt die eigenen Seiten und erzeugt für jede Seite ein Embedding, eine Zahlenfolge, die den Inhalt beschreibt. So findet das Tool später Seiten mit ähnlichem Inhalt. Das wird einmal in Frog eingestellt und als Datei gespeichert. Es sind fünf kurze Handgriffe, danach prüfst du mit einem kleinen Probe-Crawl, ob alles funktioniert.
 
-**Gleiches Modell:** Das Modell in Frog muss exakt dem Modell in `monitor.config.json` entsprechen. Damit bettet das Tool auch die toten Wettbewerberseiten ein. In der `.env` steht nur der Schlüssel, nicht das Modell. Passen die Modelle nicht zusammen, bricht der Lauf beim Dimensionscheck ab. Standard ist `text-embedding-3-small`.
+Gibt es noch kein Embedding-Setup, nenne die zwei Wege und empfiehl den ersten:
 
-Führe dann je nach Wahl:
+- **Snippet-Weg (empfohlen, erprobt):** Ein fertiges JavaScript-Snippet aus diesem Repo zieht den Hauptinhalt jeder Seite heraus und erzeugt das Embedding. Braucht JavaScript-Rendering. Der OpenAI-Schlüssel steht dann im Snippet und damit in der Konfigurationsdatei.
+- **KI-Anbindung von Frog:** Frog erzeugt die Embeddings selbst aus dem Seitentext. Der Schlüssel wird in Frog hinterlegt. In diesem Ablauf weniger erprobt.
 
-- **Custom JavaScript:** Die Vorlage liegt im Repo unter `frog/main-content-embedding.js`. Sie findet den Hauptinhalt auf vielen Seiten von selbst, teilt lange Texte in Abschnitte und mittelt die Embeddings. Die Person öffnet in Frog Konfiguration, Benutzerdefiniert, Custom JavaScript, fügt ein Snippet vom Typ "Extraction" hinzu und kopiert den Inhalt der Datei hinein. Öffne ihr die Datei dazu mit `open -e <repo>/frog/main-content-embedding.js`, nur zum Kopieren. Den OpenAI-Schlüssel trägt sie erst im Editor von Frog ein, nie in der Datei im Repo. Dort prüft sie auch, dass `MODEL` zur Konfiguration passt. Deine Selektoren gehören in `CONTENT_ROOT_SELECTOR` und `EXTRA_EXCLUDE_SELECTOR`. Unter Konfiguration, Spider, Rendering muss JavaScript eingestellt sein. Tipp: Mit `PREVIEW_TEXT = true` zeigt Frog nach einem Testcrawl von ein paar Seiten den Text, der eingebettet würde, ohne OpenAI-Kosten. Danach wieder auf `false` stellen.
-- **KI-Anbindung:** Unter Konfiguration, API-Zugang, KI den Anbieter verbinden und in der Prompt-Konfiguration einen Eintrag mit der Kategorie "Embeddings" und dem Inhalt "Page Text" anlegen, mit dem Modell aus der Konfiguration. "Page Text" richtet sich nach Konfiguration, Content, Content Area. Dort sind Navigation und Footer schon ausgeschlossen. Deine Selektoren für weitere Ausschlüsse trägt die Person dort ein. Hinweis: Bei sehr langen Seiten kann die KI-Anbindung den Text kürzen, das Snippet teilt ihn dagegen auf.
+Trag die Wahl als `frog.embeddings_source` (`custom_javascript` oder `ai`) und das Modell als `embedding.model` in `monitor.config.json` ein.
 
-**Pflicht-Rückfrage beim Snippet-Weg:** Frag ausdrücklich: "Steht unter Konfiguration, Spider, Rendering jetzt JavaScript?" Erklär dazu in einem Satz: Ohne JavaScript-Rendering führt Screaming Frog das Snippet gar nicht aus, und es entstehen keine Embeddings. Mach erst nach einem klaren Ja weiter. Empfiehl als Beweis einen Testcrawl über wenige Seiten mit `PREVIEW_TEXT = true`: Erscheint in der Custom-JavaScript-Spalte Text, läuft das Snippet. Danach `PREVIEW_TEXT` wieder auf `false` stellen. Zusätzlich prüft der Monitor bei jedem Lauf nach den ersten 50 Seiten eine Stichprobe und hält den Crawl an, wenn keine Embeddings entstehen.
+Bereite dann im Hintergrund vor, ohne die Person damit aufzuhalten:
 
-Dann in beiden Fällen:
+- **Hauptinhalt:** Das Embedding soll nur den eigentlichen Inhalt beschreiben. Kommen Navigation, Footer, Cookie-Banner oder Teaserlisten mit hinein, sehen sich alle Seiten ähnlicher, als sie sind. Hol dir mit `curl -sL` das HTML von zwei, drei Seiten unterhalb der Start-URL. Schau, ob es `main` oder `article` gibt und welche Bereiche zusätzlich auszuschließen sind, zum Beispiel Bildnachweise, Autorenboxen oder Teaserlisten. Leite daraus konkrete Selektoren ab. Die Vorlage kommt oft ohne aus; dann sag das.
+- **Dateiname:** der Name aus `frog.config_file`, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`.
+- **Gleiches Modell:** Das Modell in Frog muss exakt `embedding.model` entsprechen. Damit bettet das Tool auch die toten Wettbewerberseiten ein. In der `.env` steht nur der Schlüssel, nicht das Modell.
 
-1. Umfang festlegen: nur HTML-Seiten, bei Bedarf auf den Bereich der Start-URL beschränken.
-2. Optional ein paar Seiten testweise crawlen und prüfen, ob die Embedding-Spalte gefüllt ist.
-3. Speichern über Datei, Konfiguration, Speichern unter. Wichtig: Im Dialog zuerst den Ordner `<Basisverzeichnis>` auswählen und dann nur den Dateinamen aus `frog.config_file` eintippen, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`. Wird der ganze Pfad ins Namensfeld getippt, landet die Datei mit einem Doppelpunkt im Namen im Benutzerordner.
-4. Hinweis: Beim Custom-JavaScript-Weg steht der API-Schlüssel in dieser Datei. Sie darf nie weitergegeben werden.
+### Teilschritte beim Snippet-Weg
 
-Wenn die Person "gespeichert" sagt, prüfe, ob die Datei an der richtigen Stelle liegt. Liegt sie mit Doppelpunkt im Namen im Benutzerordner (zum Beispiel `~/seo_spider_mcp_server:broken-link-monitor-fressnapf.seospiderconfig`), sag das und verschiebe sie an den richtigen Ort.
+**4.1 Rendering auf JavaScript stellen.**
+Klickpfad: `Konfiguration > Spider`, Reiter `Rendering`, Auswahl `JavaScript` statt `Nur Text`. Englisch: `Configuration > Spider`, Tab `Rendering`, `JavaScript` statt `Text Only`. Mit OK bestätigen.
+Ein Satz dazu: Ohne JavaScript-Rendering führt Frog das Snippet gar nicht aus.
 
-Lies die Datei nicht aus und zeig keine Inhalte daraus.
+**4.2 Snippet anlegen.**
+Klickpfad: `Konfiguration > Eigene > Eigenes JavaScript`, dann `Hinzufügen`. Englisch: `Configuration > Custom > Custom JavaScript`, dann `Add`.
+In der neuen Zeile: Typ `Extraktion` (`Extraction`) und als Name `Embeddings <Kunde>`, zum Beispiel `Embeddings Fressnapf`. Der Name muss mit "Embeddings" beginnen, daran erkennt der Monitor später die Spalte.
+
+**4.3 Vorlage einfügen.**
+Öffne der Person die Vorlage mit `open -e <repo>/frog/main-content-embedding.js`. Sie markiert alles (Cmd+A), kopiert (Cmd+C), klickt in Frog in der Snippet-Zeile auf den Knopf `JS`, um den Editor zu öffnen, und fügt dort alles ein (Cmd+V). Die Datei im Repo bleibt unverändert und wird wieder geschlossen.
+
+**4.4 Drei Zeilen im Frog-Editor anpassen.**
+Nenne die Zeilen wörtlich, so wie sie nach der Änderung aussehen sollen:
+- `const OPENAI_API_KEY = '...';` mit dem eigenen OpenAI-Schlüssel zwischen den Anführungszeichen. Der Schlüssel gehört nur hierher, nie in den Chat und nie in die Datei im Repo.
+- `const MODEL = '<embedding.model>';` nur prüfen, ob es stimmt.
+- Falls du Selektoren ermittelt hast: `const CONTENT_ROOT_SELECTOR = '...';` und `const EXTRA_EXCLUDE_SELECTOR = '...';` mit deinen Werten. Sonst bleiben beide leer.
+Danach den Editor und das Fenster mit OK schließen.
+
+**4.5 Konfiguration auf dem Schreibtisch speichern.**
+Klickpfad: `Konfiguration > Profile > Speichern unter...`. Englisch: `Configuration > Profiles > Save As...`. In älteren Versionen: `Datei > Konfiguration > Speichern unter...` (`File > Configuration > Save As...`).
+Im Speichern-Dialog links **Schreibtisch** wählen und als Namen genau den Dateinamen aus der Vorbereitung eintippen. Gib den Namen zum Kopieren an.
+Hinweis in einem Satz: Diese Datei enthält den Schlüssel. Sie wird nie weitergegeben.
+
+Schreibt die Person "weiter", verschiebst du die Datei selbst an den richtigen Ort:
+`.venv/bin/python place_frog_config.py --target "<frog.config_file>"`
+- Exit-Code 0: Sag, dass die Datei jetzt am richtigen Ort liegt. Die Person muss nichts weiter tun.
+- Exit-Code 1: nichts gefunden. Bitte die Person, noch einmal zu speichern, und nenne Ort und Namen erneut.
+- Exit-Code 2: mehrere Kandidaten. Zeig die Liste, frag, welche es ist, und ruf das Skript mit `--source "<Datei>"` erneut auf.
+
+### Teilschritte bei der KI-Anbindung
+
+**4.1 Anbieter verbinden.** `Konfiguration > API-Zugang > KI`, Anbieter wählen, Schlüssel eintragen, verbinden. Englisch: `Configuration > API Access > AI`.
+**4.2 Embedding-Prompt anlegen.** Im selben Fenster unter `Prompt-Konfiguration` (`Prompt Configuration`) einen Prompt hinzufügen: Kategorie Embeddings, Inhalt `Seitentext` (`Page Text`), Modell wie `embedding.model`. In der Bibliothek gibt es dafür die Vorlage "Extract embeddings from page content".
+**4.3 Einbettungen einschalten.** `Konfiguration > Inhalt > Einbettungen` (`Configuration > Content > Embeddings`): aktivieren und den Prompt aus 4.2 auswählen.
+**4.4 Inhaltsbereich prüfen.** `Konfiguration > Inhalt > Bereich` (`Configuration > Content > Area`): Navigation und Footer sind schon ausgeschlossen. Deine zusätzlichen Ausschlüsse trägt die Person hier ein. Der Seitentext richtet sich nach dieser Einstellung.
+**4.5 Speichern** wie beim Snippet-Weg, danach verschiebst du die Datei mit `place_frog_config.py`.
+
+### 4.6 Probe-Crawl: funktioniert die Konfiguration?
+
+Sag der Person, was jetzt passiert: Du crawlst zur Probe etwa 60 Seiten, das dauert zwei bis drei Minuten und kostet beim Embedding-Anbieter weniger als einen Cent. Der Crawl läuft unsichtbar im Hintergrund. Die Person muss nichts tun.
+
+1. Frag den Zustand mit dem Fortschritts-Tool ab. Läuft gerade ein Crawl (`SpiderActiveState`), warte nicht darauf und brich ihn nicht ab: Sag es der Person und frag, wie es weitergehen soll. Ist ein alter Crawl geladen (Zustand ist nicht `SpiderNoDataIdleState`), räume ihn mit dem Tool zum Verwerfen (`sf_clear_crawl`). Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der erste Start ohne Aktivität.
+2. Starte den Crawl: `crawl_url` = `start_url`, `config_path` = `frog.config_file`, `crawl_name` = `blm-probe-<kunde>`.
+3. Frag den Fortschritt etwa alle 30 Sekunden ab, bis mindestens 60 URLs abgeschlossen sind. Zum Warten nutzt du das verfügbare Warte-Werkzeug. Sind nach zwei Minuten noch keine URLs abgeschlossen, starte einmal neu. Nach fünf Minuten nimmst du, was da ist.
+4. Halte den Crawl an (`sf_pause_crawl`). Solange er läuft, verweigert Frog jeden Export.
+5. Exportiere die Stichprobe:
+   - **custom_javascript:** Liste die Datenfelder des Elements `Custom JavaScript`, Filter `All`. Das Embedding-Feld beginnt mit "Embeddings". Exportiere mit dem Tool für SEO-Element-URLs die Felder `Address`, `Content Type`, `Status Code` und das Embedding-Feld nach `broken-link-monitor/probe-<kunde>.ndjson`, höchstens 300 Zeilen. Die Antwort des Tools enthält eine sehr lange Beispielzeile mit Zahlen. Lies sie nicht aus.
+   - **ai:** Exportiere mit dem Embedding-Export-Tool nach `broken-link-monitor/probe-<kunde>.csv`.
+6. Prüfe: `.venv/bin/python frog_probe.py "<absoluter Pfad>"`, beim Snippet-Weg mit `--field "<Embedding-Feld>"`.
+7. Verwirf den Probe-Crawl (`sf_clear_crawl`) und lösche die Probe-Datei.
+8. Sag das Ergebnis in einfachen Worten:
+   - `ok`: "Die Konfiguration funktioniert: N von M Seiten haben ein Embedding." Vergleiche `dimension` mit dem Modell: `text-embedding-3-small` hat 1536, `text-embedding-3-large` 3072, `text-embedding-ada-002` 1536, Gemini `text-embedding-004` 768. Passt es nicht, stimmt das Modell im Snippet nicht mit `embedding.model` überein. Dann zurück zu 4.4.
+   - `keine_embeddings`: Nenne die häufigsten Ursachen und geh mit der Person zum passenden Teilschritt zurück: Rendering steht nicht auf JavaScript (4.1), Schlüssel im Snippet fehlt oder ist falsch (4.4), `PREVIEW_TEXT` steht auf `true` (4.4), bei der KI-Anbindung sind die Einbettungen nicht eingeschaltet (4.3). Danach neu speichern (4.5) und den Probe-Crawl wiederholen.
+   - `zu_wenig_daten`: Die Start-URL liefert zu wenige HTML-Seiten. Prüfe mit der Person die Start-URL.
+9. Erwähne: Der Probe-Crawl steht in Frog unter `Datei > Crawls` (`File > Crawls`) mit dem Namen `blm-probe-<kunde>` und kann dort gelöscht werden.
+
+Scheitert der Probe-Crawl an etwas anderem, zum Beispiel weil das Frog-MCP nicht verbunden ist, sag das offen. Dann zeigt sich erst im ersten Lauf, ob die Konfiguration funktioniert; die Frühwarnung prüft dort nach den ersten Seiten.
 
 ## Schritt 5: Mailversand
 

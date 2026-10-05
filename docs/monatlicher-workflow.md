@@ -59,17 +59,26 @@ Das Frog-MCP kann Embeddings nicht selbst einschalten. Es startet den Crawl mit 
 | Weg | Einstellung im Monitor | Hinweis |
 |---|---|---|
 | Custom JavaScript mit der Vorlage `frog/main-content-embedding.js` | `frog.embeddings_source`: `custom_javascript` | extrahiert den Hauptinhalt, teilt lange Texte auf; braucht JavaScript-Rendering; der Schlüssel steht im Snippet und damit in der Konfigurationsdatei |
-| Eingebaute KI-Anbindung von Frog mit "Page Text" | `frog.embeddings_source`: `ai` | Hauptinhalt über Konfiguration, Content, Content Area; Navigation und Footer sind dort standardmäßig ausgeschlossen; Schlüssel wird in Frog hinterlegt |
+| Eingebaute KI-Anbindung von Frog mit Seitentext | `frog.embeddings_source`: `ai` | Hauptinhalt über `Konfiguration > Inhalt > Bereich`; Navigation und Footer sind dort standardmäßig ausgeschlossen; Schlüssel wird in Frog hinterlegt |
 
-**Nur der Hauptinhalt zählt.** Kommen Navigation, Footer, Cookie-Banner oder Teaserlisten ins Embedding, sehen sich alle Seiten ähnlicher, als sie sind. Die Vorlage findet den Hauptinhalt auf vielen Seiten von selbst. Für eine bestimmte Website trägst du oben eigene Selektoren ein: `CONTENT_ROOT_SELECTOR` für den Inhaltsbereich, `EXTRA_EXCLUDE_SELECTOR` für Bereiche wie Bildnachweise oder Autorenboxen. Mit `PREVIEW_TEXT = true` zeigt Frog nach einem kurzen Testcrawl den Text, der eingebettet würde, ohne OpenAI-Kosten. Beim Weg über die KI-Anbindung trägst du dieselben Ausschlüsse unter Content Area ein.
+**Nur der Hauptinhalt zählt.** Kommen Navigation, Footer, Cookie-Banner oder Teaserlisten ins Embedding, sehen sich alle Seiten ähnlicher, als sie sind. Die Vorlage findet den Hauptinhalt auf vielen Seiten von selbst. Für eine bestimmte Website trägst du oben eigene Selektoren ein: `CONTENT_ROOT_SELECTOR` für den Inhaltsbereich, `EXTRA_EXCLUDE_SELECTOR` für Bereiche wie Bildnachweise oder Autorenboxen. Mit `PREVIEW_TEXT = true` zeigt Frog nach einem kurzen Testcrawl den Text, der eingebettet würde, ohne OpenAI-Kosten. Beim Weg über die KI-Anbindung trägst du dieselben Ausschlüsse unter `Konfiguration > Inhalt > Bereich` ein.
 
-So legst du die Datei an:
+So legst du die Datei an. Die Einrichtung mit Claude führt dich Schritt für Schritt durch dieselben Handgriffe. Die Menünamen stehen hier auf Deutsch und in Klammern auf Englisch.
 
-1. **Embeddings einrichten,** entweder mit der Vorlage als Custom-JavaScript-Snippet (Konfiguration, Benutzerdefiniert, Custom JavaScript, Typ "Extraction"; den Schlüssel erst im Frog-Editor eintragen) oder über die KI-Anbindung (Konfiguration, API-Zugang, KI, Prompt mit Kategorie "Embeddings" und Inhalt "Page Text").
-2. **Rendering:** Beim Custom-JavaScript-Weg unter Konfiguration, Spider, Rendering auf JavaScript stellen. Ohne Rendering läuft das Snippet nicht.
-3. **Umfang festlegen:** Nur HTML-Seiten, bei Bedarf auf relevante Verzeichnisse beschränken, Parameter-URLs ausschließen.
-4. **Einmal testen:** Ein paar Seiten crawlen und prüfen, ob die Embedding-Spalte gefüllt ist.
-5. **Speichern:** Datei, Konfiguration, Speichern unter. Lege die Datei in das Basisverzeichnis des Frog-MCP, bei dir `~/seo_spider_mcp_server/`, mit dem Kundennamen im Dateinamen, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`. Auf dieses Verzeichnis hat das MCP sicher Zugriff. Jeder Kunde bekommt seine eigene Konfiguration, weil Snippet und Ausschlüsse auf den Seitenaufbau der jeweiligen Website zugeschnitten sind.
+Beim Snippet-Weg:
+
+1. **Rendering:** `Konfiguration > Spider`, Reiter `Rendering`, Auswahl `JavaScript` statt `Nur Text` (`Configuration > Spider > Rendering > JavaScript`).
+2. **Snippet anlegen:** `Konfiguration > Eigene > Eigenes JavaScript`, `Hinzufügen` (`Configuration > Custom > Custom JavaScript`, `Add`). Typ `Extraktion` (`Extraction`), Name `Embeddings <Kunde>`. Der Name muss mit "Embeddings" beginnen.
+3. **Vorlage einfügen:** Den Inhalt von `frog/main-content-embedding.js` kopieren und über den Knopf `JS` in den Editor einfügen.
+4. **Anpassen, nur im Frog-Editor:** eigenen OpenAI-Schlüssel eintragen, `MODEL` prüfen, bei Bedarf Selektoren für Inhaltsbereich und Ausschlüsse setzen.
+5. **Speichern:** `Konfiguration > Profile > Speichern unter...` (`Configuration > Profiles > Save As...`), in älteren Versionen `Datei > Konfiguration > Speichern unter...`. Speichere einfach auf dem **Schreibtisch**, mit dem Kundennamen im Dateinamen, zum Beispiel `broken-link-monitor-fressnapf.seospiderconfig`.
+6. **An den richtigen Ort:** Claude verschiebt die Datei in den Ordner des Frog-MCP. Von Hand geht es mit `.venv/bin/python place_frog_config.py --target <Pfad aus frog.config_file>`. Das Skript findet die Datei auf dem Schreibtisch, in Downloads, Dokumente und im Benutzerordner.
+
+Bei der KI-Anbindung: Anbieter unter `Konfiguration > API-Zugang > KI` verbinden, in der `Prompt-Konfiguration` einen Embedding-Prompt für den `Seitentext` anlegen, unter `Konfiguration > Inhalt > Einbettungen` einschalten und unter `Konfiguration > Inhalt > Bereich` die Ausschlüsse prüfen. Dann speichern wie oben.
+
+Jeder Kunde bekommt seine eigene Konfiguration, weil Snippet und Ausschlüsse auf den Seitenaufbau der jeweiligen Website zugeschnitten sind.
+
+**Probe-Crawl:** Nach dem Speichern crawlt Claude zur Probe etwa 60 Seiten und prüft, ob Embeddings ankommen und die Dimension zum Modell passt. Das dauert zwei bis drei Minuten und kostet weniger als einen Cent. So zeigt sich ein Fehler sofort und nicht erst im ersten Lauf.
 
 Heißt die Custom-JavaScript-Spalte nicht nach dem Muster "Embeddings ...", trage ihren Namen in `frog.custom_js_field` ein, zum Beispiel `Embeddings Fressnapf 1`.
 
@@ -246,5 +255,6 @@ laeufe/
 | `OPENAI_API_KEY ist nicht gesetzt` | `.env` fehlt oder ist leer. |
 | Resend lehnt ab, Domain nicht verifiziert | DNS-Einträge in Resend prüfen, `RESEND_FROM` muss auf der verifizierten Domain liegen. |
 | Verlaufsdatei nicht lesbar | Datei wurde von Hand beschädigt. Aus einem Backup zurückholen oder löschen; dann gilt beim nächsten Lauf wieder alles als neu. |
+| Erster Crawl-Start bleibt ohne Aktivität | Im Frog-MCP war noch ein alter Crawl geladen. Der Lauf räumt das inzwischen selbst und startet neu. |
 | Lauf ist nicht gestartet | Die Desktop-App war geschlossen. Er läuft beim nächsten Öffnen. |
 | Bericht kam nicht an | `fehler.md` im Laufordner lesen. Nach der Behebung den Lauf wiederholen. Im selben Monat genügt `/broken-link-monitor`. Ist der Monat schon vorbei, nenne die Lauf-Kennung: `/broken-link-monitor mit Lauf-Kennung 2026-11`. |

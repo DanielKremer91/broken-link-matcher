@@ -41,3 +41,13 @@ def test_cli_prints_json_and_handles_missing_file(tmp_path, capsys):
     assert frog_probe.main([str(p), "--field", "Ext 1"]) == 0
     assert json.loads(capsys.readouterr().out)["verdict"] == "ok"
     assert frog_probe.main([str(tmp_path / "fehlt.ndjson")]) == 1
+
+
+def test_wide_export_of_builtin_ai_embeddings(tmp_path):
+    p = tmp_path / "ai.csv"
+    header = "url," + ",".join(f"embedding_{i}" for i in range(40))
+    good = "https://a.de/1," + ",".join("0.1" for _ in range(40))
+    empty = "https://a.de/2," + ",".join("" for _ in range(40))
+    p.write_text("\n".join([header, good, good.replace("/1", "/3"), empty]), encoding="utf-8")
+    r = frog_probe.probe(p)
+    assert r["verdict"] == "ok" and r["with_vectors"] == 2 and r["dimension"] == 40
