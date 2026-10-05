@@ -18,6 +18,7 @@ import sys
 import time
 from pathlib import Path
 from typing import Optional
+from blm.console import use_utf8
 
 SUFFIX = ".seospiderconfig"
 DEFAULT_SEARCH = ("~/Downloads", "~/Desktop", "~/Documents", "~")
@@ -64,6 +65,7 @@ def place(source: Path, target: Path) -> Optional[Path]:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8()
     p = argparse.ArgumentParser(prog="place_frog_config.py",
                                 description="Gespeicherte Frog-Konfiguration finden und an ihren Platz verschieben.")
     p.add_argument("--target", required=True, type=Path, help="Zielpfad, wie frog.config_file in monitor.config.json")

@@ -20,6 +20,7 @@ from typing import Optional
 from urllib.parse import urlparse
 
 from blm.ingest.tables import read_table
+from blm.console import use_utf8
 
 WARN_SHARE = 0.05
 FAIL_SHARE = 0.30
@@ -62,6 +63,7 @@ def crawl_health(path: Path, domain: Optional[str] = None) -> dict:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8()
     p = argparse.ArgumentParser(prog="frog_crawl_check.py", description="Vollständigkeit eines Frog-Crawls prüfen.")
     p.add_argument("export", type=Path, help="Export 'Internal: All' mit Status Code und Status (NDJSON oder CSV)")
     p.add_argument("--domain", help="eigene Domain: prüft, ob der Crawl wirklich diese Website ist")

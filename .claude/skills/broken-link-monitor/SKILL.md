@@ -13,23 +13,28 @@ description: Monatlicher Broken-Link-Monitor. Holt die Broken Backlinks von Wett
 
 ## Betriebssystem
 
-Die Befehle in dieser Anleitung sind für macOS geschrieben. Unter Windows gilt dasselbe mit diesen Entsprechungen. Windows ist bisher nicht praktisch erprobt; geh dort besonders sorgfältig vor und sag der Person, wenn etwas anders aussieht.
+Der Monitor läuft auf macOS und Windows. Alles, was sich zwischen den Systemen unterscheidet, steckt in Skripten, die du auf beiden gleich aufrufst. Nur der Pfad zum Python der Umgebung ist verschieden:
 
-| Zweck | macOS | Windows |
+| | macOS | Windows |
 |---|---|---|
-| Python der Umgebung | `.venv/bin/python` | `.venv\Scripts\python.exe` |
-| pip der Umgebung | `.venv/bin/pip` | `.venv\Scripts\pip.exe` |
-| Python zum Anlegen der Umgebung | `python3` | `py -3.11` |
-| `uv` installieren | `brew install uv` | `winget install astral-sh.uv` |
-| Pfade in `monitor.config.json` | `/Users/name/...` | mit Schrägstrichen schreiben, `C:/Users/name/...`, sonst ist die Datei kein gültiges JSON |
-| Datei im Editor öffnen | `open -e <datei>` | `notepad <datei>` |
-| Datei nur anlegen, wenn sie fehlt | `cp -n quelle ziel` | nur kopieren, wenn das Ziel nicht existiert |
-| Datei nur für den Nutzer lesbar | `chmod 600 <datei>` | entfällt |
-| Schlafschutz während des Laufs | `caffeinate -i -t 43200` im Hintergrund | gibt es nicht per Befehl: Der Rechner darf im Netzbetrieb nicht in den Standby gehen, das stellt die Person in den Energieoptionen ein |
-| Bestehende Einrichtung suchen | `mdfind -name monitor.config.json` | nur die Standardordner prüfen |
-| Ordner für gespeicherte Dateien | `~/Downloads` | `%USERPROFILE%\Downloads` |
+| Python der Umgebung, im Folgenden `PY` | `.venv/bin/python` | `.venv/Scripts/python.exe` |
 
-Ändere nie selbst Energie- oder Systemeinstellungen. Das macht die Person.
+In dieser Anleitung steht überall `.venv/bin/python`. Unter Windows setzt du dafür `.venv/Scripts/python.exe` ein, alles andere bleibt gleich. `PY oshelp.py info` zeigt System, Benutzerordner und den richtigen Pfad.
+
+| Zweck | Befehl auf beiden Systemen |
+|---|---|
+| Rechner während des Laufs wach halten | `PY oshelp.py keep-awake --hours 12` im Hintergrund starten |
+| Datei im Texteditor öffnen | `PY oshelp.py open <datei>` |
+| Frog-Konfiguration an ihren Platz verschieben | `PY place_frog_config.py --target <pfad>` |
+
+Weitere Unterschiede unter Windows:
+
+- Pfade in `monitor.config.json` mit Schrägstrichen schreiben, `C:/Users/name/...`. Mit einfachen Rückstrichen ist die Datei kein gültiges JSON.
+- `mdfind` gibt es nur auf dem Mac. Unter Windows prüfst du nur die Standardordner.
+- Statt der Cmd-Taste gilt die Strg-Taste.
+- Zum Anlegen der Umgebung ohne `uv`: `py -3.11 -m venv .venv`. `uv` selbst installiert die Person mit `winget install astral-sh.uv`, auf dem Mac mit `brew install uv`.
+
+Ändere nie selbst Energie- oder Systemeinstellungen. `oshelp.py keep-awake` ändert keine Einstellung: Es bittet das System nur, wach zu bleiben, solange der Befehl läuft.
 
 ## Einstellungen ändern
 
@@ -60,7 +65,7 @@ Die Schritte unten beschreiben den Lauf.
 3. Lauf-Kennung `RUN` ist der aktuelle Monat im Format `JJJJ-MM`. Nennt die aufrufende Aufgabe ausdrücklich eine Lauf-Kennung, zum Beispiel zum Nachholen eines Vormonats, nimm diese. Laufordner ist `<output_dir>/<RUN>/`.
 4. Prüfe die Einrichtung: `.venv/bin/python check_setup.py --config <pfad zur config>`. Bei Exit-Code ungleich 0 weiter mit Schritt 6 (Fehler melden), die Ausgabe ist die Fehlermeldung.
 
-5. Schlafschutz auf dem Mac: Starte im Hintergrund `caffeinate -i -t 43200`. Das verhindert für bis zu zwölf Stunden, dass der Rechner wegen Untätigkeit einschläft und dem Crawl die Verbindung abreißt. Den zugeklappten Laptop verhindert es nicht. Unter Windows entfällt dieser Punkt, siehe Tabelle oben.
+5. Schlafschutz: Starte im Hintergrund `.venv/bin/python oshelp.py keep-awake --hours 12`. Das verhindert für bis zu zwölf Stunden, dass der Rechner wegen Untätigkeit einschläft und dem Crawl die Verbindung abreißt. Den zugeklappten Laptop verhindert es nicht.
 
 6. Bei `mail.method` `resend` oder `connector`: Haben in diesem Monat schon alle Wettbewerber einen Versandmerker (`<laufordner>/W/versendet.json`) und verlangt der Auftrag weder "erneut senden" noch einen neuen Lauf, ist nichts zu tun. Beende den Lauf mit Schritt 7, ohne zu crawlen.
 
@@ -89,7 +94,7 @@ Wenn `frog.crawl` true ist:
    - `SpiderActiveState`: Es läuft ein Crawl, den kein Monitor reserviert hat, zum Beispiel ein eigener Crawl der Person über das MCP. Brich ihn nie ab. Im geplanten Lauf fragst du alle zehn Minuten erneut, bis zu sechs Stunden. Danach Reservierung aufheben und weiter mit Schritt 6 (Fehler melden): "In Screaming Frog lief über sechs Stunden ein anderer Crawl." Im Gespräch fragst du die Person, wie es weitergehen soll.
    - Jeder andere Zustand außer `SpiderNoDataIdleState`: Im MCP ist noch ein alter Crawl geladen. Weil du die Reservierung hältst, gehört er zu keinem laufenden Monitor. Räume ihn mit `sf_clear_crawl`. Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der nächste Start ohne Aktivität.
 
-   Starte auf dem Mac erneut den Schlafschutz (`caffeinate -i -t 43200` im Hintergrund), damit er ab jetzt für die volle Crawl-Dauer reicht. Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`, `crawl_name` = `blm-<kunde>-<RUN>`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, räume mit `sf_clear_crawl` und starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
+   Starte erneut den Schlafschutz (`.venv/bin/python oshelp.py keep-awake --hours 12` im Hintergrund), damit er ab jetzt für die volle Crawl-Dauer reicht. Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`, `crawl_name` = `blm-<kunde>-<RUN>`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, räume mit `sf_clear_crawl` und starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
 3. **Frühwarnung bei `custom_javascript`:** Sobald das Fortschritts-Tool mindestens 60 abgeschlossene URLs meldet, prüfe eine Stichprobe, statt bis zum Ende zu warten:
    - Halte den Crawl an (`sf_pause_crawl`). Solange er läuft, verweigert Frog jeden Export ("SEO Spider is busy").
    - Ermittle das Embedding-Feld wie in Punkt 6 beschrieben.
@@ -127,7 +132,9 @@ Für jeden übrigen Eintrag `W` in `competitors`:
 2. Rufe `site-explorer-broken-backlinks` mit genau den Werten aus `mcp` auf. Übernimm `where` unverändert als Text.
 3. Enthält die Antwort keine Datenzeilen, also nichts oder nur die Kopfzeile, ist das ein Fehler und kein Ergebnis: Units aufgebraucht, Filter zu streng oder eine Störung. Schreib keine Datei. Für `W` gibt es dann keinen Bericht und keine Kundenmail. Notiere für Schritt 6 (Fehler melden): "Ahrefs lieferte für W keine Broken Backlinks." Weiter mit dem nächsten Wettbewerber. `cli.py` bricht bei einer Datei ohne Zeilen ebenfalls mit Exit-Code 1 ab und speichert nichts.
 4. Speichere die CSV-Antwort unverändert als `<laufordner>/W/broken-backlinks.csv`. Hinweise des MCP zur Darstellung gehören nicht in die Datei.
-5. Kontrolle: `.venv/bin/python -c "import sys; from blm.ingest.backlinks_csv import read_table, detect_columns; df = read_table(sys.argv[1]); col = detect_columns(df).mapping['url_to']; print(len(df), df[col].astype(str).str.lower().str.contains(sys.argv[2].lower(), regex=False).all())" <datei> W`. Die erste Zahl muss zur Zeilenzahl der MCP-Antwort passen und der zweite Wert muss `True` sein. Sonst die Datei neu schreiben, beim zweiten Fehlschlag weiter mit Schritt 6 (Fehler melden) für diesen Wettbewerber.
+5. Kontrolle gegen die MCP-Antwort. Merke dir aus der Antwort drei Dinge: die Zahl der Datenzeilen und die `url_from` der ersten und der letzten Zeile. Prüfe damit die geschriebene Datei:
+   `.venv/bin/python backlinks_check.py <datei> --competitor W --rows <Zahl> --first "<erste url_from>" --last "<letzte url_from>"`
+   Exit-Code 0: weiter. Exit-Code 1: Beim Übertragen ist etwas verloren gegangen oder verändert worden. Schreib die Datei neu aus der MCP-Antwort, beim zweiten Fehlschlag weiter mit Schritt 6 (Fehler melden) für diesen Wettbewerber. Mehr als 200 Zeilen pro Wettbewerber lässt `ahrefs_params.py` nicht zu, weil du die Zeilen selbst überträgst.
 
 ## Schritt 3: Matching (cli.py)
 
@@ -152,7 +159,7 @@ Zusätze:
 - `--contact "<contact>"`, wenn `contact` nicht leer ist.
 - `--note "<Hinweis>"` für jeden Hinweis aus Schritt 1, zum Beispiel einen unvollständigen Crawl. Er erscheint im Bericht unter den technischen Details.
 
-Starte auf dem Mac vor dem Matching noch einmal den Schlafschutz (`caffeinate -i -t 7200` im Hintergrund). Das Matching dauert je nach Zahl der Links 10 bis 30 Minuten, beim ersten Lauf länger. Starte `cli.py` deshalb im Hintergrund mit einem Zeitlimit von mindestens 60 Minuten und warte auf das Ende. Bricht es trotzdem wegen eines Zeitlimits ab, starte es einmal neu. Die Texte aus der Wayback Machine und die Embeddings liegen im Cache, der zweite Durchlauf ist deutlich schneller.
+Starte vor dem Matching noch einmal den Schlafschutz (`.venv/bin/python oshelp.py keep-awake --hours 2` im Hintergrund). Das Matching dauert je nach Zahl der Links 10 bis 30 Minuten, beim ersten Lauf länger. Starte `cli.py` deshalb im Hintergrund mit einem Zeitlimit von mindestens 60 Minuten und warte auf das Ende. Bricht es trotzdem wegen eines Zeitlimits ab, starte es einmal neu. Die Texte aus der Wayback Machine und die Embeddings liegen im Cache, der zweite Durchlauf ist deutlich schneller.
 
 Exit-Code 0: Lies die JSON-Ausgabe. Du brauchst `report_subject`, `report`, `report_html`, `output`, `drafts_output` (falls vorhanden), `opportunities` und `new_opportunities`.
 

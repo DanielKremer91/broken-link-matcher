@@ -28,16 +28,16 @@ def test_defaults_match_the_documented_mcp_call(tmp_path, capsys):
 
 
 def test_custom_filters(tmp_path, capsys):
-    rc, data = run(tmp_path, capsys, {"limit": 250, "min_dr": 30, "dofollow_only": False, "exclude_spam": False,
+    rc, data = run(tmp_path, capsys, {"limit": 200, "min_dr": 30, "dofollow_only": False, "exclude_spam": False,
                                       "include_traffic": True, "order_by": "traffic", "aggregation": "all"})
     assert rc == 0
     mcp = data["mcp"]
-    assert mcp["limit"] == 250 and mcp["aggregation"] == "all" and mcp["order_by"] == "traffic:desc"
+    assert mcp["limit"] == 200 and mcp["aggregation"] == "all" and mcp["order_by"] == "traffic:desc"
     assert "traffic" in mcp["select"].split(",")
     where = json.loads(mcp["where"])
     assert {"field": "domain_rating_source", "is": ["gte", 30]} in where["and"]
     assert "is_dofollow" not in mcp["where"] and "is_spam" not in mcp["where"]
-    assert data["cli_args"] == ["--limit", "250", "--min-dr", "30", "--sort", "page_traffic", "--all-links"]
+    assert data["cli_args"] == ["--limit", "200", "--min-dr", "30", "--sort", "page_traffic", "--all-links"]
 
 
 def test_all_filters_off_has_no_where(tmp_path, capsys):
@@ -65,3 +65,9 @@ def test_non_object_ahrefs_block_and_empty_target(tmp_path, capsys):
     cfg.write_text(json.dumps([1]), encoding="utf-8")
     assert ahrefs_params.main(["--config", str(cfg), "--target", "k.de"]) == 1
     assert run(tmp_path, capsys, {}, target=" ")[0] == 1
+
+
+def test_limit_above_200_is_rejected_with_reason(tmp_path, capsys):
+    rc, err = run(tmp_path, capsys, {"limit": 201})
+    assert rc == 1 and "200" in err
+    assert run(tmp_path, capsys, {"limit": 200})[0] == 0

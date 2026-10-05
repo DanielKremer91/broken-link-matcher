@@ -14,7 +14,7 @@ Diese Anleitung ist für Claude. Sie gilt, wenn jemand den Monitor zum ersten Ma
 
 ## Betriebssystem
 
-Stell als Erstes fest, ob die Person macOS oder Windows nutzt. Die Befehle hier sind für macOS geschrieben. Für Windows gilt die Tabelle "Betriebssystem" in `SKILL.md`: anderer Python-Pfad, `notepad` statt `open -e`, kein `mdfind`, kein `caffeinate`, statt Cmd die Strg-Taste. Windows ist bisher nicht praktisch erprobt. Sag das der Person offen und geh dort besonders kleinschrittig vor. Unter Linux gibt es die Claude-Desktop-App mit geplanten Aufgaben nicht; dort lässt sich der Monitor nur von Hand starten.
+Stell als Erstes fest, ob die Person macOS oder Windows nutzt. Der Monitor läuft auf beiden. Lies dazu den Abschnitt "Betriebssystem" in `SKILL.md`: Unter Windows heißt das Python der Umgebung `.venv/Scripts/python.exe` statt `.venv/bin/python`, alle anderen Befehle sind gleich. Die Skripte werden automatisch auf macOS und Windows getestet. Die Einrichtung im Gespräch und das Zusammenspiel mit Screaming Frog sind bisher nur auf macOS praktisch erprobt. Sag das einer Windows-Person offen und geh dort besonders kleinschrittig vor. Unter Linux gibt es die Claude-Desktop-App mit geplanten Aufgaben nicht; dort lässt sich der Monitor nur von Hand starten.
 
 ## Grundsatz: Erledigtes überspringen
 
@@ -36,7 +36,7 @@ Vieles ist bei der Person vielleicht schon da: das Repo, die Umgebung, Schlüsse
    - mit `uv`: `uv venv --python 3.11 .venv && uv pip install -r requirements.txt`
    - ohne `uv`, wenn `python3 --version` mindestens 3.11 zeigt: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
    - Fehlt beides, erkläre, wie man `uv` installiert (`brew install uv`, ohne Homebrew das Installationsskript von astral.sh), und warte.
-5. Fehlt die Schlüsseldatei, lege sie an: `cp -n .env.example .env && chmod 600 .env`. Das `-n` verhindert, dass eine vorhandene `.env` mit eingetragenen Schlüsseln überschrieben wird.
+5. Fehlt die Schlüsseldatei, lege sie an: `cp -n .env.example .env && chmod 600 .env`. Das `-n` verhindert, dass eine vorhandene `.env` mit eingetragenen Schlüsseln überschrieben wird. Unter Windows kopierst du die Datei nur, wenn `.env` noch nicht existiert; `chmod` entfällt dort.
 
 ## Schritt 2: Voraussetzungen prüfen
 
@@ -144,7 +144,7 @@ Klickpfad: `Konfiguration > Eigene > Eigenes JavaScript`, dann `Hinzufügen`. En
 In der neuen Zeile: Typ `Extraktion` (`Extraction`) und als Name `Embeddings <Kunde>`, zum Beispiel `Embeddings Fressnapf`. Der Name muss mit "Embeddings" beginnen, daran erkennt der Monitor später die Spalte.
 
 **4.3 Vorlage einfügen.**
-Öffne der Person die Vorlage mit `open -e <repo>/frog/main-content-embedding.js`. Sie markiert alles (Cmd+A), kopiert (Cmd+C), klickt in Frog in der Snippet-Zeile auf den Knopf `JS`, um den Editor zu öffnen, und fügt dort alles ein (Cmd+V). Die Datei im Repo bleibt unverändert und wird wieder geschlossen.
+Öffne der Person die Vorlage mit `.venv/bin/python oshelp.py open frog/main-content-embedding.js`. Sie markiert alles (Cmd+A), kopiert (Cmd+C), klickt in Frog in der Snippet-Zeile auf den Knopf `JS`, um den Editor zu öffnen, und fügt dort alles ein (Cmd+V). Die Datei im Repo bleibt unverändert und wird wieder geschlossen.
 
 **4.4 Drei Zeilen im Frog-Editor anpassen.**
 Nenne die Zeilen wörtlich, so wie sie nach der Änderung aussehen sollen:
@@ -210,7 +210,7 @@ Sind `RESEND_API_KEY` und `RESEND_FROM` laut Bestandsaufnahme schon eingetragen,
 
 Sind alle nötigen Schlüssel laut Bestandsaufnahme eingetragen, überspringe diesen Schritt. Sonst nenne nur die fehlenden.
 
-1. Öffne die Datei für die Person: `open -e <repo>/.env` (auf dem Mac in TextEdit), unter Windows `notepad <repo>\.env`.
+1. Öffne die Datei für die Person: `.venv/bin/python oshelp.py open .env`. Auf dem Mac öffnet sie sich in TextEdit, unter Windows im Editor.
 2. Erkläre: Den OpenAI-Schlüssel direkt hinter `OPENAI_API_KEY=` einfügen, bei Resend den Schlüssel hinter `RESEND_API_KEY=`. Keine Leerzeichen, keine Anführungszeichen. Speichern mit Cmd+S und das Fenster schließen.
 3. Warte, bis die Person "fertig" sagt.
 

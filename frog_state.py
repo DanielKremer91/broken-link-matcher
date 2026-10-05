@@ -23,6 +23,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
+from blm.console import use_utf8
 
 LOCK_NAME = "frog-lock.json"
 STALE_HOURS = 14  # a run may hold the lock for two crawls of up to six hours each
@@ -106,6 +107,7 @@ LABELS = {"start_url": "Start-URL", "frog_config_file": "Pfad der Frog-Konfigura
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8()
     p = argparse.ArgumentParser(prog="frog_state.py", description="Frog-Reservierung und Crawl-Einstellungen des Monitors.")
     sub = p.add_subparsers(dest="cmd", required=True)
     for name in ("lock", "unlock", "refresh"):

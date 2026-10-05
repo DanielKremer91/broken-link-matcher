@@ -14,6 +14,7 @@ from ahrefs_params import build as build_ahrefs
 from frog_crawl_check import _on_domain
 from blm.envfile import load_env_file
 from blm.ingest.ahrefs_api import AhrefsError
+from blm.console import use_utf8
 
 def venv_python(repo: Path) -> Optional[Path]:
     """Interpreter of the repo's virtual environment on macOS/Linux or Windows."""
@@ -175,6 +176,7 @@ def inventory(repo: Path, config: Path) -> list[tuple[bool, str]]:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8()
     p = argparse.ArgumentParser(prog="check_setup.py", description="Einrichtung des Broken-Link-Monitors prüfen.")
     p.add_argument("--config", type=Path, default=Path(__file__).parent / "monitor.config.json")
     p.add_argument("--inventory", action="store_true",

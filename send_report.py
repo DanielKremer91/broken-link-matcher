@@ -18,6 +18,7 @@ from typing import Optional
 
 from blm.envfile import load_env_file
 from blm.mailer import MailError, send_resend
+from blm.console import use_utf8
 
 default_sleeper = time.sleep
 
@@ -54,6 +55,7 @@ def write_marker(path: Path, to: list[str], subject: str, msg_id: str) -> None:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8()
     parser = build_parser()
     args = parser.parse_args(argv)
     if not args.html and not args.text:

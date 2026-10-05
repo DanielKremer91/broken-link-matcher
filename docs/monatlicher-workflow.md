@@ -33,7 +33,7 @@ Für jede tote URL holt das Tool den jüngsten Snapshot mit Status 200 aus der W
 
 | Was | Wofür |
 |---|---|
-| Claude-Desktop-App mit Claude Code, auf macOS oder Windows | Skill und geplante Aufgabe. Erprobt ist bisher nur macOS; unter Windows nennt die Einrichtung die abweichenden Befehle |
+| Claude-Desktop-App mit Claude Code, auf macOS oder Windows | Skill und geplante Aufgabe. Die Skripte werden auf beiden Systemen automatisch getestet. Die Einrichtung im Gespräch und das Zusammenspiel mit Screaming Frog sind bisher nur auf macOS praktisch erprobt |
 | Ahrefs-Abo mit MCP-Zugang | Broken Backlinks der Wettbewerber |
 | Screaming Frog SEO Spider mit Lizenz und MCP-Erweiterung | Crawl mit Embeddings |
 | OpenAI-Schlüssel (oder Gemini, oder lokal Ollama) | Embeddings im Frog und im Tool, Mail-Entwürfe |
@@ -136,7 +136,7 @@ cp .claude/skills/broken-link-monitor/config.example.json monitor.config.json
 
 | Feld | Standard | Bedeutung |
 |---|---|---|
-| `limit` | 100 | Zeilen pro Wettbewerber, 1 bis 1000 |
+| `limit` | 100 | Zeilen pro Wettbewerber, 1 bis 200. Mehr geht über das Ahrefs-MCP nicht zuverlässig, weil Claude die Zeilen selbst in eine Datei überträgt |
 | `min_dr` | 0 | Mindest-Domain-Rating der linkgebenden Domain |
 | `dofollow_only` | true | nur Dofollow-Links |
 | `content_only` | true | nur Links aus dem Inhaltsbereich, keine Navigation oder Footer |

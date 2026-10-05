@@ -21,6 +21,7 @@ import pandas as pd
 from blm.ingest.frog_csv import MIN_CONTENT_DIMENSION, _parse_vector, detect_frog_columns
 from blm.ingest.tables import read_table
 from frog_crawl_check import MIN_DOMAIN_SHARE, _on_domain
+from blm.console import use_utf8
 
 
 def probe(path: Path, field: Optional[str] = None, min_html: int = 10, domain: Optional[str] = None) -> dict:
@@ -66,6 +67,7 @@ def probe(path: Path, field: Optional[str] = None, min_html: int = 10, domain: O
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8()
     p = argparse.ArgumentParser(prog="frog_probe.py", description="Stichprobe eines Frog-Exports auf Embeddings prüfen.")
     p.add_argument("export", type=Path, help="NDJSON- oder CSV-Export aus Screaming Frog")
     p.add_argument("--field", help="Name der Embedding-Spalte, z. B. 'Embeddings Fressnapf 1'")

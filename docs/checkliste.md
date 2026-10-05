@@ -12,7 +12,7 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 
 ## Zugänge
 
-- [ ] Claude-Desktop-App installiert, Claude Code nutzbar (macOS erprobt, Windows mit abweichenden Befehlen)
+- [ ] Claude-Desktop-App installiert, Claude Code nutzbar (macOS oder Windows)
 - [ ] Ahrefs-Abo mit MCP-Zugang, Ahrefs-MCP in Claude verbunden
 - [ ] Screaming Frog mit Lizenz, MCP-Erweiterung in Claude verbunden
 - [ ] OpenAI-Schlüssel (oder Gemini oder Ollama)

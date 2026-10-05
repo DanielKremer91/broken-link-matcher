@@ -16,12 +16,16 @@ from pathlib import Path
 from typing import Optional
 
 from blm.ingest.ahrefs_api import AhrefsError, build_params, describe_filters
+from blm.console import use_utf8
 
 DEFAULTS = {
     "limit": 100, "min_dr": 0, "dofollow_only": True, "content_only": True, "exclude_spam": True,
     "dead_only": True, "mode": "subdomains", "aggregation": "1_per_domain", "include_traffic": False,
     "order_by": "domain_rating_source",
 }
+# The Ahrefs MCP returns rows as text and Claude writes them to a file by hand.
+# Beyond a few hundred rows that gets slow and error-prone.
+MAX_LIMIT = 200
 SORT_FOR_CLI = {"domain_rating_source": "domain_rating", "url_rating_source": "url_rating", "traffic": "page_traffic"}
 
 
@@ -39,8 +43,9 @@ def settings(cfg: dict) -> dict:
 
 def build(cfg: dict, target: str) -> dict:
     s = settings(cfg)
-    if isinstance(s["limit"], bool) or not isinstance(s["limit"], int) or not 1 <= s["limit"] <= 1000:
-        raise AhrefsError("ahrefs.limit muss eine ganze Zahl zwischen 1 und 1000 sein.")
+    if isinstance(s["limit"], bool) or not isinstance(s["limit"], int) or not 1 <= s["limit"] <= MAX_LIMIT:
+        raise AhrefsError(f"ahrefs.limit muss eine ganze Zahl zwischen 1 und {MAX_LIMIT} sein. Mehr geht über das "
+                          "Ahrefs-MCP nicht zuverlässig, weil Claude die Zeilen selbst in eine Datei überträgt.")
     if isinstance(s["min_dr"], bool) or not isinstance(s["min_dr"], (int, float)) or not 0 <= s["min_dr"] <= 100:
         raise AhrefsError("ahrefs.min_dr muss zwischen 0 und 100 liegen.")
     for key in ("dofollow_only", "content_only", "exclude_spam", "dead_only", "include_traffic"):
@@ -59,6 +64,7 @@ def build(cfg: dict, target: str) -> dict:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8()
     p = argparse.ArgumentParser(prog="ahrefs_params.py", description="Ahrefs-MCP-Parameter aus monitor.config.json.")
     p.add_argument("--config", type=Path, default=Path(__file__).parent / "monitor.config.json")
     p.add_argument("--target", required=True, help="Wettbewerber-Domain")

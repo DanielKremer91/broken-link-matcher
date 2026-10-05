@@ -23,7 +23,8 @@ def test_moves_file_with_expected_name_and_restricts_permissions(tmp_path, capsy
     src = make(tmp_path / "Desktop" / "broken-link-monitor-bora.seospiderconfig", "geheim")
     rc, out, target = run(tmp_path, capsys)
     assert rc == 0 and target.read_text() == "geheim" and not src.exists()
-    assert oct(target.stat().st_mode & 0o777) == "0o600"
+    if os.name != "nt":  # Windows has no owner-only permission bits
+        assert oct(target.stat().st_mode & 0o777) == "0o600"
     assert "verschoben" in out and "geheim" not in out
 
 
@@ -78,8 +79,8 @@ def test_default_search_starts_with_downloads():
 def test_unreadable_folder_is_reported(tmp_path, capsys):
     import os
     import pytest
-    if os.geteuid() == 0:
-        pytest.skip("root reads everything")
+    if os.name == "nt" or os.geteuid() == 0:
+        pytest.skip("folder permissions cannot be taken away here")
     locked = tmp_path / "Desktop"
     locked.mkdir()
     locked.chmod(0o000)
@@ -93,8 +94,8 @@ def test_unreadable_folder_is_reported(tmp_path, capsys):
 def test_denied_folder_is_not_mentioned_when_the_file_was_found(tmp_path, capsys):
     import os
     import pytest
-    if os.geteuid() == 0:
-        pytest.skip("root reads everything")
+    if os.name == "nt" or os.geteuid() == 0:
+        pytest.skip("folder permissions cannot be taken away here")
     make(tmp_path / "home" / "broken-link-monitor-bora.seospiderconfig")
     locked = tmp_path / "Desktop"
     locked.mkdir()

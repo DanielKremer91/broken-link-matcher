@@ -32,6 +32,7 @@ from blm.outreach import DEFAULT_CHAT_MODELS
 from blm.pipeline import ChatConfig, PipelineConfig, PipelineError, PipelineResult, run_pipeline, summary_to_dict
 from blm.ranking import SORT_FIELDS
 from blm.report import all_opportunity_rows, build_report, gap_rows, opportunity_rows
+from blm.console import use_utf8
 
 default_sleeper = time.sleep
 ENV_KEYS = {"openai": "OPENAI_API_KEY", "gemini": "GEMINI_API_KEY"}
@@ -144,6 +145,7 @@ def summary_lines(summary) -> list[str]:
 
 
 def main(argv: Optional[list[str]] = None) -> int:
+    use_utf8()
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.out.is_dir() or (args.drafts_out and args.drafts_out.is_dir()):
