@@ -82,9 +82,10 @@ def main(argv: Optional[list[str]] = None) -> int:
         dirs = [d.expanduser() for d in (args.search or [Path(d) for d in DEFAULT_SEARCH])]
         denied: list[Path] = []
         candidates = find_candidates(target, dirs, args.max_age, denied)
-        for folder in denied:
-            print(f"Kein Zugriff auf {folder}. Auf dem Mac fragt das System beim ersten Mal, ob Claude auf diesen Ordner "
-                  "zugreifen darf. Bitte erlauben und erneut versuchen.")
+        if not candidates:
+            for folder in denied:
+                print(f"Kein Zugriff auf {folder}. Auf dem Mac fragt das System beim ersten Mal, ob Claude auf diesen "
+                      "Ordner zugreifen darf. Bitte erlauben und erneut versuchen.")
     if not candidates:
         if target.is_file():
             print(f"Die Konfiguration liegt bereits am Ziel: {target}")

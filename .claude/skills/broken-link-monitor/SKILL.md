@@ -18,6 +18,10 @@ Die Befehle in dieser Anleitung sind für macOS geschrieben. Unter Windows gilt 
 | Zweck | macOS | Windows |
 |---|---|---|
 | Python der Umgebung | `.venv/bin/python` | `.venv\Scripts\python.exe` |
+| pip der Umgebung | `.venv/bin/pip` | `.venv\Scripts\pip.exe` |
+| Python zum Anlegen der Umgebung | `python3` | `py -3.11` |
+| `uv` installieren | `brew install uv` | `winget install astral-sh.uv` |
+| Pfade in `monitor.config.json` | `/Users/name/...` | mit Schrägstrichen schreiben, `C:/Users/name/...`, sonst ist die Datei kein gültiges JSON |
 | Datei im Editor öffnen | `open -e <datei>` | `notepad <datei>` |
 | Datei nur anlegen, wenn sie fehlt | `cp -n quelle ziel` | nur kopieren, wenn das Ziel nicht existiert |
 | Datei nur für den Nutzer lesbar | `chmod 600 <datei>` | entfällt |
@@ -37,7 +41,7 @@ Die Befehle in dieser Anleitung sind für macOS geschrieben. Unter Windows gilt 
 
 ## Lauf für einzelne Wettbewerber
 
-Nennt der Auftrag einzelne Wettbewerber, zum Beispiel "nur für zooplus.de", gelten Schritt 2 bis 5 nur für diese. Für den Crawl gilt die Regel aus Schritt 1: Ein vollständiger Crawl dieses Monats wird wiederverwendet. Die anderen Wettbewerber bekommen in diesem Lauf keine Mail.
+Nennt der Auftrag einzelne Wettbewerber, zum Beispiel "nur für zooplus.de", gelten Schritt 2 bis 5 nur für diese. Für den Crawl gilt die Regel aus Schritt 1, Punkt 1: Ein vollständiger Crawl dieses Monats mit unveränderten Einstellungen wird wiederverwendet. Die anderen Wettbewerber bekommen in diesem Lauf keine Mail.
 
 Die Schritte unten beschreiben den Lauf.
 
@@ -58,19 +62,31 @@ Die Schritte unten beschreiben den Lauf.
 
 5. Schlafschutz auf dem Mac: Starte im Hintergrund `caffeinate -i -t 43200`. Das verhindert für bis zu zwölf Stunden, dass der Rechner wegen Untätigkeit einschläft und dem Crawl die Verbindung abreißt. Den zugeklappten Laptop verhindert es nicht. Unter Windows entfällt dieser Punkt, siehe Tabelle oben.
 
-Ein zweiter Lauf im selben Monat ist unkritisch. Er meldet dieselben Paare noch einmal und überschreibt die Dateien des Laufordners.
+`<kunde>` ist im Folgenden der Kundenname aus `customer`, klein geschrieben, Leerzeichen als Bindestrich, Umlaute als ae, oe, ue, zum Beispiel `fressnapf`.
+
+Ein zweiter Lauf im selben Monat ist unkritisch. Wettbewerber, deren Bericht schon verschickt ist, werden übersprungen (Schritt 2). Ein vollständiger Crawl des Monats wird wiederverwendet (Schritt 1).
 
 ## Schritt 1: Eigene Seiten mit Embeddings (Screaming-Frog-MCP)
 
 Wenn `frog.crawl` true ist:
 
-**Vorhandenen Crawl dieses Monats wiederverwenden:** Liegen im Basisverzeichnis unter `broken-link-monitor/` schon der Embedding-Export für `RUN` (`<own_domain>-<RUN>.ndjson` oder `.csv`) und die Crawl-Übersicht `<own_domain>-<RUN>-intern.ndjson`, prüfe die Übersicht mit `frog_crawl_check.py`. Ist das Ergebnis `ok`, nutze den Export und überspringe den Crawl. So kostet ein zweiter Lauf im selben Monat, zum Beispiel nach einem gescheiterten Versand, keine Stunden. Verlangt der Auftrag ausdrücklich einen frischen Crawl, crawle neu.
+1. Hol das Basisverzeichnis des Frog-MCP mit dem Tool, das das erlaubte Verzeichnis auflistet. Lege darin den Ordner `broken-link-monitor` an, falls er fehlt (Tool zum Anlegen von Verzeichnissen). `FROGDIR` ist im Folgenden der absolute Pfad dieses Ordners.
 
-1. Hol das Basisverzeichnis des Frog-MCP mit dem Tool, das das erlaubte Verzeichnis auflistet. Lege darin den Ordner `broken-link-monitor` an, falls er fehlt (Tool zum Anlegen von Verzeichnissen).
-2. Frag zuerst den Zustand mit dem Fortschritts-Tool ab:
-   - `SpiderActiveState`: Es läuft bereits ein Crawl, zum Beispiel der Monitor eines anderen Kunden. Brich ihn nie ab. Im geplanten Lauf wartest du: Frag den Zustand alle zehn Minuten erneut ab, bis zu sechs Stunden lang. Läuft dann immer noch ein Crawl, weiter mit Schritt 6 (Fehler melden): "In Screaming Frog lief über sechs Stunden ein anderer Crawl." Im Gespräch sagst du es der Person und fragst, wie es weitergehen soll.
-   - Jeder andere Zustand außer `SpiderNoDataIdleState`: Im MCP ist noch ein alter Crawl geladen. Räume ihn mit `sf_clear_crawl`. Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der nächste Start ohne Aktivität.
-   Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`, `crawl_name` = `blm-<customer>-<RUN>`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, räume mit `sf_clear_crawl` und starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
+   **Vorhandenen Crawl dieses Monats wiederverwenden.** Das spart bei einem zweiten Lauf im selben Monat mehrere Stunden. Verlangt der Auftrag ausdrücklich einen frischen Crawl, überspringe diesen Absatz. Sonst nutze den vorhandenen Export und springe zu Schritt 2, wenn alle vier Bedingungen gelten:
+   - In `FROGDIR` liegen der Embedding-Export `<own_domain>-<RUN>.ndjson` (oder `.csv`), die Crawl-Übersicht `<own_domain>-<RUN>-intern.ndjson` und die Meta-Datei `<own_domain>-<RUN>-meta.json`.
+   - `.venv/bin/python frog_state.py check-meta --config <pfad zur config> --meta FROGDIR/<own_domain>-<RUN>-meta.json` endet mit Exit-Code 0. Start-URL, Frog-Konfiguration und Modell sind also unverändert.
+   - `.venv/bin/python frog_crawl_check.py FROGDIR/<own_domain>-<RUN>-intern.ndjson --domain <own_domain>` meldet `ok`.
+   - Die Prüfung aus Punkt 7 ist für den Export erfolgreich.
+2. **Frog reservieren.** Alle Einrichtungen auf diesem Rechner teilen sich einen Screaming Frog. Reserviere ihn, bevor du irgendetwas am Crawl-Zustand änderst: `.venv/bin/python frog_state.py lock --dir FROGDIR --customer <kunde> --run <RUN>`.
+   - Exit-Code 0: reserviert, weiter.
+   - Exit-Code 3: Ein Lauf für einen anderen Kunden nutzt Frog gerade. Räume und starte nichts. Im geplanten Lauf versuchst du es alle zehn Minuten erneut, bis zu sechs Stunden. Danach weiter mit Schritt 6 (Fehler melden): "Screaming Frog war über sechs Stunden von einem anderen Lauf belegt." Im Gespräch sagst du es der Person.
+   Die Reservierung hebst du nach Punkt 7 wieder auf, und ebenso, bevor du wegen eines Fehlers in Schritt 1 zu Schritt 6 gehst: `.venv/bin/python frog_state.py unlock --dir FROGDIR --customer <kunde>`.
+
+   Frag dann den Zustand mit dem Fortschritts-Tool ab:
+   - `SpiderActiveState`: Es läuft ein Crawl, den kein Monitor reserviert hat, zum Beispiel ein eigener Crawl der Person über das MCP. Brich ihn nie ab. Im geplanten Lauf fragst du alle zehn Minuten erneut, bis zu sechs Stunden. Danach Reservierung aufheben und weiter mit Schritt 6 (Fehler melden): "In Screaming Frog lief über sechs Stunden ein anderer Crawl." Im Gespräch fragst du die Person, wie es weitergehen soll.
+   - Jeder andere Zustand außer `SpiderNoDataIdleState`: Im MCP ist noch ein alter Crawl geladen. Weil du die Reservierung hältst, gehört er zu keinem laufenden Monitor. Räume ihn mit `sf_clear_crawl`. Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der nächste Start ohne Aktivität.
+
+   Starte auf dem Mac erneut den Schlafschutz (`caffeinate -i -t 43200` im Hintergrund), damit er ab jetzt für die volle Crawl-Dauer reicht. Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`, `crawl_name` = `blm-<kunde>-<RUN>`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, räume mit `sf_clear_crawl` und starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
 3. **Frühwarnung bei `custom_javascript`:** Sobald das Fortschritts-Tool mindestens 60 abgeschlossene URLs meldet, prüfe eine Stichprobe, statt bis zum Ende zu warten:
    - Halte den Crawl an (`sf_pause_crawl`). Solange er läuft, verweigert Frog jeden Export ("SEO Spider is busy").
    - Ermittle das Embedding-Feld wie in Punkt 6 beschrieben.
@@ -81,7 +97,8 @@ Wenn `frog.crawl` true ist:
    - `keine_embeddings`: Der Crawl bleibt angehalten. Weiter mit Schritt 6 (Fehler melden). Meldung: "Das Custom-JavaScript-Snippet liefert keine Embeddings. Häufigste Ursachen: Rendering steht nicht auf JavaScript (Konfiguration, Spider, Rendering), im Snippet fehlt der OpenAI-Schlüssel, oder PREVIEW_TEXT steht noch auf true. Konfiguration korrigieren, neu speichern und den Lauf erneut starten."
    - Scheitert das Anhalten oder der Export, setze den Crawl fort, notiere das und mach ohne Frühwarnung weiter. Punkt 7 prüft das Ergebnis nach dem Crawl.
 4. Frage den Fortschritt mit dem Fortschritts-Tool ab, bis Crawl, API-Abrufe und Nachbearbeitung bei 100 Prozent sind. Warte zwischen zwei Abfragen zwei bis fünf Minuten, zum Beispiel mit `sleep 180` in der Shell. Ist Warten in der Shell gesperrt, nutze das verfügbare Warte- oder Monitor-Werkzeug. Nach sechs Stunden ohne Abschluss hältst du den Crawl an (`sf_pause_crawl`), damit er nicht endlos weiterläuft und den nächsten Lauf blockiert. Weiter mit Schritt 6 (Fehler melden): "Der Crawl war nach sechs Stunden nicht fertig. Die Website ist sehr groß oder hat endlose URL-Räume. Bitte den Crawl-Umfang in der Frog-Konfiguration begrenzen."
-5. **Vollständigkeit prüfen:** Exportiere mit dem Tool für SEO-Element-URLs das Element `Internal`, Filter `All`, Felder `Address`, `Status Code` und `Status`, Datei `broken-link-monitor/<own_domain>-<RUN>-intern.ndjson`. Prüfe sie mit `.venv/bin/python frog_crawl_check.py <absoluter Pfad>`. Die Ausgabe ist JSON mit `verdict`, `no_response`, `internal` und `reasons`.
+5. **Vollständigkeit prüfen:** Exportiere mit dem Tool für SEO-Element-URLs das Element `Internal`, Filter `All`, Felder `Address`, `Status Code` und `Status`, Datei `broken-link-monitor/<own_domain>-<RUN>-intern.ndjson`. Prüfe sie mit `.venv/bin/python frog_crawl_check.py <absoluter Pfad> --domain <own_domain>`. Die Ausgabe ist JSON mit `verdict`, `no_response`, `internal` und `reasons`.
+   - `falsche_domain`: Der geladene Crawl gehört nicht zu dieser Website. Exportiere nichts weiter und verwende nichts davon. Reservierung aufheben und weiter mit Schritt 6 (Fehler melden): "Der Crawl in Screaming Frog gehört nicht zu <own_domain>. Vermutlich hat ein anderer Lauf dazwischengefunkt. Bitte den Lauf wiederholen."
    - `ok`: weiter.
    - `warnung` (5 bis 30 Prozent der Seiten ohne Antwort): weiter, aber merke dir den Hinweis für Schritt 3, zum Beispiel "Crawl nicht vollständig: 80 von 1.340 Seiten ohne Antwort (Internet Disconnected). Für diese Seiten fehlen Vorschläge."
    - `unvollstaendig` (über 30 Prozent): Meist ist die Verbindung abgerissen. Starte den Crawl genau einmal neu, ab Punkt 2, und prüfe erneut. Ist er wieder unvollständig, mach weiter, nimm den Hinweis für Schritt 3 mit und trage ihn auch in `fehler.md` ein.
@@ -89,19 +106,22 @@ Wenn `frog.crawl` true ist:
    - **custom_javascript** (gilt auch, wenn `frog.embeddings_source` fehlt): Liste die Datenfelder des SEO-Elements `Custom JavaScript` mit Filter `All`. Nimm das Feld aus `frog.custom_js_field`. Steht es nicht in der Liste, weiter mit Schritt 6 (Fehler melden) und der Liste der Felder. Ist es leer, nimm das einzige Feld, dessen Name `embed` enthält (Groß- und Kleinschreibung egal). Gibt es keins oder mehrere, weiter mit Schritt 6 (Fehler melden) und der Liste der Felder. Exportiere dann mit dem Tool für SEO-Element-URLs: Element `Custom JavaScript`, Filter `All`, Felder `Address` und das gewählte Feld, ohne Zeilenlimit, Datei `broken-link-monitor/<own_domain>-<RUN>.ndjson`.
    - **ai**: Exportiere mit dem Embedding-Export-Tool nach `broken-link-monitor/<own_domain>-<RUN>.csv`. Dieser Export funktioniert nur mit den eingebauten KI-Embeddings von Frog.
    Der absolute Pfad ist Basisverzeichnis plus Dateipfad. Die Antwort des Export-Tools enthält eine lange Beispielzeile mit Zahlen; lies sie nicht aus, die Datei reicht.
-7. Prüfe den Export: `.venv/bin/python -c "import sys; from blm.ingest.frog_csv import load_frog_embeddings; i = load_frog_embeddings(sys.argv[1]); print(len(i.pages), i.dimension)" <absoluter Pfad>`. Ausgabe sind Seitenzahl und Dimension. Bei einem Fehler oder null Seiten weiter mit Schritt 6 (Fehler melden) und dem Hinweis: "Der Frog-Export enthält keine Embeddings. Konfiguration prüfen, beim Snippet auch, ob PREVIEW_TEXT auf false steht."
+7. Prüfe den Export: `.venv/bin/python -c "import sys; from blm.ingest.frog_csv import load_frog_embeddings; i = load_frog_embeddings(sys.argv[1]); print(len(i.pages), i.dimension)" <absoluter Pfad>`. Ausgabe sind Seitenzahl und Dimension. Bei einem Fehler oder null Seiten löschst du den Embedding-Export und die Meta-Datei, damit der nächste Lauf frisch crawlt, hebst die Reservierung auf und gehst zu Schritt 6 (Fehler melden) mit dem Hinweis: "Der Frog-Export enthält keine Embeddings. Konfiguration prüfen, beim Snippet auch, ob PREVIEW_TEXT auf false steht. Der nächste Lauf crawlt neu."
+8. Merke die Einstellungen dieses Crawls und gib Frog frei: `.venv/bin/python frog_state.py save-meta --config <pfad zur config> --meta FROGDIR/<own_domain>-<RUN>-meta.json`, danach `.venv/bin/python frog_state.py unlock --dir FROGDIR --customer <kunde>`.
 
 Wenn `frog.crawl` false ist, nimm `frog.embeddings_file` als fertigen Export und prüfe ihn genauso.
 
 ## Schritt 2: Broken Backlinks pro Wettbewerber (Ahrefs-MCP)
 
-Für jeden Eintrag `W` in `competitors`:
+**Schon verschickte Wettbewerber überspringen.** Existiert `<laufordner>/W/versendet.json`, ist der Bericht für `W` in diesem Monat schon rausgegangen. Dann entfallen für `W` die Schritte 2 bis 4 komplett: kein Ahrefs-Abruf, kein `cli.py`, kein Versand. Die verschickten Dateien bleiben unverändert. Erwähne es in Schritt 7. Nur wenn der Auftrag ausdrücklich "erneut senden" oder einen neuen Lauf für `W` verlangt, arbeitest du `W` trotzdem ab.
+
+Für jeden übrigen Eintrag `W` in `competitors`:
 
 1. Erzeuge die Parameter: `.venv/bin/python ahrefs_params.py --config <pfad zur config> --target W`. Die Ausgabe ist JSON mit `mcp` (Parameter für das MCP), `cli_args` (Filter für `cli.py`) und `description`.
 2. Rufe `site-explorer-broken-backlinks` mit genau den Werten aus `mcp` auf. Übernimm `where` unverändert als Text.
-3. Speichere die CSV-Antwort unverändert als `<laufordner>/W/broken-backlinks.csv`. Hinweise des MCP zur Darstellung gehören nicht in die Datei.
-4. Kontrolle: `.venv/bin/python -c "import sys; from blm.ingest.backlinks_csv import read_table, detect_columns; df = read_table(sys.argv[1]); col = detect_columns(df).mapping['url_to']; print(len(df), df[col].astype(str).str.lower().str.contains(sys.argv[2].lower(), regex=False).all())" <datei> W`. Die erste Zahl muss zur Zeilenzahl der MCP-Antwort passen und der zweite Wert muss `True` sein. Sonst die Datei neu schreiben, beim zweiten Fehlschlag weiter mit Schritt 6 (Fehler melden) für diesen Wettbewerber.
-5. Liefert Ahrefs null Zeilen, ist das ein Fehler und kein Ergebnis: Units aufgebraucht, Filter zu streng oder eine Störung. Für diesen Wettbewerber gibt es dann keinen Bericht und keine Kundenmail. Weiter mit Schritt 6 (Fehler melden): "Ahrefs lieferte für W keine Broken Backlinks." `cli.py` bricht bei einer Datei ohne Zeilen ebenfalls mit Exit-Code 1 ab und speichert nichts.
+3. Enthält die Antwort keine Datenzeilen, also nichts oder nur die Kopfzeile, ist das ein Fehler und kein Ergebnis: Units aufgebraucht, Filter zu streng oder eine Störung. Schreib keine Datei. Für `W` gibt es dann keinen Bericht und keine Kundenmail. Notiere für Schritt 6 (Fehler melden): "Ahrefs lieferte für W keine Broken Backlinks." Weiter mit dem nächsten Wettbewerber. `cli.py` bricht bei einer Datei ohne Zeilen ebenfalls mit Exit-Code 1 ab und speichert nichts.
+4. Speichere die CSV-Antwort unverändert als `<laufordner>/W/broken-backlinks.csv`. Hinweise des MCP zur Darstellung gehören nicht in die Datei.
+5. Kontrolle: `.venv/bin/python -c "import sys; from blm.ingest.backlinks_csv import read_table, detect_columns; df = read_table(sys.argv[1]); col = detect_columns(df).mapping['url_to']; print(len(df), df[col].astype(str).str.lower().str.contains(sys.argv[2].lower(), regex=False).all())" <datei> W`. Die erste Zahl muss zur Zeilenzahl der MCP-Antwort passen und der zweite Wert muss `True` sein. Sonst die Datei neu schreiben, beim zweiten Fehlschlag weiter mit Schritt 6 (Fehler melden) für diesen Wettbewerber.
 
 ## Schritt 3: Matching (cli.py)
 
@@ -126,7 +146,7 @@ Zusätze:
 - `--contact "<contact>"`, wenn `contact` nicht leer ist.
 - `--note "<Hinweis>"` für jeden Hinweis aus Schritt 1, zum Beispiel einen unvollständigen Crawl. Er erscheint im Bericht unter den technischen Details.
 
-Das Matching dauert je nach Zahl der Links 10 bis 30 Minuten, beim ersten Lauf länger. Starte `cli.py` deshalb im Hintergrund mit einem Zeitlimit von mindestens 60 Minuten und warte auf das Ende. Bricht es trotzdem wegen eines Zeitlimits ab, starte es einmal neu. Die Texte aus der Wayback Machine und die Embeddings liegen im Cache, der zweite Durchlauf ist deutlich schneller.
+Starte auf dem Mac vor dem Matching noch einmal den Schlafschutz (`caffeinate -i -t 7200` im Hintergrund). Das Matching dauert je nach Zahl der Links 10 bis 30 Minuten, beim ersten Lauf länger. Starte `cli.py` deshalb im Hintergrund mit einem Zeitlimit von mindestens 60 Minuten und warte auf das Ende. Bricht es trotzdem wegen eines Zeitlimits ab, starte es einmal neu. Die Texte aus der Wayback Machine und die Embeddings liegen im Cache, der zweite Durchlauf ist deutlich schneller.
 
 Exit-Code 0: Lies die JSON-Ausgabe. Du brauchst `report_subject`, `report`, `report_html`, `output`, `drafts_output` (falls vorhanden), `opportunities` und `new_opportunities`.
 

@@ -161,7 +161,7 @@ Trage einfach mehrere Domains in `competitors` ein. Der Crawl der eigenen Seite 
 
 Eine Einrichtung gehört zu genau einem Kunden: eine eigene Domain, eine Frog-Konfiguration, beliebig viele Wettbewerber. Für einen weiteren Kunden richtest du den Monitor ein zweites Mal ein, mit demselben Startsatz. Als Speicherort wählst du dann einen eigenen Ordner, zum Beispiel `~/broken-link-matcher-bora`. Jede Einrichtung hat ihre eigene Konfiguration, ihren Verlauf und auf Wunsch ihre eigene geplante Aufgabe.
 
-Alle Einrichtungen teilen sich einen Screaming Frog, und der crawlt immer nur eine Website gleichzeitig. Lege die Aufgaben deshalb auf verschiedene Tage, zum Beispiel den 1., 2. und 3. des Monats. Läuft beim Start doch noch ein anderer Crawl, wartet der Monitor bis zu sechs Stunden, statt abzubrechen.
+Alle Einrichtungen teilen sich einen Screaming Frog, und der crawlt immer nur eine Website gleichzeitig. Lege die Aufgaben deshalb auf verschiedene Tage, zum Beispiel den 1., 2. und 3. des Monats. Zusätzlich reserviert jeder Lauf den Frog über eine kleine Sperrdatei, solange er crawlt und exportiert. Ein zweiter Lauf wartet dann bis zu sechs Stunden, statt abzubrechen oder dem ersten den Crawl wegzunehmen. Nach dem Crawl prüft der Monitor außerdem, ob die gecrawlten Seiten wirklich zur eigenen Domain gehören.
 
 ### Später etwas ändern
 
@@ -201,7 +201,9 @@ Weitere Läufe im selben Monat sind unkritisch:
 
 - Der Bericht enthält dieselben Paare noch einmal, weil sich die Verlaufsdatei den Monat jeder Meldung merkt.
 - Die Mail geht nicht doppelt raus. Nach dem Versand legt der Monitor einen Versandmerker im Laufordner ab (`versendet.json`). Soll sie bewusst noch einmal kommen, sag "erneut senden".
-- Ein vollständiger Crawl deiner Seite aus demselben Monat wird wiederverwendet. Ist der Versand gescheitert, reicht also ein kurzer zweiter Lauf.
+- Wettbewerber, deren Bericht schon verschickt ist, werden komplett übersprungen. Das spart die Ahrefs-Units, und die verschickten Dateien bleiben unverändert.
+- Ein vollständiger Crawl deiner Seite aus demselben Monat wird wiederverwendet, solange Start-URL, Frog-Konfiguration und Modell unverändert sind. Ist der Versand gescheitert, reicht also ein kurzer zweiter Lauf.
+- Ändert sich mitten im Monat der Empfänger, kommt der Bericht dort erst mit "erneut senden" an.
 
 ### 8. Monatlich automatisch
 
@@ -268,5 +270,6 @@ laeufe/
 | Lauf steht, keine Mail | In der Sitzung der geplanten Aufgabe wartet eine Berechtigungsabfrage. Dauerhaft erlauben, der Lauf geht weiter. |
 | "Bereits versendet", keine neue Mail | Der Bericht dieses Monats ging schon raus. Für eine bewusste Wiederholung "erneut senden" sagen. |
 | "Ahrefs lieferte keine Broken Backlinks" | Null Zeilen gelten als Fehler: Units aufgebraucht, Filter zu streng oder eine Störung. Es geht bewusst keine Kundenmail raus. Units und Filter prüfen, Lauf wiederholen. |
-| "In Screaming Frog lief ein anderer Crawl" | Ein anderer Monitor oder ein eigener Crawl hat Frog über sechs Stunden belegt. Aufgaben auf verschiedene Tage legen. |
-| Bericht kam nicht an | `fehler.md` im Laufordner lesen. Nach der Behebung den Lauf wiederholen. Im selben Monat genügt `/broken-link-monitor`. Ist der Monat schon vorbei, nenne die Lauf-Kennung: `/broken-link-monitor mit Lauf-Kennung 2026-11`. |
+| "Screaming Frog war belegt" oder "lief ein anderer Crawl" | Ein anderer Monitor oder ein eigener Crawl hat Frog über sechs Stunden belegt. Aufgaben auf verschiedene Tage legen. |
+| "Der Crawl gehört nicht zu <Domain>" | Zwei Läufe sind sich in die Quere gekommen. Es wurde bewusst nichts verschickt. Lauf wiederholen. |
+| Bericht kam nicht an | `fehler.md` im Laufordner lesen. Ist der Versand gescheitert, den Lauf wiederholen: Crawl und fertige Wettbewerber werden übersprungen. Hat Resend die Mail angenommen und sie ist trotzdem nicht da, zum Beispiel im Spam, sag "Broken Link Monitor erneut senden". Ist der Monat schon vorbei, nenne die Lauf-Kennung: `/broken-link-monitor mit Lauf-Kennung 2026-11`. |

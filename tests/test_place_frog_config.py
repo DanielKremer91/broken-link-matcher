@@ -88,3 +88,19 @@ def test_unreadable_folder_is_reported(tmp_path, capsys):
     finally:
         locked.chmod(0o755)
     assert rc == 1 and "Kein Zugriff" in out and str(locked) in out
+
+
+def test_denied_folder_is_not_mentioned_when_the_file_was_found(tmp_path, capsys):
+    import os
+    import pytest
+    if os.geteuid() == 0:
+        pytest.skip("root reads everything")
+    make(tmp_path / "home" / "broken-link-monitor-bora.seospiderconfig")
+    locked = tmp_path / "Desktop"
+    locked.mkdir()
+    locked.chmod(0o000)
+    try:
+        rc, out, target = run(tmp_path, capsys)
+    finally:
+        locked.chmod(0o755)
+    assert rc == 0 and target.exists() and "Kein Zugriff" not in out

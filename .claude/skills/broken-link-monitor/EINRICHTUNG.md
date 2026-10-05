@@ -58,7 +58,7 @@ Fehlt ein MCP, erkläre, wie es verbunden wird, und mach mit den Schritten weite
 
 Sag der Person früh und ehrlich, wenn es ohne etwas nicht geht, und nenne den Ausweg:
 
-- **Kein Ahrefs mit MCP-Zugang:** Der automatische Monitor braucht ihn. Ausweg: das Streamlit-Tool aus diesem Repo. Dort lädt man einen Ahrefs-Export von Hand hoch. Der Link steht in der README.
+- **Kein Ahrefs mit MCP-Zugang:** Der automatische Monitor braucht ihn. Ausweg: das Streamlit-Tool aus diesem Repo. Dort lädt man einen Ahrefs-Export von Hand hoch. Es lässt sich lokal starten, wie in der README unter "Installation" beschrieben.
 - **Ahrefs-Verbindung kostenlos testen:** Eine Abfrage mit dem Ziel `ahrefs.com` und `limit` 1 kostet keine Units. Nutze sie, wenn unklar ist, ob der Connector funktioniert.
 - **Keine Screaming-Frog-Lizenz:** Ohne Lizenz gibt es weder gespeicherte Konfigurationen noch Custom JavaScript oder KI-Anbindung. Dann geht weder der Monitor noch das Streamlit-Tool, denn beide brauchen die Embeddings der eigenen Seiten aus dem Frog.
 - **`git` fehlt:** Auf einem frischen Mac öffnet der erste `git`-Befehl ein Fenster zur Installation der "Command Line Tools". Die Person bestätigt die Installation, danach wiederholst du den Befehl.
@@ -176,7 +176,7 @@ Schreibt die Person "weiter", verschiebst du die Datei selbst an den richtigen O
 
 Sag der Person, was jetzt passiert: Du crawlst zur Probe etwa 60 Seiten, das dauert zwei bis drei Minuten und kostet beim Embedding-Anbieter weniger als einen Cent. Der Crawl läuft unsichtbar im Hintergrund. Die Person muss nichts tun.
 
-1. Frag den Zustand mit dem Fortschritts-Tool ab. Läuft gerade ein Crawl (`SpiderActiveState`), warte nicht darauf und brich ihn nicht ab: Sag es der Person und frag, wie es weitergehen soll. Ist ein alter Crawl geladen (Zustand ist nicht `SpiderNoDataIdleState`), räume ihn mit dem Tool zum Verwerfen (`sf_clear_crawl`). Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der erste Start ohne Aktivität.
+1. Reserviere Frog wie in `SKILL.md`, Schritt 1, Punkt 2 (`frog_state.py lock`). Bei Exit-Code 3 läuft gerade der Monitor eines anderen Kunden: Sag es der Person und versuch es später erneut. Frag dann den Zustand mit dem Fortschritts-Tool ab. Läuft gerade ein Crawl (`SpiderActiveState`), warte nicht darauf und brich ihn nicht ab: Sag es der Person und frag, wie es weitergehen soll. Ist ein alter Crawl geladen (Zustand ist nicht `SpiderNoDataIdleState`), räume ihn mit dem Tool zum Verwerfen (`sf_clear_crawl`). Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der erste Start ohne Aktivität.
 2. Starte den Crawl: `crawl_url` = `start_url`, `config_path` = `frog.config_file`, `crawl_name` = `blm-probe-<kunde>`.
 3. Frag den Fortschritt etwa alle 30 Sekunden ab, bis mindestens 60 URLs abgeschlossen sind. Zum Warten nutzt du das verfügbare Warte-Werkzeug. Sind nach zwei Minuten noch keine URLs abgeschlossen, räume mit `sf_clear_crawl` und starte einmal neu. Nach fünf Minuten nimmst du, was da ist.
 4. Halte den Crawl an (`sf_pause_crawl`). Solange er läuft, verweigert Frog jeden Export.
@@ -184,7 +184,7 @@ Sag der Person, was jetzt passiert: Du crawlst zur Probe etwa 60 Seiten, das dau
    - **custom_javascript:** Liste die Datenfelder des Elements `Custom JavaScript`, Filter `All`. Das Embedding-Feld beginnt mit "Embeddings". Exportiere mit dem Tool für SEO-Element-URLs die Felder `Address`, `Content Type`, `Status Code` und das Embedding-Feld nach `broken-link-monitor/probe-<kunde>.ndjson`, höchstens 300 Zeilen. Die Antwort des Tools enthält eine sehr lange Beispielzeile mit Zahlen. Lies sie nicht aus.
    - **ai:** Exportiere mit dem Embedding-Export-Tool nach `broken-link-monitor/probe-<kunde>.csv`.
 6. Prüfe: `.venv/bin/python frog_probe.py "<absoluter Pfad>"`, beim Snippet-Weg mit `--field "<Embedding-Feld>"`.
-7. Verwirf den Probe-Crawl (`sf_clear_crawl`) und lösche die Probe-Datei. Hat `place_frog_config.py` eine Sicherung mit der Endung `.vorher` angelegt und war die Probe erfolgreich, lösche auch diese. Sie enthält ebenfalls den Schlüssel.
+7. Verwirf den Probe-Crawl (`sf_clear_crawl`), lösche die Probe-Datei und heb die Reservierung auf (`frog_state.py unlock`). Hat `place_frog_config.py` eine Sicherung mit der Endung `.vorher` angelegt und war die Probe erfolgreich, lösche auch diese. Sie enthält ebenfalls den Schlüssel.
 8. Sag das Ergebnis in einfachen Worten:
    - `ok`: "Die Konfiguration funktioniert: N von M Seiten haben ein Embedding." Vergleiche `dimension` mit dem Modell: `text-embedding-3-small` hat 1536, `text-embedding-3-large` 3072, `text-embedding-ada-002` 1536, Gemini `text-embedding-004` 768. Passt es nicht, stimmt das Modell im Snippet nicht mit `embedding.model` überein. Dann zurück zu 4.4.
    - `keine_embeddings`: Nenne die häufigsten Ursachen und geh mit der Person zum passenden Teilschritt zurück: Rendering steht nicht auf JavaScript (4.1), Schlüssel im Snippet fehlt oder ist falsch (4.4), `PREVIEW_TEXT` steht auf `true` (4.4), bei der KI-Anbindung sind die Einbettungen nicht eingeschaltet (4.3). Danach neu speichern (4.5) und den Probe-Crawl wiederholen.
@@ -246,7 +246,7 @@ Erkläre dazu ehrlich:
 
 - Die Aufgabe läuft nur, wenn die Claude-App geöffnet ist. Verpasste Läufe holt sie beim nächsten Start nach. Der Rechner muss zur geplanten Zeit wach und online sein.
 - **Beim ersten automatischen Lauf bitte am Rechner sein.** Die Claude-App kann dann nach Berechtigungen fragen, zum Beispiel für Screaming Frog, Ahrefs oder das Ausführen von Befehlen. Die Person wählt jeweils die dauerhafte Erlaubnis. Erst danach läuft der Monitor wirklich ohne Zutun. Bleibt die Mail am Termin aus, ist das der erste Ort zum Nachsehen: die Sitzung der geplanten Aufgabe in der Claude-App.
-- Wer das nicht bis zum Termin offen lassen will, kann die Aufgabe einmal über "Jetzt ausführen" starten und dabeibleiben. Das kostet einen weiteren Ahrefs-Abruf, etwa 12 Units pro Link. Die Kundenmail geht dabei nicht noch einmal raus, und ein vollständiger Crawl dieses Monats wird wiederverwendet.
+- Ein Probelauf über "Jetzt ausführen" im selben Monat ersetzt das nicht: Er überspringt schon verschickte Wettbewerber und den vorhandenen Crawl und stößt deshalb kaum Abfragen an.
 
 Ohne Werkzeug für geplante Aufgaben erkläre, wie die Person die Aufgabe in der Claude-App selbst anlegt, mit genau diesem Prompt.
 
