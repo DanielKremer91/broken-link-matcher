@@ -29,6 +29,9 @@ def test_moves_file_with_expected_name_and_restricts_permissions(tmp_path, capsy
 
 
 def test_finds_file_whose_name_carries_the_typed_path(tmp_path, capsys):
+    if os.name == "nt":
+        import pytest
+        pytest.skip("a colon in a file name is only possible on macOS")
     make(tmp_path / "home" / "seo_spider_mcp_server:broken-link-monitor-bora.seospiderconfig")
     rc, out, target = run(tmp_path, capsys)
     assert rc == 0 and target.exists()

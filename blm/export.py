@@ -84,7 +84,8 @@ def results_to_dataframe(
 
 
 def to_csv_bytes(df: pd.DataFrame) -> bytes:
-    return df.to_csv(index=False, sep=";", decimal=",").encode("utf-8-sig")
+    # fixed line ending: the same bytes on macOS and Windows
+    return df.to_csv(index=False, sep=";", decimal=",", lineterminator="\n").encode("utf-8-sig")
 
 
 def to_xlsx_bytes(df: pd.DataFrame) -> bytes:

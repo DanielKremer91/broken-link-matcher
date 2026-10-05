@@ -75,7 +75,8 @@ def test_single_column_detected_by_substring_in_header(tmp_path):
     f.write_text(
         '﻿"Address","Content Type","Status Code","Status","Embeddings Fressnapf 1"\n'
         '"https://me.de/a","text/html","200","","0.1,0.2,0.3"\n'
-        '"https://me.de/b","text/html","200","","0.0,1.0,0.0"\n'
+        '"https://me.de/b","text/html","200","","0.0,1.0,0.0"\n',
+        encoding="utf-8",
     )
     imp = load_frog_embeddings(f)
     assert imp.dimension == 3 and [p.url for p in imp.pages] == ["https://me.de/a", "https://me.de/b"]

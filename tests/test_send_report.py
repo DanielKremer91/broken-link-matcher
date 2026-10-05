@@ -82,7 +82,8 @@ def test_bad_run_id_is_refused(setup, capsys, run):
     assert send_report.main(args + ["--competitor", "zooroyal.de"]) == 1
 
 
-@pytest.mark.parametrize("output_dir", ["../raus", "/tmp/x", "laeufe/../.."])
+@pytest.mark.parametrize("output_dir", ["../raus", "/tmp/x", "laeufe/../..", "C:\\\\Windows", "C:/Windows",
+                                        "\\\\server\\share", "..\\\\raus", "\\\\tmp"])
 def test_output_dir_must_stay_inside_the_repo(setup, capsys, output_dir):
     write, _, _ = setup
     assert send_report.main(write(output_dir=output_dir) + ["--competitor", "zooroyal.de"]) == 1

@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 _RUN_RE = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
 _UMLAUTS = str.maketrans({"ä": "ae", "ö": "oe", "ü": "ue", "ß": "ss"})
@@ -44,10 +44,16 @@ def check_run_id(run: str) -> str:
 def output_root(cfg: dict, repo: Path) -> Path:
     """<repo>/<output_dir>; output_dir must be a plain relative folder inside the repo."""
     raw = str(cfg.get("output_dir") or "").strip()
-    rel = Path(raw)
-    if not raw or rel.is_absolute() or ".." in rel.parts:
+    # judge the path by the rules of both systems: "/tmp/x" has no drive on Windows and "C:\\x" is a
+    # plain name on macOS, but neither may leave the repo anywhere
+    unsafe = not raw
+    for flavour in (PurePosixPath, PureWindowsPath):
+        path = flavour(raw)
+        if path.anchor or path.is_absolute() or ".." in path.parts:
+            unsafe = True
+    if unsafe:
         raise ConfigError(f"output_dir muss ein Ordner innerhalb des Repos sein (ist: {raw!r}).")
-    return Path(repo) / rel
+    return Path(repo) / raw
 
 
 def check_competitor(cfg: dict, competitor: str) -> str:

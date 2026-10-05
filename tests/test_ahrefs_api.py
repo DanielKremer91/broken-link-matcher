@@ -8,7 +8,7 @@ import respx
 from blm.ingest.ahrefs_api import AHREFS_URL, AhrefsError, describe_filters, fetch_broken_backlinks
 
 FIX = Path(__file__).parent / "fixtures"
-RESPONSE = json.loads((FIX / "ahrefs_api_response.json").read_text())
+RESPONSE = json.loads((FIX / "ahrefs_api_response.json").read_text(encoding="utf-8"))
 
 
 @respx.mock
