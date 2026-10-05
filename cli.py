@@ -69,7 +69,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--run-id", help="Kennung des Laufs, Standard aktueller Monat JJJJ-MM; ein zweiter Lauf mit gleicher Kennung liefert denselben Bericht")
     p.add_argument("--report", type=Path,
                    help="Bericht als .md oder .txt, dazu eine .html-Datei daneben; die Ergebnisdatei ist dann der "
-                        "Mailanhang und enthält keine internen Spalten (Priorität, Rang Linkwert, Traffic, Content-Gap)")
+                        "Mailanhang, ohne Content-Gap-Zeilen und ohne die internen Spalten Priorität, Rang Linkwert, "
+                        "Traffic und Content-Gap")
     p.add_argument("--competitor", help="Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten URLs)")
     p.add_argument("--customer", default="", help="Kundenname für Betreff und Text des Berichts, z. B. Fressnapf")
     p.add_argument("--note", action="append", default=[],
@@ -105,7 +106,7 @@ def guess_competitor(result: PipelineResult) -> str:
 
 def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[Path],
                  new_flags: Optional[list[bool]] = None, first_reported: Optional[list[str]] = None,
-                 hide: tuple[str, ...] = ()) -> None:
+                 hide: tuple[str, ...] = (), skip_content_gaps: bool = False) -> None:
     if drafts_path is not None:
         lines = ["# Mail-Entwürfe", ""]
         for key, text in result.drafts.items():
@@ -114,7 +115,8 @@ def write_output(result: PipelineResult, out_path: Path, drafts_path: Optional[P
             lines += [f"## {url_from}", "", f"Tote URL: {url_to}", "", text, ""]
         drafts_path.parent.mkdir(parents=True, exist_ok=True)
         drafts_path.write_text("\n".join(lines), encoding="utf-8")  # drafts first: they cost money
-    df = results_to_dataframe(result.results, new_flags, first_reported, hide=hide)
+    df = results_to_dataframe(result.results, new_flags, first_reported, hide=hide,
+                              skip_content_gaps=skip_content_gaps)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     if out_path.suffix.lower() == ".xlsx":
         out_path.write_bytes(to_xlsx_bytes(df))
@@ -214,7 +216,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 1
     result.summary.errors.extend(n.strip() for n in args.note if n.strip())
     new_flags = mark_new(result.results, seen or {}, run_id)
-    # every open opportunity is in the report, content gaps are in the Excel file; both are
+    # every open opportunity is in the report; content gaps appear in neither mail nor attachment
+    # but only in the plain export; both are
     # remembered so "Neu" stays meaningful, known pairs keep the run of their first record
     recorded = all_opportunity_rows(result.results) + [r for r in result.results
                                                        if r.top and r.is_content_gap and r.verification != "fixed"]
@@ -223,9 +226,10 @@ def main(argv: Optional[list[str]] = None) -> int:
     report = None
     try:
         # with --report the result file is the attachment of the customer mail: no internal columns
+        # and no content-gap rows
         write_output(result, args.out, drafts_out, new_flags if seen is not None else None,
                      first_reported if seen is not None else None,
-                     hide=MAIL_HIDDEN_COLUMNS if args.report else ())
+                     hide=MAIL_HIDDEN_COLUMNS if args.report else (), skip_content_gaps=bool(args.report))
         if args.report:
             attachments = [args.out.name] + ([drafts_out.name] if drafts_out else [])
             report = build_report(result.results, result.summary, new_flags,

@@ -57,4 +57,4 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 - [ ] Vorschlagsseite öffnen: Ersetzt sie den toten Inhalt wirklich?
 - [ ] Mail-Entwurf lesen und persönlich anpassen, nie ungeprüft verschicken
 - [ ] Zeilen mit Ersatztext statt Snapshot aus der Wayback Machine besonders kritisch prüfen
-- [ ] Content-Gaps als Ideen für neue Inhalte notieren: In der Excel-Datei sind das die Zeilen mit "Score 1" unter dem Schwellwert, standardmäßig 0,5
+- [ ] Optional: Content-Gaps als Ideen für neue Inhalte ansehen. Mail und Anhang enthalten sie nicht, die Streamlit-App zeigt sie

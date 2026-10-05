@@ -382,3 +382,18 @@ def test_excel_without_report_keeps_all_columns_and_summary_says_wayback_machine
     assert columns[:2] == ["Priorität", "Rang Linkwert"] and "Content-Gap" in columns
     out = capsys.readouterr().out
     assert "Wayback Machine: " in out and "Wayback: " not in out
+
+
+@respx.mock
+def test_mailed_excel_has_no_content_gap_rows_but_plain_export_has(monkeypatch, tmp_path, capsys, fake_provider):
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    mock_wayback()
+    # threshold 1.01 turns every matched row into a content gap
+    gaps = ["--threshold", "1.01", "--json"]
+    assert cli.main(base_args(tmp_path, out="alle.xlsx") + gaps) == 0
+    total = json.loads(capsys.readouterr().out)
+    plain = pd.read_excel(tmp_path / "alle.xlsx")
+    assert total["content_gaps"] >= 1 and (plain["Content-Gap"] == "Ja").sum() == total["content_gaps"]
+    assert cli.main(base_args(tmp_path, out="mail.xlsx") + gaps + ["--report", str(tmp_path / "b.md")]) == 0
+    mailed = pd.read_excel(tmp_path / "mail.xlsx")
+    assert len(mailed) == len(plain) - total["content_gaps"]

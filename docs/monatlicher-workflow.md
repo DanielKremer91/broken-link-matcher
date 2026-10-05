@@ -22,7 +22,7 @@ Die Checkliste zum Abhaken steht in [checkliste.md](checkliste.md).
    - Links, die die Live-Prüfung als erledigt einstuft, fallen aus dem Bericht. Taucht so ein Link später wieder als offen auf, steht er wieder drin.
    - Ein Content-Gap, für den es später eine passende eigene Seite gibt, erscheint dann als neue Chance.
    - Ahrefs liefert pro linkgebender Domain nur einen Beispiel-Link. Wechselt dieser Beispiel-Link, taucht dieselbe Domain mit einer anderen Seite erneut auf.
-5. **Bericht:** Eine kundenfreundliche Mail mit dem Betreff "Broken Link Chancen" und dem Kundennamen, zum Beispiel "Broken Link Chancen Fressnapf". Sie erklärt in einfachen Worten, worum es geht, und listet jeden Monat alle offenen Chancen: oben die neuen, darunter die weiterhin offenen mit dem Monat ihrer ersten Meldung. Pro Chance stehen verlinkende Website, Stärke, nicht mehr erreichbare Seite mit Linktext, passende eigene Seite mit zwei Alternativen, Passgenauigkeit, Grundlage und Status. Am Ende erklärt die Mail jede Angabe. Content-Gaps stehen nur in der Excel-Datei. Excel und Mail-Entwürfe an die verlinkenden Websites hängen an. Verschickt werden die Entwürfe nie automatisch.
+5. **Bericht:** Eine kundenfreundliche Mail mit dem Betreff "Broken Link Chancen" und dem Kundennamen, zum Beispiel "Broken Link Chancen Fressnapf". Sie erklärt in einfachen Worten, worum es geht, und listet jeden Monat alle offenen Chancen: oben die neuen, darunter die weiterhin offenen mit dem Monat ihrer ersten Meldung. Pro Chance stehen verlinkende Website, Stärke, nicht mehr erreichbare Seite mit Linktext, passende eigene Seite mit zwei Alternativen, Passgenauigkeit, Grundlage und Status. Am Ende erklärt die Mail jede Angabe. Content-Gaps, also tote Seiten ohne passenden eigenen Inhalt, stehen weder in der Mail noch im Anhang. Wer sie als Ideen für neue Inhalte nutzen will, sieht sie in der Streamlit-App oder in einem CLI-Lauf ohne `--report`. Excel und Mail-Entwürfe an die verlinkenden Websites hängen an. Verschickt werden die Entwürfe nie automatisch.
 6. **Versand:** per Resend, per Mail-Connector (Outlook oder Gmail) oder gar nicht. Dann liegt alles im Laufordner.
 
 ### Was "Fallback" bei der Wayback Machine heißt
@@ -226,7 +226,7 @@ laeufe/
   2026-11/
     zooroyal.de/
       broken-backlinks.csv         Antwort des Ahrefs-MCP
-      ergebnis.xlsx                Mailanhang: alle Zeilen mit "Neu" und "Erstmals erfasst", ohne interne Spalten
+      ergebnis.xlsx                Mailanhang, ohne Content-Gaps
       ergebnis-entwuerfe.md        Mail-Entwürfe
       bericht.md, bericht.html     Bericht, so wie er verschickt wird
     fehler.md                      nur wenn etwas schiefging

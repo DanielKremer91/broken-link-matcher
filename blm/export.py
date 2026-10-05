@@ -44,12 +44,16 @@ def results_to_dataframe(
     new_flags: Optional[list[bool]] = None,
     first_reported: Optional[list[str]] = None,
     hide: tuple[str, ...] = (),
+    skip_content_gaps: bool = False,
 ) -> pd.DataFrame:
     """One row per result; with new_flags a column "Neu" (Ja/Nein) follows "Priorität",
     with first_reported a column "Erstmals erfasst" (run id) follows that.
-    Columns named in ``hide`` are left out; the row order stays the priority order."""
+    Columns named in ``hide`` are left out; the row order stays the priority order.
+    ``skip_content_gaps`` leaves out rows without a fitting own page."""
     records = []
     for idx, r in enumerate(results):
+        if skip_content_gaps and r.is_content_gap:
+            continue
         top = r.top + [None] * (3 - len(r.top))
         rec = {
             "Priorität": r.priority,

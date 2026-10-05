@@ -106,3 +106,15 @@ def test_hidden_columns_are_dropped_and_order_kept():
                                 "Quelle Text", "Snapshot", "Vorschlag 1", "Score 1", "Vorschlag 2", "Score 2",
                                 "Vorschlag 3", "Score 3", "Verifikation", "Fehler"]
     assert df.loc[0, "Linkgebende URL"] == "https://a.de/p"
+
+
+def test_content_gap_rows_can_be_left_out_with_aligned_flags():
+    r, gap = rows()
+    third = MatchResult(BrokenBacklink(url_from="https://d.de", url_to="https://c.de/z"),
+                        RecoveredContent("https://c.de/z", "t", "wayback"), priority=3)
+    third.top = [Match("https://me.de/3", 0.8)]
+    df = results_to_dataframe([r, gap, third], [True, True, False], ["2026-10", "2026-10", "2026-09"],
+                              skip_content_gaps=True)
+    assert list(df["Linkgebende URL"]) == ["https://a.de/p", "https://d.de"]
+    assert list(df["Neu"]) == ["Ja", "Nein"] and list(df["Erstmals erfasst"]) == ["2026-10", "2026-09"]
+    assert len(results_to_dataframe([r, gap, third])) == 3

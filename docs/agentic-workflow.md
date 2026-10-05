@@ -92,8 +92,8 @@ options:
   --run-id RUN_ID       Kennung des Laufs, Standard aktueller Monat JJJJ-MM; ein zweiter Lauf mit
                         gleicher Kennung liefert denselben Bericht
   --report REPORT       Bericht als .md oder .txt, dazu eine .html-Datei daneben; die
-                        Ergebnisdatei ist dann der Mailanhang und enthält keine internen Spalten
-                        (Priorität, Rang Linkwert, Traffic, Content-Gap)
+                        Ergebnisdatei ist dann der Mailanhang, ohne Content-Gap-Zeilen und ohne
+                        die internen Spalten Priorität, Rang Linkwert, Traffic und Content-Gap
   --competitor COMPETITOR
                         Name des Wettbewerbers im Bericht (Standard: häufigster Host der toten
                         URLs)
@@ -123,4 +123,4 @@ Schlüssel gehören nie auf die Kommandozeile. Es gibt dafür bewusst keine Opti
 
 ### Monatlicher Lauf
 
-`--seen-file` merkt sich offene Chancen und Content-Gaps als Paare aus linkgebender Seite und toter URL, jeweils mit der Lauf-Kennung aus `--run-id` (Standard: aktueller Monat), in der sie zuerst erfasst wurden. Ein zweiter Lauf mit derselben Kennung liefert denselben Bericht. Die Ergebnisdatei bekommt die Spalten "Neu" und "Erstmals erfasst". Mit `--report` ist die Ergebnisdatei der Anhang der Kundenmail. Sie enthält dann die internen Spalten "Priorität", "Rang Linkwert", "Traffic" und "Content-Gap" nicht; die Zeilen bleiben nach Priorität sortiert. `--report bericht.md` schreibt einen Bericht aller offenen Chancen, neue zuerst, und daneben `bericht.html` für den Mailversand. Mit `--json` stehen zusätzlich `run_id`, `new_rows` (nur mit Verlaufsdatei), `opportunities`, `new_opportunities`, `new_content_gaps`, `report`, `report_html` und `report_subject` in der Ausgabe. Den kompletten monatlichen Ablauf beschreibt [monatlicher-workflow.md](monatlicher-workflow.md).
+`--seen-file` merkt sich offene Chancen und Content-Gaps als Paare aus linkgebender Seite und toter URL, jeweils mit der Lauf-Kennung aus `--run-id` (Standard: aktueller Monat), in der sie zuerst erfasst wurden. Ein zweiter Lauf mit derselben Kennung liefert denselben Bericht. Die Ergebnisdatei bekommt die Spalten "Neu" und "Erstmals erfasst". Mit `--report` ist die Ergebnisdatei der Anhang der Kundenmail. Sie enthält dann keine Content-Gap-Zeilen und die internen Spalten "Priorität", "Rang Linkwert", "Traffic" und "Content-Gap" nicht; die Zeilen bleiben nach Priorität sortiert. `--report bericht.md` schreibt einen Bericht aller offenen Chancen, neue zuerst, und daneben `bericht.html` für den Mailversand. Mit `--json` stehen zusätzlich `run_id`, `new_rows` (nur mit Verlaufsdatei), `opportunities`, `new_opportunities`, `new_content_gaps`, `report`, `report_html` und `report_subject` in der Ausgabe. Den kompletten monatlichen Ablauf beschreibt [monatlicher-workflow.md](monatlicher-workflow.md).
