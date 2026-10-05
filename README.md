@@ -132,3 +132,7 @@ Alle Tests laufen ohne Netzwerkzugriff; HTTP wird mit respx gemockt.
 ## English summary
 
 Broken link building with semantic matching: pull a competitor's broken backlinks (Ahrefs export or API), recover the dead pages from the Wayback Machine (newest 200 snapshot via the CDX API, raw HTML via `id_`), embed with the same model your Screaming Frog used for your own site, rank your top 3 matching URLs by cosine similarity, flag content gaps, verify live, export (semicolon CSV with decimal comma, or XLSX), and draft outreach mails. Pages without a snapshot fall back to a plain concatenation of Ahrefs fields; nothing is generated except the editable mail drafts. The Ahrefs UI export may be UTF-16; the reader handles UTF-8, UTF-16 with BOM and Windows-1252. If columns are not recognised, map them in the UI and feel free to open an issue with the column names. Python 3.11+, Streamlit, no provider SDKs; install `requirements-dev.txt` to run the tests, which are fully mocked. A command-line entry point, `cli.py`, runs the same pipeline headlessly so an agent such as Claude Code can drive it. Keys are read from environment variables only; see `docs/agentic-workflow.md`.
+
+## Lizenz
+
+MIT, siehe [LICENSE](LICENSE).
