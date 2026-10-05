@@ -105,7 +105,7 @@ Erkläre in drei, vier Sätzen: Screaming Frog crawlt die eigenen Seiten und erz
 
 Gibt es noch kein Embedding-Setup, nenne die zwei Wege und empfiehl den ersten:
 
-- **Snippet-Weg (empfohlen, erprobt):** Ein fertiges JavaScript-Snippet aus diesem Repo zieht den Hauptinhalt jeder Seite heraus und erzeugt das Embedding. Braucht JavaScript-Rendering. Der OpenAI-Schlüssel steht dann im Snippet und damit in der Konfigurationsdatei.
+- **Snippet-Weg (empfohlen, erprobt):** Ein fertiges JavaScript-Snippet aus diesem Repo zieht den Hauptinhalt jeder Seite heraus und erzeugt das Embedding. Braucht JavaScript-Rendering und einen OpenAI-Schlüssel, denn die Vorlage spricht nur mit OpenAI. Wer Gemini oder Ollama nutzt, nimmt die KI-Anbindung. Der OpenAI-Schlüssel steht dann im Snippet und damit in der Konfigurationsdatei.
 - **KI-Anbindung von Frog:** Frog erzeugt die Embeddings selbst aus dem Seitentext. Der Schlüssel wird in Frog hinterlegt. In diesem Ablauf weniger erprobt.
 
 Trag die Wahl als `frog.embeddings_source` (`custom_javascript` oder `ai`) und das Modell als `embedding.model` in `monitor.config.json` ein.
@@ -161,9 +161,9 @@ Sag der Person, was jetzt passiert: Du crawlst zur Probe etwa 60 Seiten, das dau
 
 1. Frag den Zustand mit dem Fortschritts-Tool ab. Läuft gerade ein Crawl (`SpiderActiveState`), warte nicht darauf und brich ihn nicht ab: Sag es der Person und frag, wie es weitergehen soll. Ist ein alter Crawl geladen (Zustand ist nicht `SpiderNoDataIdleState`), räume ihn mit dem Tool zum Verwerfen (`sf_clear_crawl`). Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der erste Start ohne Aktivität.
 2. Starte den Crawl: `crawl_url` = `start_url`, `config_path` = `frog.config_file`, `crawl_name` = `blm-probe-<kunde>`.
-3. Frag den Fortschritt etwa alle 30 Sekunden ab, bis mindestens 60 URLs abgeschlossen sind. Zum Warten nutzt du das verfügbare Warte-Werkzeug. Sind nach zwei Minuten noch keine URLs abgeschlossen, starte einmal neu. Nach fünf Minuten nimmst du, was da ist.
+3. Frag den Fortschritt etwa alle 30 Sekunden ab, bis mindestens 60 URLs abgeschlossen sind. Zum Warten nutzt du das verfügbare Warte-Werkzeug. Sind nach zwei Minuten noch keine URLs abgeschlossen, räume mit `sf_clear_crawl` und starte einmal neu. Nach fünf Minuten nimmst du, was da ist.
 4. Halte den Crawl an (`sf_pause_crawl`). Solange er läuft, verweigert Frog jeden Export.
-5. Exportiere die Stichprobe:
+5. Lege im Basisverzeichnis den Ordner `broken-link-monitor` an, falls er fehlt (Tool zum Anlegen von Verzeichnissen). Exportiere dann die Stichprobe:
    - **custom_javascript:** Liste die Datenfelder des Elements `Custom JavaScript`, Filter `All`. Das Embedding-Feld beginnt mit "Embeddings". Exportiere mit dem Tool für SEO-Element-URLs die Felder `Address`, `Content Type`, `Status Code` und das Embedding-Feld nach `broken-link-monitor/probe-<kunde>.ndjson`, höchstens 300 Zeilen. Die Antwort des Tools enthält eine sehr lange Beispielzeile mit Zahlen. Lies sie nicht aus.
    - **ai:** Exportiere mit dem Embedding-Export-Tool nach `broken-link-monitor/probe-<kunde>.csv`.
 6. Prüfe: `.venv/bin/python frog_probe.py "<absoluter Pfad>"`, beim Snippet-Weg mit `--field "<Embedding-Feld>"`.

@@ -49,7 +49,7 @@ git clone https://github.com/DanielKremer91/broken-link-matcher
 ```
 
 ```bash
-cd broken-link-matcher && uv venv && uv pip install -r requirements.txt
+cd broken-link-matcher && uv venv --python 3.11 .venv && uv pip install -r requirements.txt
 ```
 
 ### 2. Screaming-Frog-Konfiguration mit Embeddings
@@ -203,7 +203,7 @@ Bitte Claude in der Desktop-App:
 
 ```
 Lege eine geplante Aufgabe an, die am 1. jedes Monats um 7 Uhr läuft.
-Prompt: Arbeite im Ordner /Pfad/zu/broken-link-matcher. Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.
+Prompt: Geplanter Lauf ohne Rückfragen: Arbeite im Ordner /Pfad/zu/broken-link-matcher. Lies .claude/skills/broken-link-monitor/SKILL.md und führe den Broken-Link-Monitor mit monitor.config.json aus.
 ```
 
 Geplante Aufgaben laufen nur, wenn die Desktop-App geöffnet ist. Verpasste Läufe holt die App beim nächsten Start nach. Der Mac sollte zur geplanten Zeit wach sein, weil der Crawl je nach Seitengröße eine Weile dauert.
@@ -247,7 +247,7 @@ laeufe/
 
 | Meldung | Ursache und Lösung |
 |---|---|
-| Crawl nach wenigen Minuten angehalten: "Snippet liefert keine Embeddings" | Die Frühwarnung hat nach den ersten 50 Seiten keine Embeddings gefunden. Rendering auf JavaScript stellen, Schlüssel im Snippet prüfen, `PREVIEW_TEXT` auf false, Konfiguration neu speichern und den Lauf neu starten. |
+| Crawl nach wenigen Minuten angehalten: "Snippet liefert keine Embeddings" | Die Frühwarnung hat nach den ersten 60 Seiten keine Embeddings gefunden. Rendering auf JavaScript stellen, Schlüssel im Snippet prüfen, `PREVIEW_TEXT` auf false, Konfiguration neu speichern und den Lauf neu starten. |
 | Hinweis "Crawl nicht vollständig" im Bericht | Während des Crawls ist die Verbindung abgerissen, zum Beispiel durch Schlafmodus oder WLAN-Wechsel. Der Lauf hat einmal neu gecrawlt. Rechner wach und online halten und den Lauf wiederholen. |
 | Frog-Export ohne Embeddings | Die Konfiguration enthält kein Embedding-Setup, beim Custom-JavaScript-Weg fehlt das JavaScript-Rendering, oder `frog.embeddings_source` passt nicht zum Weg. |
 | Mehrere oder keine Embedding-Spalten | `frog.custom_js_field` auf den genauen Spaltennamen setzen. |

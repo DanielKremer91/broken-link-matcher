@@ -36,7 +36,7 @@ Die Schritte unten beschreiben den Lauf.
 ## Schritt 0: Konfiguration und Lauf-Kennung
 
 1. Suche `monitor.config.json` in dieser Reihenfolge: im Ordner, den die aufrufende Aufgabe nennt, im aktuellen Arbeitsordner, in `~/broken-link-matcher/`. Findest du keine, beende einen geplanten Lauf mit einer kurzen Meldung in Schritt 7: Ohne Konfiguration gibt es keinen Empfänger. Im Gespräch wechselst du stattdessen in die Einrichtung.
-2. `repo_path` ist der Ordner mit `cli.py`. Führe alle Befehle in diesem Ordner aus. Fehlt das Repo, klone es mit `git clone https://github.com/DanielKremer91/broken-link-matcher <repo_path>` und richte die Umgebung ein: `uv venv && uv pip install -r requirements.txt` (braucht `uv`).
+2. `repo_path` ist der Ordner mit `cli.py`. Führe alle Befehle in diesem Ordner aus. Fehlt das Repo, klone es mit `git clone https://github.com/DanielKremer91/broken-link-matcher <repo_path>` und richte die Umgebung ein: `uv venv --python 3.11 .venv && uv pip install -r requirements.txt` (braucht `uv`).
 3. Lauf-Kennung `RUN` ist der aktuelle Monat im Format `JJJJ-MM`. Nennt die aufrufende Aufgabe ausdrücklich eine Lauf-Kennung, zum Beispiel zum Nachholen eines Vormonats, nimm diese. Laufordner ist `<output_dir>/<RUN>/`.
 4. Prüfe die Einrichtung: `.venv/bin/python check_setup.py --config <pfad zur config>`. Bei Exit-Code ungleich 0 weiter mit Schritt 6 (Fehler melden), die Ausgabe ist die Fehlermeldung.
 
@@ -52,7 +52,7 @@ Wenn `frog.crawl` true ist:
 2. Frag zuerst den Zustand mit dem Fortschritts-Tool ab:
    - `SpiderActiveState`: Es läuft bereits ein Crawl. Brich ihn nicht ab. Weiter mit Schritt 6 (Fehler melden): "In Screaming Frog läuft bereits ein Crawl."
    - Jeder andere Zustand außer `SpiderNoDataIdleState`: Im MCP ist noch ein alter Crawl geladen. Räume ihn mit `sf_clear_crawl`. Gespeicherte Crawls bleiben dabei erhalten. Ohne dieses Räumen bleibt der nächste Start ohne Aktivität.
-   Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
+   Starte dann den Crawl mit dem Crawl-Tool: `crawl_url` = `start_url`, `config_path` = `frog.config_file`. JavaScript-Rendering und das Embedding-Setup stecken in dieser Konfiguration. Frage nach etwa zwei Minuten den Fortschritt ab. Sind dann noch keine URLs gecrawlt und der Zustand ist untätig, räume mit `sf_clear_crawl` und starte den Crawl genau einmal neu. Bleibt auch der zweite Start untätig, weiter mit Schritt 6 (Fehler melden).
 3. **Frühwarnung bei `custom_javascript`:** Sobald das Fortschritts-Tool mindestens 60 abgeschlossene URLs meldet, prüfe eine Stichprobe, statt bis zum Ende zu warten:
    - Halte den Crawl an (`sf_pause_crawl`). Solange er läuft, verweigert Frog jeden Export ("SEO Spider is busy").
    - Ermittle das Embedding-Feld wie in Punkt 6 beschrieben.

@@ -31,7 +31,7 @@ Optional: `traffic` im select ergänzen, wenn du den organischen Traffic der lin
 
 ## Kosten
 
-Jede Zeile kostet API-Units, mit der Auswahl oben etwa 11 Units pro Zeile. Abfragen auf `ahrefs.com` als Ziel sind kostenlos und eignen sich zum Üben.
+Jede Zeile kostet API-Units, mit der Auswahl oben etwa 11 bis 12 Units pro Zeile, je nach Filtern. Abfragen auf `ahrefs.com` als Ziel sind kostenlos und eignen sich zum Üben.
 
 ## Beispieldatei
 

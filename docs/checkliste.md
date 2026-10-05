@@ -20,7 +20,7 @@ Zum Abhaken. Details zu jedem Punkt stehen in [monatlicher-workflow.md](monatlic
 
 ## Einrichtung
 
-- [ ] Repo geklont und `uv venv && uv pip install -r requirements.txt` ausgeführt
+- [ ] Repo geklont und `uv venv --python 3.11 .venv && uv pip install -r requirements.txt` ausgeführt
 - [ ] Frog: Embeddings eingerichtet, per Vorlage `frog/main-content-embedding.js` oder KI-Anbindung mit "Page Text"
 - [ ] Frog: Nur der Hauptinhalt wird eingebettet (Vorschau mit `PREVIEW_TEXT = true` oder Content Area geprüft)
 - [ ] Frog: dasselbe Modell wie `embedding.model` in `monitor.config.json`

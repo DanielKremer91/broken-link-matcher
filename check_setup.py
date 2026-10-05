@@ -33,7 +33,7 @@ def check(cfg: dict) -> list[tuple[bool, str, str]]:
         "zum Beispiel /Users/name/broken-link-matcher.")
     if repo_ok:
         add((repo / ".venv" / "bin" / "python").exists(), "Virtuelle Umgebung .venv ist eingerichtet",
-            "Im Repo-Ordner ausführen: uv venv && uv pip install -r requirements.txt "
+            "Im Repo-Ordner ausführen: uv venv --python 3.11 .venv && uv pip install -r requirements.txt "
             "(ohne uv: python3 -m venv .venv && .venv/bin/pip install -r requirements.txt).")
         add((repo / ".env").is_file(), "Schlüsseldatei .env ist angelegt",
             "Im Repo-Ordner ausführen: cp .env.example .env && chmod 600 .env")
@@ -59,8 +59,8 @@ def check(cfg: dict) -> list[tuple[bool, str, str]]:
     if frog.get("crawl", True):
         path = Path(str(frog.get("config_file", ""))).expanduser()
         add(bool(frog.get("config_file")) and path.is_file(), f"Frog-Konfiguration vorhanden ({path})",
-            "In Screaming Frog: Datei, Konfiguration, Speichern unter. Im Dialog den Ordner auswählen und nur den "
-            "Dateinamen eintippen, nicht den ganzen Pfad. Der Pfad muss zu frog.config_file passen.")
+            "In Screaming Frog über Konfiguration > Profile > Speichern unter... unter genau diesem Dateinamen auf dem "
+            "Schreibtisch speichern. Danach ausführen: .venv/bin/python place_frog_config.py --target <dieser Pfad>")
     else:
         path = Path(str(frog.get("embeddings_file", ""))).expanduser()
         add(bool(frog.get("embeddings_file")) and path.is_file(), f"Frog-Embeddings-Export vorhanden ({path})",
