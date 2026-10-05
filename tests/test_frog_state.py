@@ -9,12 +9,27 @@ def lock(tmp_path, customer, run="2026-11"):
     return frog_state.main(["lock", "--dir", str(tmp_path), "--customer", customer, "--run", run])
 
 
-def test_lock_is_free_then_busy_for_other_customer_and_reentrant_for_owner(tmp_path, capsys):
-    assert lock(tmp_path, "fressnapf") == 0
+def test_lock_is_free_then_busy_for_everyone_including_a_second_run_of_the_owner(tmp_path, capsys):
     assert lock(tmp_path, "fressnapf") == 0
     capsys.readouterr()
     assert lock(tmp_path, "bora") == 3
     assert "fressnapf" in capsys.readouterr().out
+    assert lock(tmp_path, "fressnapf") == 3
+    assert "denselben Kunden" in capsys.readouterr().out
+
+
+def test_refresh_keeps_a_long_run_from_going_stale(tmp_path):
+    lock(tmp_path, "fressnapf")
+    path = tmp_path / frog_state.LOCK_NAME
+    old = time.time() - (frog_state.STALE_HOURS - 1) * 3600
+    os.utime(path, (old, old))
+    assert frog_state.main(["refresh", "--dir", str(tmp_path), "--customer", "fressnapf"]) == 0
+    assert time.time() - path.stat().st_mtime < 60
+    assert frog_state.main(["refresh", "--dir", str(tmp_path), "--customer", "bora"]) == 1
+
+
+def test_stale_limit_covers_wait_plus_two_crawls():
+    assert frog_state.STALE_HOURS >= 13
 
 
 def test_unlock_only_by_owner_then_free(tmp_path):

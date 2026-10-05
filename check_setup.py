@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from ahrefs_params import build as build_ahrefs
+from frog_crawl_check import _on_domain
 from blm.envfile import load_env_file
 from blm.ingest.ahrefs_api import AhrefsError
 
@@ -58,6 +59,10 @@ def check(cfg: dict) -> list[tuple[bool, str, str]]:
         "In monitor.config.json bei output_dir einen Ordnernamen eintragen, zum Beispiel laeufe.")
     add(str(cfg.get("start_url", "")).startswith(("http://", "https://")), "start_url beginnt mit http(s)://",
         "In monitor.config.json bei start_url die vollständige Start-URL des Crawls eintragen, mit https://.")
+    if cfg.get("own_domain") and cfg.get("start_url"):
+        add(_on_domain(str(cfg["start_url"]), str(cfg["own_domain"])), "start_url gehört zu own_domain",
+            "start_url und own_domain müssen dieselbe Website meinen, zum Beispiel https://www.fressnapf.de/magazin/ "
+            "und fressnapf.de. Der Monitor verwendet nur Crawls der eigenen Domain.")
 
     frog = cfg.get("frog") or {}
     source = frog.get("embeddings_source", "custom_javascript")

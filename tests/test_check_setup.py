@@ -198,3 +198,10 @@ def test_windows_style_venv_is_accepted(setup, capsys):
     (repo / ".venv" / "Scripts" / "python.exe").write_text("")
     rc, out = run(write(), capsys)
     assert rc == 0, out
+
+
+def test_start_url_must_belong_to_own_domain(setup, capsys):
+    write, _ = setup
+    rc, out = run(write(start_url="https://www.bora.com/de-de/ratgeber/"), capsys)
+    assert rc == 1 and "start_url gehört zu own_domain" in out
+    assert run(write(start_url="https://magazin.fressnapf.de/"), capsys)[0] == 0

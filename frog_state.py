@@ -4,8 +4,9 @@
 All setups on one computer share one Screaming Frog MCP instance, which can hold
 only one crawl at a time. Two helpers keep runs apart and reruns honest:
 
-  lock / unlock   a lock file in the Frog folder; another customer's run waits
-                  instead of clearing or exporting a crawl that is not its own
+  lock / unlock   a lock file in the Frog folder; any other run, also a second
+  / refresh       one for the same customer, waits instead of clearing or
+                  exporting a crawl that is not its own
   save-meta /     remembers with which settings this month's crawl was made, so a
   check-meta      crawl is only reused while start URL, Frog config and model match
 
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 import time
 from datetime import datetime
@@ -23,7 +25,7 @@ from pathlib import Path
 from typing import Optional
 
 LOCK_NAME = "frog-lock.json"
-STALE_HOURS = 8
+STALE_HOURS = 14  # a run may hold the lock for two crawls of up to six hours each
 
 
 def _read(path: Path) -> Optional[dict]:
@@ -35,19 +37,43 @@ def _read(path: Path) -> Optional[dict]:
 
 
 def lock(folder: Path, customer: str, run: str) -> int:
+    """Take the lock atomically. A fresh lock blocks everyone, also a second run of the same customer."""
+    path = folder / LOCK_NAME
+    folder.mkdir(parents=True, exist_ok=True)
+    payload = json.dumps({"customer": customer, "run": run,
+                          "started": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False)
+    for _ in range(2):
+        try:
+            with open(path, "x", encoding="utf-8") as fh:  # exclusive create: only one run wins
+                fh.write(payload)
+            print(f"Screaming Frog reserviert für {customer}.")
+            return 0
+        except FileExistsError:
+            current = _read(path)
+            try:
+                age_hours = (time.time() - path.stat().st_mtime) / 3600
+            except OSError:
+                continue  # vanished in between: try again
+            if current is not None and age_hours < STALE_HOURS:
+                who = current.get("customer")
+                same = " für denselben Kunden" if who == customer else ""
+                print(f"Screaming Frog ist belegt: Es läuft bereits ein Lauf{same} ({who}, seit "
+                      f"{current.get('started', 'unbekannt')}). Später erneut versuchen. Läuft sicher kein Lauf mehr, "
+                      "die Reservierung mit unlock aufheben.")
+                return 3
+            path.unlink(missing_ok=True)  # stale or unreadable lock: take it over
+    return 3
+
+
+def refresh(folder: Path, customer: str) -> int:
+    """Keep a long run's lock fresh; only the owner may do that."""
     path = folder / LOCK_NAME
     current = _read(path) if path.is_file() else None
-    if current and current.get("customer") != customer:
-        age_hours = (time.time() - path.stat().st_mtime) / 3600
-        if age_hours < STALE_HOURS:
-            print(f"Screaming Frog ist belegt: Lauf für {current.get('customer')} seit {current.get('started', 'unbekannt')}. "
-                  "Später erneut versuchen.")
-            return 3
-    folder.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps({"customer": customer, "run": run,
-                                "started": datetime.now().isoformat(timespec="seconds")}, ensure_ascii=False),
-                    encoding="utf-8")
-    print(f"Screaming Frog reserviert für {customer}.")
+    if current is None or current.get("customer") != customer:
+        print("Keine eigene Reservierung vorhanden.")
+        return 1
+    now = time.time()
+    os.utime(path, (now, now))
     return 0
 
 
@@ -82,7 +108,7 @@ LABELS = {"start_url": "Start-URL", "frog_config_file": "Pfad der Frog-Konfigura
 def main(argv: Optional[list[str]] = None) -> int:
     p = argparse.ArgumentParser(prog="frog_state.py", description="Frog-Reservierung und Crawl-Einstellungen des Monitors.")
     sub = p.add_subparsers(dest="cmd", required=True)
-    for name in ("lock", "unlock"):
+    for name in ("lock", "unlock", "refresh"):
         sp = sub.add_parser(name)
         sp.add_argument("--dir", required=True, type=Path, help="Ordner broken-link-monitor im Frog-Basisverzeichnis")
         sp.add_argument("--customer", required=True)
@@ -98,6 +124,8 @@ def main(argv: Optional[list[str]] = None) -> int:
             return lock(args.dir.expanduser(), args.customer, args.run)
         if args.cmd == "unlock":
             return unlock(args.dir.expanduser(), args.customer)
+        if args.cmd == "refresh":
+            return refresh(args.dir.expanduser(), args.customer)
         settings = crawl_settings(args.config)
         if args.cmd == "save-meta":
             args.meta.parent.mkdir(parents=True, exist_ok=True)

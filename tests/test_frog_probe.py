@@ -51,3 +51,10 @@ def test_wide_export_of_builtin_ai_embeddings(tmp_path):
     p.write_text("\n".join([header, good, good.replace("/1", "/3"), empty]), encoding="utf-8")
     r = frog_probe.probe(p)
     assert r["verdict"] == "ok" and r["with_vectors"] == 2 and r["dimension"] == 40
+
+
+def test_domain_check_on_the_export(tmp_path):
+    p = write(tmp_path, [row(1, VEC), row(2, VEC)])
+    assert frog_probe.probe(p, "Ext 1", domain="a.de")["verdict"] == "ok"
+    r = frog_probe.probe(p, "Ext 1", domain="fressnapf.de")
+    assert r["verdict"] == "falsche_domain" and r["on_domain_share"] == 0.0

@@ -62,6 +62,8 @@ Die Schritte unten beschreiben den Lauf.
 
 5. Schlafschutz auf dem Mac: Starte im Hintergrund `caffeinate -i -t 43200`. Das verhindert für bis zu zwölf Stunden, dass der Rechner wegen Untätigkeit einschläft und dem Crawl die Verbindung abreißt. Den zugeklappten Laptop verhindert es nicht. Unter Windows entfällt dieser Punkt, siehe Tabelle oben.
 
+6. Bei `mail.method` `resend` oder `connector`: Haben in diesem Monat schon alle Wettbewerber einen Versandmerker (`<laufordner>/W/versendet.json`) und verlangt der Auftrag weder "erneut senden" noch einen neuen Lauf, ist nichts zu tun. Beende den Lauf mit Schritt 7, ohne zu crawlen.
+
 `<kunde>` ist im Folgenden der Kundenname aus `customer`, klein geschrieben, Leerzeichen als Bindestrich, Umlaute als ae, oe, ue, zum Beispiel `fressnapf`.
 
 Ein zweiter Lauf im selben Monat ist unkritisch. Wettbewerber, deren Bericht schon verschickt ist, werden übersprungen (Schritt 2). Ein vollständiger Crawl des Monats wird wiederverwendet (Schritt 1).
@@ -79,7 +81,8 @@ Wenn `frog.crawl` true ist:
    - Die Prüfung aus Punkt 7 ist für den Export erfolgreich.
 2. **Frog reservieren.** Alle Einrichtungen auf diesem Rechner teilen sich einen Screaming Frog. Reserviere ihn, bevor du irgendetwas am Crawl-Zustand änderst: `.venv/bin/python frog_state.py lock --dir FROGDIR --customer <kunde> --run <RUN>`.
    - Exit-Code 0: reserviert, weiter.
-   - Exit-Code 3: Ein Lauf für einen anderen Kunden nutzt Frog gerade. Räume und starte nichts. Im geplanten Lauf versuchst du es alle zehn Minuten erneut, bis zu sechs Stunden. Danach weiter mit Schritt 6 (Fehler melden): "Screaming Frog war über sechs Stunden von einem anderen Lauf belegt." Im Gespräch sagst du es der Person.
+   - Exit-Code 3: Ein anderer Lauf nutzt Frog gerade, für einen anderen Kunden oder ein zweiter Lauf für denselben. Räume und starte nichts. Im geplanten Lauf versuchst du es alle zehn Minuten erneut, bis zu sechs Stunden. Danach weiter mit Schritt 6 (Fehler melden): "Screaming Frog war über sechs Stunden von einem anderen Lauf belegt." Im Gespräch zeigst du der Person die Meldung. Bestätigt sie, dass kein anderer Lauf mehr läuft, zum Beispiel nach einem abgestürzten Lauf, hebst du die alte Reservierung mit `unlock` auf und reservierst neu.
+   Reserviere in einem Lauf nur einmal. Brauchst du die Reservierung länger, etwa vor einem Neustart des Crawls, verlängerst du sie mit `.venv/bin/python frog_state.py refresh --dir FROGDIR --customer <kunde>`.
    Die Reservierung hebst du nach Punkt 7 wieder auf, und ebenso, bevor du wegen eines Fehlers in Schritt 1 zu Schritt 6 gehst: `.venv/bin/python frog_state.py unlock --dir FROGDIR --customer <kunde>`.
 
    Frag dann den Zustand mit dem Fortschritts-Tool ab:
@@ -101,19 +104,22 @@ Wenn `frog.crawl` true ist:
    - `falsche_domain`: Der geladene Crawl gehört nicht zu dieser Website. Exportiere nichts weiter und verwende nichts davon. Reservierung aufheben und weiter mit Schritt 6 (Fehler melden): "Der Crawl in Screaming Frog gehört nicht zu <own_domain>. Vermutlich hat ein anderer Lauf dazwischengefunkt. Bitte den Lauf wiederholen."
    - `ok`: weiter.
    - `warnung` (5 bis 30 Prozent der Seiten ohne Antwort): weiter, aber merke dir den Hinweis für Schritt 3, zum Beispiel "Crawl nicht vollständig: 80 von 1.340 Seiten ohne Antwort (Internet Disconnected). Für diese Seiten fehlen Vorschläge."
-   - `unvollstaendig` (über 30 Prozent): Meist ist die Verbindung abgerissen. Starte den Crawl genau einmal neu, ab Punkt 2, und prüfe erneut. Ist er wieder unvollständig, mach weiter, nimm den Hinweis für Schritt 3 mit und trage ihn auch in `fehler.md` ein.
+   - `unvollstaendig` (über 30 Prozent): Meist ist die Verbindung abgerissen. Starte den Crawl genau einmal neu und prüfe erneut: Reservierung mit `refresh` verlängern, `sf_clear_crawl`, dann den Crawl-Start aus Punkt 2 ohne erneutes Reservieren. Ist er wieder unvollständig, mach weiter, nimm den Hinweis für Schritt 3 mit und trage ihn auch in `fehler.md` ein.
 6. Exportiere die Embeddings, je nach `frog.embeddings_source`:
    - **custom_javascript** (gilt auch, wenn `frog.embeddings_source` fehlt): Liste die Datenfelder des SEO-Elements `Custom JavaScript` mit Filter `All`. Nimm das Feld aus `frog.custom_js_field`. Steht es nicht in der Liste, weiter mit Schritt 6 (Fehler melden) und der Liste der Felder. Ist es leer, nimm das einzige Feld, dessen Name `embed` enthält (Groß- und Kleinschreibung egal). Gibt es keins oder mehrere, weiter mit Schritt 6 (Fehler melden) und der Liste der Felder. Exportiere dann mit dem Tool für SEO-Element-URLs: Element `Custom JavaScript`, Filter `All`, Felder `Address` und das gewählte Feld, ohne Zeilenlimit, Datei `broken-link-monitor/<own_domain>-<RUN>.ndjson`.
    - **ai**: Exportiere mit dem Embedding-Export-Tool nach `broken-link-monitor/<own_domain>-<RUN>.csv`. Dieser Export funktioniert nur mit den eingebauten KI-Embeddings von Frog.
    Der absolute Pfad ist Basisverzeichnis plus Dateipfad. Die Antwort des Export-Tools enthält eine lange Beispielzeile mit Zahlen; lies sie nicht aus, die Datei reicht.
 7. Prüfe den Export: `.venv/bin/python -c "import sys; from blm.ingest.frog_csv import load_frog_embeddings; i = load_frog_embeddings(sys.argv[1]); print(len(i.pages), i.dimension)" <absoluter Pfad>`. Ausgabe sind Seitenzahl und Dimension. Bei einem Fehler oder null Seiten löschst du den Embedding-Export und die Meta-Datei, damit der nächste Lauf frisch crawlt, hebst die Reservierung auf und gehst zu Schritt 6 (Fehler melden) mit dem Hinweis: "Der Frog-Export enthält keine Embeddings. Konfiguration prüfen, beim Snippet auch, ob PREVIEW_TEXT auf false steht. Der nächste Lauf crawlt neu."
+   Prüfe zusätzlich, dass der Export wirklich die eigene Website ist: `.venv/bin/python frog_probe.py <absoluter Pfad> --domain <own_domain>`, beim Snippet-Weg mit `--field "<Embedding-Feld>"`. Meldet es `falsche_domain`, verfährst du wie bei einem Fehler: Export und Meta-Datei löschen, Reservierung aufheben, Schritt 6 (Fehler melden).
 8. Merke die Einstellungen dieses Crawls und gib Frog frei: `.venv/bin/python frog_state.py save-meta --config <pfad zur config> --meta FROGDIR/<own_domain>-<RUN>-meta.json`, danach `.venv/bin/python frog_state.py unlock --dir FROGDIR --customer <kunde>`.
 
 Wenn `frog.crawl` false ist, nimm `frog.embeddings_file` als fertigen Export und prüfe ihn genauso.
 
 ## Schritt 2: Broken Backlinks pro Wettbewerber (Ahrefs-MCP)
 
-**Schon verschickte Wettbewerber überspringen.** Existiert `<laufordner>/W/versendet.json`, ist der Bericht für `W` in diesem Monat schon rausgegangen. Dann entfallen für `W` die Schritte 2 bis 4 komplett: kein Ahrefs-Abruf, kein `cli.py`, kein Versand. Die verschickten Dateien bleiben unverändert. Erwähne es in Schritt 7. Nur wenn der Auftrag ausdrücklich "erneut senden" oder einen neuen Lauf für `W` verlangt, arbeitest du `W` trotzdem ab.
+**Schon verschickte Wettbewerber überspringen.** Existiert `<laufordner>/W/versendet.json`, ist der Bericht für `W` in diesem Monat schon rausgegangen. Dann entfallen für `W` die Schritte 2 bis 4 komplett: kein Ahrefs-Abruf, kein `cli.py`, kein Versand. Die verschickten Dateien bleiben unverändert. Erwähne es in Schritt 7.
+- Verlangt der Auftrag "erneut senden", verschickst du für `W` nur die vorhandenen Dateien noch einmal (Schritt 4 mit `--resend`), ohne Ahrefs und ohne `cli.py`.
+- Nur wenn der Auftrag ausdrücklich einen neuen Lauf für `W` verlangt, arbeitest du `W` komplett neu ab.
 
 Für jeden übrigen Eintrag `W` in `competitors`:
 
