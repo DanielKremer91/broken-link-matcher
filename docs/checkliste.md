@@ -3,7 +3,7 @@
 **Schnellstart:** Claude-Desktop-App öffnen, Bereich Code, eine neue Sitzung starten (welcher Ordner, ist egal) und diesen Satz eingeben:
 
 ```
-Richte mir den Broken Link Monitor ein. Klone dazu https://github.com/DanielKremer91/broken-link-matcher und folge der Anleitung für Claude in der README.
+Richte mir den Broken Link Monitor ein. Klone dazu https://github.com/DanielKremer91/broken-link-matcher nach ~/broken-link-matcher und folge der Anleitung für Claude in der README.
 ```
 
 Claude führt dann durch alle Punkte unten.

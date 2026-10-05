@@ -26,12 +26,13 @@ Vieles ist bei der Person vielleicht schon da: das Repo, die Umgebung, Schlüsse
 ## Schritt 1: Repo und Umgebung
 
 1. Gibt es noch kein Repo, schlag als Speicherort `~/broken-link-matcher` im Benutzerordner vor und frag kurz, ob das passt. Gibt es schon eine Einrichtung für einen anderen Kunden, schlag einen eigenen Ordner vor, zum Beispiel `~/broken-link-matcher-<kunde>`. Eine Einrichtung gehört immer zu genau einem Kunden. Klone nicht einfach in den Ordner, in dem die Sitzung gerade läuft. Erstnutzer starten Claude oft in einem zufälligen Ordner, und der Monitor soll an einem festen, leicht auffindbaren Ort liegen. Fragt Claude dafür nach einer Berechtigung, erkläre in einem Satz, warum.
-2. Klone das Repo dorthin: `git clone https://github.com/DanielKremer91/broken-link-matcher <ordner>`. Existiert der Ordner schon mit `cli.py`, nutze ihn und hole Neuerungen mit `git pull`.
-3. Fehlt die Umgebung `.venv`, richte sie ein, im Repo-Ordner:
+2. Hast du das Repo schon woanders geklont, zum Beispiel in den Sitzungsordner, um die Anleitung zu lesen, und liegt dort noch keine Einrichtung (keine `.env`, keine `monitor.config.json`, kein Ordner `laeufe`): Verschiebe diesen Klon mit `mv` an den Zielort, statt ein zweites Mal zu klonen. Sag der Person in einem Satz, dass du den Ordner verschoben hast. Eine dort schon angelegte `.venv` löschst du nach dem Verschieben und legst sie neu an, weil sie feste Pfade enthält.
+3. Sonst klone das Repo dorthin: `git clone https://github.com/DanielKremer91/broken-link-matcher <ordner>`. Existiert der Ordner schon mit `cli.py`, nutze ihn und hole Neuerungen mit `git pull`.
+4. Fehlt die Umgebung `.venv`, richte sie ein, im Repo-Ordner:
    - mit `uv`: `uv venv --python 3.11 .venv && uv pip install -r requirements.txt`
    - ohne `uv`, wenn `python3 --version` mindestens 3.11 zeigt: `python3 -m venv .venv && .venv/bin/pip install -r requirements.txt`
    - Fehlt beides, erkläre, wie man `uv` installiert (`brew install uv`, ohne Homebrew das Installationsskript von astral.sh), und warte.
-4. Fehlt die Schlüsseldatei, lege sie an: `cp -n .env.example .env && chmod 600 .env`. Das `-n` verhindert, dass eine vorhandene `.env` mit eingetragenen Schlüsseln überschrieben wird.
+5. Fehlt die Schlüsseldatei, lege sie an: `cp -n .env.example .env && chmod 600 .env`. Das `-n` verhindert, dass eine vorhandene `.env` mit eingetragenen Schlüsseln überschrieben wird.
 
 ## Schritt 2: Voraussetzungen prüfen
 

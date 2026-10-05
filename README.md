@@ -9,12 +9,12 @@ Vorgestellt auf der SEOKomm 2026.
 Öffne die Claude-Desktop-App, Bereich Code, und starte eine neue Sitzung. Welcher Ordner dabei ausgewählt ist, spielt keine Rolle, zum Beispiel dein Benutzerordner. Dann schreib:
 
 ```
-Richte mir den Broken Link Monitor ein. Klone dazu https://github.com/DanielKremer91/broken-link-matcher und folge der Anleitung für Claude in der README.
+Richte mir den Broken Link Monitor ein. Klone dazu https://github.com/DanielKremer91/broken-link-matcher nach ~/broken-link-matcher und folge der Anleitung für Claude in der README.
 ```
 
 Claude legt den Monitor unter `~/broken-link-matcher` an, stellt dir ein paar Fragen und führt dich Schritt für Schritt durch die Einrichtung bis zum ersten Lauf. Was du dafür brauchst, steht in der [Checkliste](docs/checkliste.md).
 
-> **Anleitung für Claude:** Soll der Broken Link Monitor eingerichtet werden, folge `.claude/skills/broken-link-monitor/EINRICHTUNG.md` in diesem Repo. Für einen Lauf gilt `.claude/skills/broken-link-monitor/SKILL.md`.
+> **Anleitung für Claude:** Soll der Broken Link Monitor eingerichtet werden, folge `.claude/skills/broken-link-monitor/EINRICHTUNG.md` in diesem Repo. Der Monitor gehört nach `~/broken-link-matcher`, nicht in den Ordner, in dem die Sitzung läuft. Existiert der Zielordner schon, klone nicht erneut, sondern beginne mit der Bestandsaufnahme in Schritt 0. Für einen Lauf gilt `.claude/skills/broken-link-monitor/SKILL.md`.
 
 ## Ablauf
 
